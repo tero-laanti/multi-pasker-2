@@ -1,115 +1,120 @@
-import type { GripFrame, HandSpec } from './hands';
+import type { HandPose } from './handSolve';
 
 /**
- * Hand poses for each weapon, in each weapon's grip frame (see hands.ts). Joints are
- * [along the grip, forward, right] in metres.
+ * Hand poses on each weapon, in the weapon's model space (X right, Y up, muzzle towards -Z,
+ * metres). The hand is placed by three joints (wrist and the index and little finger
+ * knuckles); fingers marked `wrap` close until they touch the weapon, the trigger finger and
+ * the thumb are aimed with IK at a pad target. Angles are radians; flexion curls towards
+ * the palm, positive spread turns a finger towards the thumb.
  */
-export type HandKey = 'pistol.right' | 'pistol.left' | 'rifle.right' | 'rifle.left';
+export type HandKey = 'pistol.right' | 'pistol.left' | 'pistol.leftRack' | 'rifle.right' | 'rifle.left' | 'phone.left';
 
-const pistolGrip: GripFrame = { origin: [0, -0.03, -0.02], down: [0, -0.906, 0.423], fwd: [0, -0.423, -0.906] };
-
-// Right hand alone holds the pistol; thumb forward along the left of the frame.
-const pistolRight: HandSpec = {
-  wrist: [0.075, -0.048, 0.014],
-  elbow: [0.36, -0.1, 0.12],
-  knuckles: [
-    [0.004, 0.005, 0.029],
-    [0.024, 0.008, 0.031],
-    [0.043, 0.006, 0.03],
-    [0.061, 0.001, 0.027],
-  ],
-  back: [0, -0.35, 1],
-  pads: [
-    { c: [0.006, -0.033, 0.006], r: [0.011, 0.009, 0.012] },
-    { c: [0.066, -0.034, 0.018], r: [0.02, 0.012, 0.012] },
-    { c: [0.036, -0.03, -0.008], r: [0.015, 0.011, 0.008] },
-  ],
-  fingers: [
-    { joints: [[-0.004, 0.04, 0.026], [-0.008, 0.054, 0.012], [-0.013, 0.051, 0.004]], radii: [0.0086, 0.0081, 0.0076, 0.0068] },
-    { joints: [[0.025, 0.046, 0.017], [0.026, 0.045, -0.011], [0.026, 0.028, -0.025]], radii: [0.0088, 0.0083, 0.0077, 0.007] },
-    { joints: [[0.044, 0.043, 0.016], [0.045, 0.042, -0.01], [0.045, 0.027, -0.023]], radii: [0.0085, 0.008, 0.0075, 0.0068] },
-    { joints: [[0.062, 0.034, 0.014], [0.063, 0.036, -0.005], [0.064, 0.024, -0.018]], radii: [0.0078, 0.0074, 0.0069, 0.0062] },
-  ],
-  thumb: { joints: [[0.03, -0.034, -0.002], [0.012, -0.016, -0.026], [0.0, 0.014, -0.029], [-0.006, 0.034, -0.028]], radii: [0.0105, 0.0095, 0.0088, 0.008] },
+// One-handed pistol grip: web high under the bolt, back of the hand round the right side,
+// fingers round the front strap, index finger along the frame onto the trigger, thumb
+// forward along the left of the frame.
+const pistolRight: HandPose = {
+  weapon: 'pistol',
+  place: { indexMcp: [0.03, -0.04, -0.03], along: [0, -0.12, -0.99], back: [0.99, 0.15, 0] },
+  palmPress: 0.006,
+  cup: 0.008,
+  forearm: [0.25, -0.55, 0.8],
+  index: { mcp: { flex: 0.15, abd: 0.05 }, pip: 0.5, dip: 0.3, pad: { at: [0, -0.037, -0.0755], normal: [0, 0, 1] } },
+  middle: { mcp: { flex: 0.5, abd: 0 }, pip: 0.3, dip: 0.2, wrap: true },
+  ring: { mcp: { flex: 0.5, abd: 0.06 }, pip: 0.3, dip: 0.2, wrap: true },
+  pinky: { mcp: { flex: 0.5, abd: 0.14 }, pip: 0.3, dip: 0.2, wrap: true },
+  thumb: { aim: { mcp: [-0.018, -0.024, 0.013], ip: [-0.0215, -0.022, -0.018], tip: [-0.0215, -0.021, -0.042], pad: [1, 0, 0] } },
+  wrapAxis: { p: [0, -0.03, -0.02], d: [0, -0.906, 0.423] },
+  sleeve: { start: 0.05, length: 0.3, radius: 0.036 },
 };
 
-// Left hand only appears while reloading, cupped round a magazine.
-const pistolLeft: HandSpec = {
-  wrist: [0.085, -0.02, -0.058],
-  elbow: [0.36, -0.05, -0.17],
-  knuckles: [
-    [0.03, 0.032, -0.044],
-    [0.048, 0.034, -0.045],
-    [0.065, 0.031, -0.042],
-    [0.081, 0.026, -0.038],
-  ],
-  back: [0, -0.2, -1],
-  pads: [
-    { c: [0.07, -0.012, -0.05], r: [0.02, 0.012, 0.012] },
-    { c: [0.045, -0.015, -0.046], r: [0.015, 0.011, 0.008] },
-  ],
-  fingers: [
-    { joints: [[0.031, 0.064, -0.022], [0.032, 0.066, 0.006], [0.032, 0.055, 0.024]], radii: [0.0086, 0.0081, 0.0076, 0.0068] },
-    { joints: [[0.049, 0.066, -0.022], [0.05, 0.068, 0.006], [0.05, 0.057, 0.025]], radii: [0.0088, 0.0083, 0.0077, 0.007] },
-    { joints: [[0.066, 0.062, -0.02], [0.067, 0.063, 0.006], [0.067, 0.052, 0.023]], radii: [0.0085, 0.008, 0.0075, 0.0068] },
-    { joints: [[0.082, 0.054, -0.018], [0.083, 0.055, 0.004], [0.083, 0.045, 0.018]], radii: [0.0078, 0.0074, 0.0069, 0.0062] },
-  ],
-  thumb: { joints: [[0.052, -0.022, -0.05], [0.034, -0.004, -0.047], [0.022, 0.024, -0.044], [0.016, 0.046, -0.04]], radii: [0.0105, 0.0095, 0.0088, 0.008] },
+// Left hand during pistol reloads, posed on the seated magazine (it rides with the magazine):
+// base plate in the palm, fingers curled round its front, thumb up the left of the grip.
+const pistolLeft: HandPose = {
+  weapon: 'pistol',
+  left: true,
+  avoid: 'pistol.right',
+  place: { indexMcp: [-0.022, -0.136, -0.026], along: [0.15, 0, -1], back: [0, -1, 0] },
+  palmPress: 0.004,
+  forearm: [-0.35, -0.55, 0.75],
+  index: { mcp: { flex: 0.2 }, pip: 0.3, dip: 0.2, wrap: true },
+  middle: { mcp: { flex: 0.2 }, pip: 0.3, dip: 0.2, wrap: true },
+  ring: { mcp: { flex: 0.2 }, pip: 0.3, dip: 0.2, wrap: true },
+  pinky: { mcp: { flex: 0.2 }, pip: 0.3, dip: 0.2, wrap: true },
+  thumb: { aim: { mcp: [-0.032, -0.128, 0.022], ip: [-0.027, -0.107, 0.024], tip: [-0.024, -0.093, 0.024], pad: [1, 0, 0] } },
+  sleeve: { start: 0.05, length: 0.3, radius: 0.036 },
 };
 
-const rifleGrip: GripFrame = { origin: [0, -0.033, -0.016], down: [0, -0.96, 0.28], fwd: [0, -0.28, -0.96] };
-const rifleGuard: GripFrame = { origin: [0, -0.009, -0.33], down: [0, -1, 0], fwd: [0, 0, -1] };
-
-// Right hand on the pistol grip, thumb over the left side.
-const rifleRight: HandSpec = {
-  wrist: [0.078, -0.045, 0.014],
-  elbow: [0.34, -0.12, 0.13],
-  knuckles: [
-    [0.006, 0.004, 0.028],
-    [0.026, 0.006, 0.03],
-    [0.045, 0.004, 0.029],
-    [0.062, 0.0, 0.026],
-  ],
-  back: [0, -0.35, 1],
-  pads: [
-    { c: [0.008, -0.03, 0.006], r: [0.011, 0.009, 0.012] },
-    { c: [0.066, -0.031, 0.018], r: [0.02, 0.012, 0.012] },
-    { c: [0.036, -0.028, -0.008], r: [0.015, 0.011, 0.008] },
-  ],
-  fingers: [
-    { joints: [[-0.004, 0.036, 0.026], [-0.008, 0.05, 0.012], [-0.012, 0.047, 0.004]], radii: [0.0086, 0.0081, 0.0076, 0.0068] },
-    { joints: [[0.027, 0.04, 0.017], [0.028, 0.04, -0.011], [0.028, 0.024, -0.024]], radii: [0.0088, 0.0083, 0.0077, 0.007] },
-    { joints: [[0.046, 0.038, 0.016], [0.047, 0.037, -0.01], [0.047, 0.022, -0.023]], radii: [0.0085, 0.008, 0.0075, 0.0068] },
-    { joints: [[0.063, 0.032, 0.013], [0.064, 0.033, -0.006], [0.065, 0.021, -0.019]], radii: [0.0078, 0.0074, 0.0069, 0.0062] },
-  ],
-  // Thumb wraps over the left side of the grip.
-  thumb: { joints: [[0.03, -0.032, -0.004], [0.016, -0.02, -0.026], [0.008, 0.006, -0.029], [0.012, 0.026, -0.024]], radii: [0.0105, 0.0095, 0.0088, 0.008] },
+// Left hand racking the pistol: thumb and index finger pinch the cocking piece from behind.
+const pistolLeftRack: HandPose = {
+  weapon: 'pistol',
+  left: true,
+  avoid: 'pistol.right',
+  place: { indexMcp: [-0.014, 0.03, 0.036], along: [0.45, -0.35, -0.82], back: [-0.3, 0.9, 0.2] },
+  palmPress: 0.004,
+  forearm: [-0.3, -0.8, 0.52],
+  index: { mcp: { flex: 0.5 }, pip: 0.9, dip: 0.4, pad: { at: [0.0095, 0.0095, 0.006], normal: [-0.85, -0.5, 0] } },
+  middle: { mcp: { flex: 1.25 }, pip: 1.45, dip: 0.9 },
+  ring: { mcp: { flex: 1.35 }, pip: 1.5, dip: 0.9 },
+  pinky: { mcp: { flex: 1.45 }, pip: 1.5, dip: 0.9 },
+  thumb: { aim: { mcp: [-0.03, 0.02, 0.034], ip: [-0.019, 0.013, 0.014], tip: [-0.0145, 0.0105, 0.0], pad: [0.85, -0.5, 0] } },
+  sleeve: { start: 0.05, length: 0.3, radius: 0.036 },
 };
 
-// Left hand under the handguard: thumb along the left, fingers round to the right side.
-const rifleLeft: HandSpec = {
-  wrist: [0.06, -0.075, -0.03],
-  elbow: [0.3, -0.33, -0.12],
-  knuckles: [
-    [0.031, 0.03, -0.024],
-    [0.033, 0.01, -0.025],
-    [0.033, -0.01, -0.024],
-    [0.031, -0.028, -0.022],
-  ],
-  back: [0.6, 0, -0.8],
-  pads: [{ c: [0.05, -0.05, -0.02], r: [0.012, 0.02, 0.014] }],
-  fingers: [
-    { joints: [[0.03, 0.03, 0.006], [0.01, 0.03, 0.031], [-0.006, 0.03, 0.03]], radii: [0.0086, 0.0081, 0.0076, 0.0068] },
-    { joints: [[0.032, 0.01, 0.007], [0.011, 0.01, 0.032], [-0.008, 0.01, 0.031]], radii: [0.0088, 0.0083, 0.0077, 0.007] },
-    { joints: [[0.032, -0.01, 0.006], [0.012, -0.01, 0.031], [-0.006, -0.01, 0.03]], radii: [0.0085, 0.008, 0.0075, 0.0068] },
-    { joints: [[0.03, -0.028, 0.004], [0.013, -0.028, 0.027], [-0.002, -0.028, 0.027]], radii: [0.0078, 0.0074, 0.0069, 0.0062] },
-  ],
-  thumb: { joints: [[0.042, -0.03, -0.03], [0.02, -0.006, -0.034], [0.006, 0.022, -0.033], [-0.002, 0.044, -0.03]], radii: [0.0105, 0.0095, 0.0088, 0.008] },
+// Rifle: right hand on the pistol grip, index finger on the trigger, thumb round the left
+// side of the grip.
+const rifleRight: HandPose = {
+  weapon: 'rifle',
+  place: { indexMcp: [0.032, -0.048, -0.014], along: [0, -0.04, -1], back: [0.99, 0.15, 0] },
+  palmPress: 0.006,
+  cup: 0.008,
+  forearm: [0.3, -0.5, 0.81],
+  index: { mcp: { flex: 0.15, abd: 0.05 }, pip: 0.5, dip: 0.3, pad: { at: [0, -0.04, -0.0625], normal: [0, 0, 1] } },
+  middle: { mcp: { flex: 0.5, abd: 0 }, pip: 0.3, dip: 0.2, wrap: true },
+  ring: { mcp: { flex: 0.5, abd: 0.06 }, pip: 0.3, dip: 0.2, wrap: true },
+  pinky: { mcp: { flex: 0.5, abd: 0.14 }, pip: 0.3, dip: 0.2, wrap: true },
+  thumb: { aim: { mcp: [-0.02, -0.042, 0.014], ip: [-0.026, -0.052, -0.016], tip: [-0.026, -0.06, -0.034], pad: [1, 0, 0] } },
+  wrapAxis: { p: [0, -0.033, -0.016], d: [0, -0.96, 0.28] },
+  sleeve: { start: 0.05, length: 0.3, radius: 0.036 },
 };
 
-export const HAND_SPECS: Record<HandKey, { grip: GripFrame; spec: HandSpec }> = {
-  'pistol.right': { grip: pistolGrip, spec: pistolRight },
-  'pistol.left': { grip: pistolGrip, spec: pistolLeft },
-  'rifle.right': { grip: rifleGrip, spec: rifleRight },
-  'rifle.left': { grip: rifleGuard, spec: rifleLeft },
+// Left hand under the handguard: thumb along the left, fingers round the right side.
+const rifleLeft: HandPose = {
+  weapon: 'rifle',
+  left: true,
+  place: { wrist: [-0.055, -0.095, -0.305], indexMcp: [0.012, -0.046, -0.36], pinkyMcp: [0.012, -0.046, -0.302] },
+  forearm: [-0.35, -0.6, 0.72],
+  index: { mcp: { flex: 0.4 }, pip: 0.3, dip: 0.2, wrap: true },
+  middle: { mcp: { flex: 0.4 }, pip: 0.3, dip: 0.2, wrap: true },
+  ring: { mcp: { flex: 0.4 }, pip: 0.3, dip: 0.2, wrap: true },
+  pinky: { mcp: { flex: 0.4 }, pip: 0.3, dip: 0.2, wrap: true },
+  thumb: { aim: { mcp: [-0.034, -0.03, -0.346], ip: [-0.034, -0.017, -0.378], tip: [-0.0335, -0.01, -0.4], pad: [1, 0, 0] } },
+  wrapAxis: { p: [0, -0.01, -0.33], d: [0, 0, 1] },
+  sleeve: { start: 0.05, length: 0.3, radius: 0.036 },
+};
+
+// Left hand holding the phone (in the phone's frame: X right, Y along the long side, Z out of
+// the screen): the left edge sits in the web of the thumb, the fingers wrap the back with their
+// tips round the right edge, the thumb lies over the screen's left edge.
+const phoneLeft: HandPose = {
+  weapon: 'phone',
+  left: true,
+  // The fingers arch behind the phone and close until their pads meet it near the right edge.
+  place: { indexMcp: [-0.029, 0.004, -0.04], along: [0.92, 0.38, 0], back: [0, 0, -1] },
+  palmPress: 0.003,
+  forearm: [-0.45, -0.75, 0.5],
+  index: { mcp: { flex: 0.1, abd: 0.05 }, pip: 0.2, dip: 0.1, wrap: true },
+  middle: { mcp: { flex: 0.1 }, pip: 0.2, dip: 0.1, wrap: true },
+  ring: { mcp: { flex: 0.1, abd: -0.04 }, pip: 0.2, dip: 0.1, wrap: true },
+  pinky: { mcp: { flex: 0.1, abd: -0.1 }, pip: 0.2, dip: 0.1, wrap: true },
+  thumb: { aim: { mcp: [-0.05, -0.026, -0.006], ip: [-0.032, -0.008, 0.0138], tip: [-0.02, 0.016, 0.0136], pad: [0, 0, -1] } },
+  sleeve: { start: 0.05, length: 0.3, radius: 0.036 },
+};
+
+export const HAND_POSES: Record<HandKey, HandPose> = {
+  'pistol.right': pistolRight,
+  'pistol.left': pistolLeft,
+  'pistol.leftRack': pistolLeftRack,
+  'rifle.right': rifleRight,
+  'rifle.left': rifleLeft,
+  'phone.left': phoneLeft,
 };

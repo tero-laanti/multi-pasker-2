@@ -1,85 +1,33 @@
 import * as THREE from 'three';
 import { makeRng } from '../../../shared/math';
-import { SdfShape, ellipsoid, meshShape, roundBox, roundCone, union, type V3 } from './sdf';
 import { normalFromHeight } from './common';
-import { HAND_SPECS, type HandKey } from './handSpecs';
+import type { BakedMesh } from './handBuild';
+import type { HandKey } from './handSpecs';
 
-/** Grip frame: origin at the top centre of the grip, `down` along it, `fwd` towards the front strap. */
-export interface GripFrame {
-  origin: V3;
-  down: V3;
-  fwd: V3;
-}
+/**
+ * First-person gloved hands. The shapes come from the WebXR "generic-hand" model (MIT, see
+ * README), posed on each weapon and baked into static meshes in a worker (handWorker.ts →
+ * handBuild.ts); this module only turns the baked arrays into meshes with materials.
+ */
 
-function unit(v: V3): V3 {
-  const l = Math.hypot(v[0], v[1], v[2]);
-  return [v[0] / l, v[1] / l, v[2] / l];
-}
+export const HAND_MODEL_URL = new URL('../../../../assets/models/generic-hand-right.glb', import.meta.url).href;
 
-/** Point in grip space: `a` along the grip, `f` forward, `s` to the right (+X). */
-export function gp(g: GripFrame, a: number, f: number, s: number): V3 {
-  const d = unit(g.down);
-  const fw = unit(g.fwd);
-  return [g.origin[0] + d[0] * a + fw[0] * f + s, g.origin[1] + d[1] * a + fw[1] * f, g.origin[2] + d[2] * a + fw[2] * f];
-}
-
-/** Grip-frame joint: [a, f, s]. */
-type J = [number, number, number];
-
-/** A finger as one exact union of tapered bones (no bulges at the joints). */
-function finger(g: GripFrame, joints: J[], radii: number[]) {
-  const parts = [];
-  for (let i = 0; i + 1 < joints.length; i++) {
-    const a = joints[i]!;
-    const b = joints[i + 1]!;
-    parts.push(roundCone(gp(g, a[0], a[1], a[2]), gp(g, b[0], b[1], b[2]), radii[i]!, radii[i + 1]!));
-  }
-  return union(parts);
-}
-
-function blob(shape: SdfShape, g: GripFrame, c: J, radii: [number, number, number], k?: number): void {
-  // Axes: along the grip, forward, right.
-  const d = unit(g.down);
-  const f = unit(g.fwd);
-  shape.add(ellipsoid(gp(g, c[0], c[1], c[2]), [d, f, [1, 0, 0]], radii), k);
-}
-
-export interface FingerSpec {
-  joints: J[];
-  radii: number[];
-}
-
-export interface HandSpec {
-  wrist: J;
-  /** Forearm end, far from the wrist (sleeve). */
-  elbow: J;
-  /** Knuckle (MCP) joints: index, middle, ring, little. Fingers start here. */
-  knuckles: [J, J, J, J];
-  /** Rough direction out of the back of the hand (grip-frame vector). */
-  back: J;
-  /** Small soft masses: web, heel of the hand, base of the thumb. */
-  pads: { c: J; r: [number, number, number] }[];
-  /** Index, middle, ring, little (joints after the knuckle). */
-  fingers: FingerSpec[];
-  thumb: FingerSpec;
-}
-
-function sub(a: V3, b: V3): V3 {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-}
-
-function cross(a: V3, b: V3): V3 {
-  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-}
-
-function dot(a: V3, b: V3): number {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-
-/** Grip-frame direction to model space. */
-function gdir(g: GripFrame, d: J): V3 {
-  const o = gp(g, 0, 0, 0);
-  return unit(sub(gp(g, d[0], d[1], d[2]), o));
+export interface HandsModel {
+  /** Shooting hand, fixed to the grip. */
+  right: THREE.Group;
+  /** Support hand; animated separately for reloads. Rest pose is identity. */
+  left: THREE.Group;
+  /** Optional second support-hand pose used to rack the bolt (rest pose is identity). */
+  leftRack?: THREE.Group;
+  /**
+   * Support hand holding a phone (hidden until the viewmodel shows it). Its local frame is
+   * the phone's: origin at the phone's centre, +X right, +Y along the long side, +Z out of the
+   * screen. Place the group where the phone should be and attach the phone mesh to
+   * `phoneAnchor`.
+   */
+  phone: THREE.Group;
+  /** Child of `phone` at the phone's centre (identity transform): parent the phone mesh here. */
+  phoneAnchor: THREE.Object3D;
 }
 
 let gloveMat: THREE.MeshStandardMaterial | null = null;
@@ -88,12 +36,12 @@ let sleeveMat: THREE.MeshStandardMaterial | null = null;
 function materials(): { glove: THREE.MeshStandardMaterial; sleeve: THREE.MeshStandardMaterial } {
   if (!gloveMat || !sleeveMat) {
     const r = makeRng(31);
-    const cells = 48;
+    const cells = 64;
     const jitter = Array.from({ length: cells * cells }, () => r());
     const leather = normalFromHeight(
       256,
       (u, v) => {
-        // Fine pebbled grain: one soft bump per cell.
+        // Fine pebbled grain: one soft bump per cell, with a little variation.
         const x = u * cells;
         const y = v * cells;
         const cx = Math.floor(x);
@@ -105,140 +53,121 @@ function materials(): { glove: THREE.MeshStandardMaterial; sleeve: THREE.MeshSta
       },
       0.9,
     );
+    // About 0.35 m of hand per UV unit: repeat the grain so a pebble is about a millimetre.
+    leather.repeat.set(6, 6);
     gloveMat = new THREE.MeshStandardMaterial({
-      color: 0x4d4436,
-      roughness: 0.58,
+      color: 0x5c4a38,
+      roughness: 0.55,
       metalness: 0,
-      envMapIntensity: 0.55,
+      envMapIntensity: 0.6,
       normalMap: leather,
-      normalScale: new THREE.Vector2(0.25, 0.25),
+      normalScale: new THREE.Vector2(0.35, 0.35),
+      vertexColors: true,
     });
-    sleeveMat = new THREE.MeshStandardMaterial({ color: 0x55603f, roughness: 0.95, metalness: 0, envMapIntensity: 0.3 });
+    const weave = normalFromHeight(
+      128,
+      (u, v) => {
+        const a = Math.sin(u * Math.PI * 2 * 48) * 0.5 + 0.5;
+        const b = Math.sin(v * Math.PI * 2 * 48) * 0.5 + 0.5;
+        return (a + b) * 0.5;
+      },
+      0.6,
+    );
+    sleeveMat = new THREE.MeshStandardMaterial({
+      color: 0x56603f,
+      roughness: 0.93,
+      metalness: 0,
+      envMapIntensity: 0.3,
+      normalMap: weave,
+      normalScale: new THREE.Vector2(0.35, 0.35),
+      vertexColors: true,
+    });
   }
   return { glove: gloveMat, sleeve: sleeveMat };
 }
 
-/** Planar UVs along the dominant normal axis so the leather grain has somewhere to sit. */
-function addUvs(geo: THREE.BufferGeometry, scale: number): void {
-  const p = geo.getAttribute('position');
-  const n = geo.getAttribute('normal');
-  const uv = new Float32Array(p.count * 2);
-  for (let i = 0; i < p.count; i++) {
-    const ax = Math.abs(n.getX(i));
-    const ay = Math.abs(n.getY(i));
-    const az = Math.abs(n.getZ(i));
-    const [u, v] = ax >= ay && ax >= az ? [p.getZ(i), p.getY(i)] : ay >= az ? [p.getX(i), p.getZ(i)] : [p.getX(i), p.getY(i)];
-    uv[i * 2] = u * scale;
-    uv[i * 2 + 1] = v * scale;
-  }
-  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-}
-
-/** Glove and sleeve geometry for one hand (no materials, so it can run anywhere). */
-export function handGeometry(g: GripFrame, h: HandSpec, cell = 0.002): { glove: THREE.BufferGeometry; sleeve: THREE.BufferGeometry } {
-  const shape = new SdfShape(0.011);
-  const W = gp(g, ...h.wrist);
-  const K = h.knuckles.map((k) => gp(g, ...k)) as [V3, V3, V3, V3];
-  // Palm: one smooth rounded slab from the wrist to the knuckle line.
-  const mid: V3 = [(K[0][0] + K[3][0]) / 2, (K[0][1] + K[3][1]) / 2, (K[0][2] + K[3][2]) / 2];
-  const L = unit(sub(mid, W));
-  let Wd = unit(sub(K[0], K[3]));
-  Wd = unit(sub(Wd, [L[0] * dot(Wd, L), L[1] * dot(Wd, L), L[2] * dot(Wd, L)]));
-  let T = cross(L, Wd);
-  const back = gdir(g, h.back);
-  if (dot(T, back) < 0) T = [-T[0], -T[1], -T[2]];
-  const len = Math.hypot(...sub(mid, W));
-  const width = Math.hypot(...sub(K[0], K[3]));
-  const c: V3 = [W[0] + L[0] * len * 0.55 + T[0] * 0.002, W[1] + L[1] * len * 0.55 + T[1] * 0.002, W[2] + L[2] * len * 0.55 + T[2] * 0.002];
-  shape.add(roundBox(c, [L, Wd, T], [len * 0.5 + 0.004, width / 2 + 0.008, 0.0115], 0.0095));
-  // Slim metacarpal ridges give the knuckles a little shape.
-  for (const k of K) shape.add(roundCone([W[0] + L[0] * len * 0.25, W[1] + L[1] * len * 0.25, W[2] + L[2] * len * 0.25], k, 0.0085, 0.0088), 0.008);
-  for (const p of h.pads) blob(shape, g, p.c, p.r, 0.009);
-  h.fingers.forEach((f, i) => shape.add(finger(g, [h.knuckles[i]!, ...f.joints], f.radii), 0.005));
-  shape.add(finger(g, h.thumb.joints, h.thumb.radii), 0.009);
-  // Wrist and glove cuff, a little past the wrist towards the elbow.
-  const e = h.elbow;
-  const w = h.wrist;
-  const cuff: J = [w[0] + (e[0] - w[0]) * 0.2, w[1] + (e[1] - w[1]) * 0.2, w[2] + (e[2] - w[2]) * 0.2];
-  shape.add(roundCone(W, gp(g, ...cuff), 0.023, 0.027), 0.012);
-  const glove = meshShape(shape, cell);
-  addUvs(glove, 14);
-  const sleeveShape = new SdfShape(0.01);
-  const start: J = [w[0] + (e[0] - w[0]) * 0.14, w[1] + (e[1] - w[1]) * 0.14, w[2] + (e[2] - w[2]) * 0.14];
-  sleeveShape.add(roundCone(gp(g, ...start), gp(g, ...e), 0.031, 0.042));
-  const sleeve = meshShape(sleeveShape, 0.004);
-  return { glove, sleeve };
-}
-
-export interface HandsModel {
-  /** Shooting hand, fixed to the grip. */
-  right: THREE.Group;
-  /** Support hand; animated separately for reloads. Rest pose is identity. */
-  left: THREE.Group;
-}
-
 const cache = new Map<string, { glove: THREE.BufferGeometry; sleeve: THREE.BufferGeometry }>();
 
-export interface HandArrays {
-  pos: Float32Array;
-  nrm: Float32Array;
-  uv: Float32Array;
-  idx: Uint32Array;
-}
-
-export function toArrays(geo: THREE.BufferGeometry): HandArrays {
-  return {
-    pos: geo.getAttribute('position').array as Float32Array,
-    nrm: geo.getAttribute('normal').array as Float32Array,
-    uv: (geo.getAttribute('uv')?.array as Float32Array) ?? new Float32Array(0),
-    idx: Uint32Array.from(geo.getIndex()!.array as ArrayLike<number>),
-  };
-}
-
-export function fromArrays(a: HandArrays): THREE.BufferGeometry {
+export function toGeometry(m: BakedMesh): THREE.BufferGeometry {
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(a.pos, 3));
-  g.setAttribute('normal', new THREE.BufferAttribute(a.nrm, 3));
-  if (a.uv.length) g.setAttribute('uv', new THREE.BufferAttribute(a.uv, 2));
-  g.setIndex(new THREE.BufferAttribute(a.idx, 1));
+  g.setAttribute('position', new THREE.BufferAttribute(m.pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(m.nrm, 3));
+  g.setAttribute('uv', new THREE.BufferAttribute(m.uv, 2));
+  g.setAttribute('color', new THREE.BufferAttribute(m.col, 3));
+  g.setIndex(new THREE.BufferAttribute(m.idx, 1));
   g.computeBoundingSphere();
   return g;
 }
 
-/** Meshes every hand in a worker (parallel to other loading) and caches the results. */
+export function cacheHand(key: string, glove: BakedMesh, sleeve: BakedMesh): void {
+  cache.set(key, { glove: toGeometry(glove), sleeve: toGeometry(sleeve) });
+}
+
+let ready: Promise<void> | null = null;
+
+/** Bakes every hand pose in a worker (parallel to other loading); falls back to the main thread. */
 export function prepareHands(): Promise<void> {
-  return new Promise((resolve) => {
+  ready ??= new Promise<void>((resolve) => {
     let worker: Worker;
+    const fallback = async () => {
+      try {
+        const [{ bakeAllHands }, buf] = await Promise.all([import('./handBake'), fetch(HAND_MODEL_URL).then((r) => r.arrayBuffer())]);
+        for (const h of bakeAllHands(buf).hands) cacheHand(h.key, h.glove, h.sleeve);
+      } catch (err) {
+        console.error('hands: baking failed', err);
+      }
+      resolve();
+    };
     try {
       worker = new Worker(new URL('./handWorker.ts', import.meta.url), { type: 'module' });
     } catch {
-      resolve();
+      void fallback();
       return;
     }
-    const done = () => {
-      worker.terminate();
-      resolve();
-    };
-    worker.onmessage = (ev: MessageEvent<{ key: string; glove: HandArrays; sleeve: HandArrays } | { done: true }>) => {
+    worker.onmessage = (ev: MessageEvent<{ key: string; glove: BakedMesh; sleeve: BakedMesh } | { done: true } | { error: string }>) => {
       const m = ev.data;
-      if ('done' in m) return done();
-      cache.set(m.key, { glove: fromArrays(m.glove), sleeve: fromArrays(m.sleeve) });
+      if ('error' in m) {
+        console.warn('hands: worker failed, baking on the main thread', m.error);
+        worker.terminate();
+        void fallback();
+      } else if ('done' in m) {
+        worker.terminate();
+        resolve();
+      } else cacheHand(m.key, m.glove, m.sleeve);
     };
-    worker.onerror = done;
-    worker.postMessage('go');
+    worker.onerror = () => {
+      worker.terminate();
+      void fallback();
+    };
+    worker.postMessage({ url: HAND_MODEL_URL });
   });
+  return ready;
 }
 
-/** One gloved hand with its sleeve (model space), from the worker cache or built here. */
+/**
+ * The support hand holding a phone of PHONE.size (7 x 14 x 0.9 cm, weaponShapes.ts), with a
+ * `phoneAnchor` child at the phone's centre (also in `userData.phoneAnchor`). Hidden.
+ */
+export function buildPhoneHand(): THREE.Group {
+  const group = buildHand('phone.left');
+  const anchor = new THREE.Object3D();
+  anchor.name = 'phoneAnchor';
+  group.add(anchor);
+  group.userData.phoneAnchor = anchor;
+  group.visible = false;
+  return group;
+}
+
+/** One gloved hand with its sleeve (weapon model space), from the baked cache. */
 export function buildHand(key: HandKey): THREE.Group {
-  let geo = cache.get(key);
+  const group = new THREE.Group();
+  group.name = key;
+  const geo = cache.get(key);
   if (!geo) {
-    const h = HAND_SPECS[key];
-    geo = handGeometry(h.grip, h.spec);
-    cache.set(key, geo);
+    console.warn(`hands: ${key} not baked (call prepareHands first)`);
+    return group;
   }
   const mats = materials();
-  const group = new THREE.Group();
   group.add(new THREE.Mesh(geo.glove, mats.glove));
   group.add(new THREE.Mesh(geo.sleeve, mats.sleeve));
   return group;
