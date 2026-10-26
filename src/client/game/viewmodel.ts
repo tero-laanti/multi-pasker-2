@@ -386,6 +386,12 @@ export class ViewModel {
     lh.position.set(0, 0, 0);
     lh.rotation.set(0, 0, 0);
     lh.visible = m.supportHandAtRest;
+    const rh = m.hands.leftRack;
+    if (rh) {
+      rh.position.set(0, 0, 0);
+      rh.rotation.set(0, 0, 0);
+      rh.visible = false;
+    }
     switch (w.state) {
       case 'reloading': {
         const empty = w.reloadEmpty;
@@ -499,14 +505,19 @@ export class ViewModel {
         if (m.supportHandAtRest) {
           lh.position.copy(offA).multiplyScalar(away).addScaledVector(offU, under).addScaledVector(offR, rack);
           lh.rotation.x = 0.6 * away - 0.5 * rack;
+          lh.rotation.z = -0.5 * under;
         } else {
-          // One-handed weapon: the left hand comes up from out of view only to help.
+          // One-handed weapon: the left hand comes up from out of view holding the fresh
+          // magazine (posed on it, so it rides with it) and, after an empty reload, pinches the
+          // bolt (a second pose, swapped halfway as the hand moves between the two).
           const w = Math.max(under, rack);
-          lh.position.copy(offA).multiplyScalar(1 - w).addScaledVector(offU, under).addScaledVector(offR, rack);
-          lh.rotation.x = 0.6 * (1 - w) - 0.5 * rack;
-          lh.visible = w > 0.02;
+          const s = under + rack > 1e-6 ? rack / (under + rack) : 0;
+          const hand = rh && s > 0.5 ? rh : lh;
+          lh.visible = false;
+          hand.position.copy(offA).multiplyScalar(1 - w).addScaledVector(offU.lerp(offR, s), w);
+          hand.rotation.x = 0.6 * (1 - w);
+          hand.visible = w > 0.02;
         }
-        lh.rotation.z = -0.5 * under;
         break;
       }
       case 'inspecting': {

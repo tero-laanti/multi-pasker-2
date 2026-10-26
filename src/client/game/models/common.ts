@@ -25,32 +25,8 @@ export function extrudeSide(points: [number, number][], halfWidth: number, bevel
   return g;
 }
 
-/** Side profile with rounded corners: each point may carry a corner radius. */
-export function roundedProfile(points: [number, number, number?][]): [number, number][] {
-  const out: [number, number][] = [];
-  const n = points.length;
-  for (let i = 0; i < n; i++) {
-    const [z, y, r = 0] = points[i]!;
-    if (r <= 0) {
-      out.push([z, y]);
-      continue;
-    }
-    const [pz, py] = points[(i - 1 + n) % n]!;
-    const [nz, ny] = points[(i + 1) % n]!;
-    const d1 = Math.hypot(pz - z, py - y);
-    const d2 = Math.hypot(nz - z, ny - y);
-    const rr = Math.min(r, d1 / 2, d2 / 2);
-    const a: [number, number] = [z + ((pz - z) / d1) * rr, y + ((py - y) / d1) * rr];
-    const b: [number, number] = [z + ((nz - z) / d2) * rr, y + ((ny - y) / d2) * rr];
-    for (let k = 0; k <= 4; k++) {
-      const t = k / 4;
-      // Quadratic Bezier through the corner.
-      const u = 1 - t;
-      out.push([u * u * a[0] + 2 * u * t * z + t * t * b[0], u * u * a[1] + 2 * u * t * y + t * t * b[1]]);
-    }
-  }
-  return out;
-}
+/** Side profile with rounded corners (shared with the hand-posing distance field). */
+export { roundedProfile } from './weaponShapes';
 
 /** Cylinder along Z from z0 to z1 (z0 > z1 is fine). */
 export function cylZ(r0: number, r1: number, z0: number, z1: number, y = 0, x = 0, seg = 20): THREE.BufferGeometry {

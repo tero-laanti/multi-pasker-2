@@ -15,7 +15,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "gen:sfx": "tsx tools/gen-sfx.ts",
-    "gen:voice": "tsx tools/gen-voice.ts"
+    "gen:voice": "tsx tools/gen-voice.ts",
+    "gen:hands": "tsx tools/gen-hand-poses.ts"
   },
   "dependencies": {
     "@fontsource/barlow-condensed": "5.3.0",
