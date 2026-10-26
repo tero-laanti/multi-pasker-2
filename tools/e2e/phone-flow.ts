@@ -2,11 +2,13 @@
  * Desktop + phone end to end: a desktop joins a match, an emulated phone pairs with it through
  * the QR link, types to the varusmestari on the in-page keyboard, and the desktop is checked.
  *
- *   npx tsx tools/e2e/phone-flow.ts <outDir> [--url=http://localhost:8088/] [--phone=390x844]
+ *   npx tsx tools/e2e/phone-flow.ts <outDir> [--url=http://localhost:8088/] [--phone=390x844] [--webkit]
+ *
+ * --webkit runs the phone in Playwright's WebKit (Safari's engine) instead of Chrome.
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { chromium, type Page } from 'playwright';
+import { chromium, webkit, type Page } from 'playwright';
 
 const args = process.argv.slice(2);
 const outDir = args[0]!;
@@ -15,8 +17,9 @@ const [pw, ph] = (args.find((a) => a.startsWith('--phone='))?.slice(8) ?? '390x8
 fs.mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--autoplay-policy=no-user-gesture-required'] });
+const phoneBrowser = args.includes('--webkit') ? await webkit.launch({ headless: true }) : browser;
 const desktop = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-const phoneCtx = await browser.newContext({
+const phoneCtx = await phoneBrowser.newContext({
   viewport: { width: pw!, height: ph! },
   deviceScaleFactor: 3,
   isMobile: true,
@@ -126,4 +129,5 @@ result.convsAfterReload = await phone.evaluate(() => (window as any).__phone['co
 
 console.log(JSON.stringify(result, null, 2));
 if (logs.length) console.log('--- errors ---\n' + logs.join('\n'));
+if (phoneBrowser !== browser) await phoneBrowser.close();
 await browser.close();
