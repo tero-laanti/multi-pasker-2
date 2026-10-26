@@ -811,3 +811,79 @@ body.sim .sheet-wrap {
 .v-chat .sheet-wrap {
   background: rgba(0, 0, 0, 0.08);
 }
+
+/* ---------- Upgrade screen ---------- */
+.upgrade-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(20, 24, 16, 0.6);
+  display: flex;
+  align-items: flex-end;
+  animation: fade-in 0.15s ease-out;
+}
+body.sim .upgrade-wrap {
+  position: absolute;
+}
+.upgrade {
+  width: 100%;
+  max-height: 92%;
+  overflow-y: auto;
+  background: var(--bg);
+  border-radius: 18px 18px 0 0;
+  padding: 20px 16px calc(18px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: rise 0.2s ease-out;
+}
+.upgrade-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--bar);
+  text-align: center;
+}
+.upgrade-sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+.upgrade-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 16px;
+  border: 2px solid transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.upgrade-card.picked {
+  border-color: var(--out);
+  background: #f4f7ec;
+}
+.upgrade-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.upgrade-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+.upgrade-level {
+  font-size: 13px;
+  color: var(--muted);
+}
+.upgrade-benefit {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: #3d4036;
+}
+.upgrade .btn {
+  margin-top: 6px;
+  align-self: stretch;
+}
+.btn:disabled {
+  opacity: 0.45;
+}

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { NET, TUNING } from '../shared/config';
-import { AudioFolder, isLoopback, readBody, safeJoin, sendFile, sendJson } from './http';
+import { AudioFolder, isLoopback, readBody, safeJoin, sendBuffer, sendFile, sendJson } from './http';
 import { lanCandidates, pickLanAddress } from './lan';
 import { applyTuning, type TuningTree } from './tuningWriter';
 import { buildGarrison } from '../shared/map/garrison';
@@ -12,6 +12,7 @@ import { Room } from './game/room';
 import type { ServerPlayer } from './game/player';
 import type { ClientMsg, PhoneClientMsg } from '../shared/protocol';
 import { mergeTuning, type TuningNode } from '../shared/tuningTree';
+import { VoiceNotes } from './voicenotes';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIST = path.join(ROOT, 'dist');
@@ -39,6 +40,7 @@ function parseArgs(argv: string[]): Args {
 
 const sfx = new AudioFolder(path.join(ROOT, 'assets/sfx'), path.join(ROOT, 'assets/sfx/_base'));
 const voice = new AudioFolder(path.join(ROOT, 'assets/voice'), path.join(ROOT, 'assets/voice/_placeholder'));
+const voiceNotes = new VoiceNotes(voice);
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -75,7 +77,7 @@ async function main(): Promise<void> {
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req));
   });
 
-  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined });
+  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined, voiceNotes });
   const bots = Number(process.env.PASKER_BOTS ?? 0);
   for (let i = 0; i < bots; i++) room.addBot();
   startTickLoop();
@@ -127,6 +129,18 @@ async function handleRequest(
       return;
     }
     sendFile(req, res, file, 'no-cache');
+    return;
+  }
+  // Spliced phonetic-alphabet voice notes.
+  const note = /^\/voicenote\/([0-9a-f]{16})\.wav$/.exec(p);
+  if (note) {
+    const wav = voiceNotes.build(note[1]!);
+    if (!wav) {
+      res.writeHead(404);
+      res.end();
+      return;
+    }
+    sendBuffer(req, res, wav, 'audio/wav');
     return;
   }
   if (p === '/dev/tuning' && req.method === 'POST') {

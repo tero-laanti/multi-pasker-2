@@ -269,6 +269,16 @@ export const PHONE = {
   streamInterval: 0.25,
 };
 
+export const LADDER = {
+  /** An offer every this many kills, and separately every this many deaths. */
+  offerEvery: 3,
+  /** With more players than this, the thresholds grow by one per `scaleEvery` extra players. */
+  scaleFrom: 6,
+  scaleEvery: 4,
+  /** Stages in the ladder (TJ 6 → 0). */
+  stages: 6,
+};
+
 export const AUDIO = {
   maxGunshotVoices: 24,
   hearingRange: 120,

@@ -161,6 +161,8 @@ export class App {
       fillBots: () => this.devCommand('fillBots'),
       restartRound: () => this.devCommand('restartRound'),
       killMe: () => this.devCommand('killMe'),
+      offer: () => this.devCommand('offer'),
+      advance: () => this.devCommand('advance'),
       openSimulator: () => this.openSimulator(),
       setGate: (open) => this.devCommand('gate', open),
       gateOpen: () => this.match?.round?.gateOpen ?? false,

@@ -1,5 +1,6 @@
 import type { WeaponId } from './config';
 import type { HitZone } from './hitbox';
+import type { UpgradeId, Upgrades } from './upgrades';
 
 /**
  * Network protocol. The two high-rate messages (client movement state, server snapshots) are
@@ -188,6 +189,10 @@ export interface PlayerInfo {
   ping: number;
   /** Their phone: never paired, connected, or paired but disconnected. */
   phone: 'none' | 'online' | 'offline';
+  /** Ladder stages completed: rank index (alokas 0 … vääpeli 6). */
+  rank: number;
+  /** Upgrade levels: everyone needs them (suppressors, drum magazines, dark mode). */
+  upgrades: Upgrades;
 }
 
 export interface ShotClaim {
@@ -247,7 +252,11 @@ export type GameEvent =
   /** A phone message that wasn't valid where it was sent, with the reply: shown to everyone. */
   | { k: 'typo'; p: number; to: string; text: string; reply: string }
   /** Our phone was paired (`replaced`: it took over from another phone). */
-  | { k: 'paired'; replaced: boolean };
+  | { k: 'paired'; replaced: boolean }
+  /** Our upgrades changed (`id`: the one just taken, for the HUD). */
+  | { k: 'upgrades'; u: Upgrades; id?: UpgradeId }
+  /** Our place on the TJ ladder, for the HUD. */
+  | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number; choice: boolean };
 
 /** Accent colours for name tags and caps: 8 strong hues, also told apart by the name tag. */
 export const ACCENTS = [0xe8b21c, 0xd8453a, 0x3b8fe0, 0x2fb36a, 0xb259d6, 0xf08a2c, 0x29b8b8, 0xe05a9a];
@@ -294,8 +303,19 @@ export interface PhoneStatus {
   grenades: number;
   maxGrenades: number;
   rank: number;
+  /** Days left (stages to go) on the TJ ladder. */
+  tj: number;
+  /** A ladder task is open, and how many more wait behind it. */
+  challenge: boolean;
+  queued: number;
   /** The desktop is connected. */
   desktop: boolean;
+}
+
+/** The upgrade screen: three choices with their exact benefit. */
+export interface UpgradeOffer {
+  title: string;
+  options: { id: UpgradeId; name: string; level: number; benefit: string }[];
 }
 
 export type PhoneClientMsg =
@@ -305,12 +325,25 @@ export type PhoneClientMsg =
   | { t: 'read'; conv: string }
   | { t: 'draft'; conv: string; text: string }
   | { t: 'touch' }
+  /** Picked an upgrade on the upgrade screen. */
+  | { t: 'choose'; rid: string; id: UpgradeId }
   /** A chat (or the new-chat number pad) is open: the phone is in the player's hand. */
   | { t: 'out'; on: boolean }
   | { t: 'ping'; id: number; rtt?: number };
 
 export type PhoneServerMsg =
-  | { t: 'phoneWelcome'; token: string; player: { id: number; name: string; color: number }; convs: PhoneConversation[]; status: PhoneStatus; dev: boolean; replaced: boolean }
+  | {
+      t: 'phoneWelcome';
+      token: string;
+      player: { id: number; name: string; color: number };
+      convs: PhoneConversation[];
+      status: PhoneStatus;
+      dev: boolean;
+      replaced: boolean;
+      /** An upgrade screen still waiting for a choice. */
+      upgrade: UpgradeOffer | null;
+    }
+  | { t: 'upgrade'; offer: UpgradeOffer | null }
   | { t: 'pairFailed'; reason: 'code' | 'version' | 'sim' | 'token' }
   | { t: 'msg'; conv: string; m: PhoneMessage }
   | { t: 'state'; conv: string; id: string; state: MsgState }

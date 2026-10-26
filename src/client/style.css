@@ -1181,3 +1181,33 @@ input[type='range'] {
 .pair-status[data-state='offline'] {
   color: #ffb34a;
 }
+
+/* ---------- Ladder ---------- */
+.ladder-line {
+  position: absolute;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--fg-dim);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+.task-line {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #9fd7ff;
+}
+.feed-rank {
+  color: var(--fg-dim);
+  font-size: 15px;
+}
+.sb-rank-abbr {
+  color: var(--fg-dim);
+  font-size: 14px;
+  min-width: 38px;
+}

@@ -411,7 +411,8 @@ export class Game {
     this.world.trace(this.tr, e.x, e.y, e.z, e.x + dir.x * maxD, e.y + dir.y * maxD, e.z + dir.z * maxD, 0, 0, 0, MASK.SHOT);
 
     // Own gunshot: close layer every shot, one tail voice that the next shot replaces.
-    audio.play(`${weapon}_shot`, { volume: 0.95, gunshot: true });
+    const silenced = this.weapons.stats(weapon).silenced;
+    audio.play(silenced ? `${weapon}_suppressed` : `${weapon}_shot`, { volume: 0.95, gunshot: true });
     if (this.tailVoice) {
       try {
         this.tailVoice.stop(audio.ctx.currentTime + 0.03);
@@ -419,7 +420,7 @@ export class Game {
         // Already finished.
       }
     }
-    this.tailVoice = audio.play(`${weapon}_tail`, { volume: 0.6 });
+    this.tailVoice = silenced ? null : audio.play(`${weapon}_tail`, { volume: 0.6 });
 
     const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
     this.effects.muzzleSmoke(e.x + fwd.x * 0.45, e.y + fwd.y * 0.45 - 0.08, e.z + fwd.z * 0.45, fwd.x, fwd.y, fwd.z);
@@ -461,6 +462,7 @@ export class Game {
     renderer.zoom = co ? 1 : 1 + (TUNING[w.current].adsZoom - 1) * adsE;
     renderer.vmZoom = 1 + 0.04 * adsE;
 
+    this.viewmodel.setUpgrades(w.upgrades);
     this.viewmodel.update(dt, alpha, w, {
       speed: Math.hypot(this.move.vx, this.move.vz),
       onGround: this.move.onGround,
@@ -515,7 +517,7 @@ export class Game {
     const vfov = cam.fov * DEG;
     const gap = (Math.tan(spreadDeg * DEG) / Math.tan(vfov / 2)) * (renderer.gl.domElement.clientHeight / 2);
     hud.crosshair(Math.max(4, gap), !co && ads < 0.5 && this.weapons.sprintPose < 0.5 && w.state !== 'inspecting');
-    hud.weapon(UI.hud.weapons[w.current] ?? w.current, w.ammo[w.current], T.magazine, w.state === 'reloading' && w.progress < T.reloadRefill);
+    hud.weapon(UI.hud.weapons[w.current] ?? w.current, w.ammo[w.current], w.stats().magazine, w.state === 'reloading' && w.progress < T.reloadRefill);
     if (w.refilledAt >= 0) {
       hud.refillFlash();
       w.refilledAt = -1;

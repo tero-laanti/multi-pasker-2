@@ -1,6 +1,7 @@
 import { TUNING, type WeaponId, type WeaponTuning } from '../../shared/config';
 import { DEG, clamp, damp, makeRng, viewDir, type Vec3 } from '../../shared/math';
-import { WEAPONS, fireInterval, recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
+import { WEAPONS, recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
+import { weaponStats, type Upgrades, type WeaponStats } from '../../shared/upgrades';
 
 export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'throwing';
 
@@ -113,8 +114,16 @@ export class WeaponController {
   private rng = makeRng(Date.now() >>> 0);
   private kick: RecoilKick = { pitch: 0, yaw: 0 };
 
+  /** Ladder upgrades (matches): bigger magazines, faster bolt, less recoil. */
+  upgrades: Upgrades = {};
+
   get t(): WeaponTuning {
     return TUNING[this.current];
+  }
+
+  /** Magazine, fire rate and recoil of a weapon with the upgrades. */
+  stats(id: WeaponId = this.current): WeaponStats {
+    return weaponStats(id, this.upgrades);
   }
 
   get canAds(): boolean {
@@ -123,14 +132,14 @@ export class WeaponController {
 
   give(id: WeaponId): void {
     if (!this.owned.includes(id)) this.owned.push(id);
-    this.ammo[id] = TUNING[id].magazine;
+    this.ammo[id] = this.stats(id).magazine;
   }
 
   /** Start a reload of the weapon in hand. Returns a reason when refused. */
   startReload(): 'ok' | 'full' | 'busy' {
     if (this.state === 'holstering' || this.state === 'drawing') return 'busy';
     if (this.state === 'reloading') return 'busy';
-    if (this.ammo[this.current] >= this.t.magazine) return 'full';
+    if (this.ammo[this.current] >= this.stats().magazine) return 'full';
     this.reloadEmpty = this.ammo[this.current] === 0;
     this.enter('reloading', this.reloadEmpty ? this.t.reloadEmptyTime : this.t.reloadTime, reloadCues(this.current, this.reloadEmpty, this.t.reloadRefill));
     return 'ok';
@@ -139,7 +148,7 @@ export class WeaponController {
   /** A new life in a match: the server's weapons with full magazines, best gun drawn. */
   resetLife(owned: WeaponId[], ammo: Record<WeaponId, number>): void {
     this.owned = [...owned];
-    for (const id of Object.keys(this.ammo) as WeaponId[]) this.ammo[id] = ammo[id] ?? TUNING[id].magazine;
+    for (const id of Object.keys(this.ammo) as WeaponId[]) this.ammo[id] = ammo[id] ?? this.stats(id).magazine;
     this.current = owned.includes('rifle') ? 'rifle' : 'pistol';
     this.next = null;
     this.ads = this.adsPrev = 0;
@@ -226,7 +235,7 @@ export class WeaponController {
         const c = this.cues[this.cueIndex++]!;
         if (c.sound) this.sounds.push({ name: c.sound, volume: c.volume });
         if (c.refill) {
-          this.ammo[this.current] = t.magazine;
+          this.ammo[this.current] = this.stats().magazine;
           this.refilledAt = this.time;
         }
         if (c.release) this.releaseGrenade = true;
@@ -300,7 +309,8 @@ export class WeaponController {
     const t = this.t;
     this.ammo[this.current]--;
     // Fire-rate cap; carry the remainder so 700 rpm averages exactly 700.
-    this.cooldown = Math.max(this.cooldown, -0.5 / 120) + fireInterval(t);
+    const st = this.stats();
+    this.cooldown = Math.max(this.cooldown, -0.5 / 120) + 60 / st.rpm;
     const spread = spreadFor(t, {
       ads: this.ads,
       speed: inp.speed,
@@ -336,6 +346,7 @@ export class WeaponController {
     mul *= 1 + (t.recoilAdsMul - 1) * this.ads;
     if (inp.crouched) mul *= t.recoilCrouchMul;
     mul *= 1 + (TUNING.phoneOut.recoilMul - 1) * this.phone;
+    mul *= st.recoilMul;
     recoilKick(t, shotIdx, this.rng() * 2 - 1, this.rng() * 2 - 1, this.kick);
     const kp = this.kick.pitch * mul;
     const ky = this.kick.yaw * mul;

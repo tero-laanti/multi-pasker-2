@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { WeaponId } from '../../shared/config';
+import type { Upgrades } from '../../shared/upgrades';
 import { clamp, damp } from '../../shared/math';
 
 /**
@@ -251,6 +252,7 @@ const PHONE_ARM = (() => {
 })();
 
 const PHONE_BODY = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.4, metalness: 0.3 });
+const ATTACHMENT = new THREE.MeshStandardMaterial({ color: 0x26282b, roughness: 0.55, metalness: 0.5 });
 const PHONE_SCREEN = new THREE.MeshBasicMaterial({ color: 0xd8ecff, toneMapped: false });
 let glowTex: THREE.CanvasTexture | null = null;
 
@@ -356,6 +358,9 @@ export class Character {
   private reload = 0;
   private phoneK = 0;
   private phone: THREE.Group;
+  private suppressors: THREE.Mesh[] = [];
+  private drum: THREE.Mesh;
+  private silenced = false;
   private weapon: WeaponId = 'pistol';
   /** 0 alive, rising to 1 while falling over. */
   private death = 0;
@@ -397,7 +402,32 @@ export class Character {
     this.phone = phoneModel();
     this.phone.visible = false;
     this.bones[B.aim]!.add(this.phone);
+    // Upgrades others can see: a suppressor on each gun and the rifle's drum magazine.
+    for (const [bone, w] of [
+      [B.rifle, 'rifle'],
+      [B.pistol, 'pistol'],
+    ] as const) {
+      const r = w === 'rifle' ? 0.022 : 0.018;
+      const sup = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.17, 12).rotateX(Math.PI / 2), ATTACHMENT);
+      sup.position.copy(MUZZLE[w]).add(new THREE.Vector3(0, 0, -0.08));
+      sup.visible = false;
+      sup.castShadow = true;
+      this.bones[bone]!.add(sup);
+      this.suppressors.push(sup);
+    }
+    this.drum = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 20).rotateZ(Math.PI / 2), ATTACHMENT);
+    this.drum.position.set(0, -0.12, -0.36);
+    this.drum.visible = false;
+    this.drum.castShadow = true;
+    this.bones[B.rifle]!.add(this.drum);
     this.setWeapon('pistol');
+  }
+
+  /** Visible upgrades: suppressors (no flash either) and the drum magazine. */
+  setUpgrades(u: Upgrades): void {
+    this.silenced = (u.vaimennin ?? 0) > 0;
+    for (const s of this.suppressors) s.visible = this.silenced;
+    this.drum.visible = (u.rumpu ?? 0) > 0;
   }
 
   setName(name: string): void {
@@ -430,6 +460,7 @@ export class Character {
   }
 
   muzzleFlash(): void {
+    if (this.silenced) return;
     this.flashTime = 0;
     this.flash.material.rotation = Math.random() * Math.PI * 2;
   }

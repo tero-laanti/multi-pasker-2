@@ -5,6 +5,7 @@ import { buildPhone, type PhoneModel } from './models/phone';
 import { buildPistol, type WeaponModel } from './models/pistol';
 import { buildRifle } from './models/rifle';
 import { THROW_RELEASE, type WeaponController } from './weapons';
+import type { Upgrades } from '../../shared/upgrades';
 import { grenadeMesh } from './grenades';
 
 /** Piecewise curve through [time, value] keys with smoothstep easing between them. */
@@ -144,6 +145,8 @@ export class ViewModel {
   flash = 0;
   /** Suppressor fitted (Vaimennin): no muzzle flash. */
   silenced = false;
+  private attachments: { suppressor: THREE.Mesh; drum?: THREE.Group; mag?: THREE.Object3D[] }[] = [];
+  private upgradesKey = '';
   private phone: PhoneModel = buildPhone();
   /** How far the phone is up in view (0..1); it dips while the left hand is busy. */
   private phoneK = 0;
@@ -161,6 +164,28 @@ export class ViewModel {
     for (const m of Object.values(this.models)) {
       this.holder.add(m.root);
       m.root.visible = false;
+    }
+
+    // Upgrades you can see: a suppressor on each gun, the rifle's drum magazine.
+    const attachMat = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.5, metalness: 0.6 });
+    for (const [id, m] of Object.entries(this.models) as [WeaponId, WeaponModel][]) {
+      const r = id === 'rifle' ? 0.019 : 0.016;
+      const len = id === 'rifle' ? 0.17 : 0.13;
+      const suppressor = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 20).rotateX(Math.PI / 2).translate(0, 0, -len / 2 + 0.004), attachMat);
+      suppressor.visible = false;
+      m.muzzle.add(suppressor);
+      const entry: (typeof this.attachments)[number] = { suppressor };
+      if (id === 'rifle') {
+        const drum = new THREE.Group();
+        // Forward of the trigger guard, so the trigger finger keeps its room.
+        drum.add(new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.05, 0.04).translate(0, -0.03, -0.012), attachMat));
+        drum.add(new THREE.Mesh(new THREE.CylinderGeometry(0.056, 0.056, 0.05, 28).rotateZ(Math.PI / 2).translate(0, -0.095, -0.03), attachMat));
+        drum.visible = false;
+        m.mag.add(drum);
+        entry.drum = drum;
+        entry.mag = [...m.mag.children].filter((c) => c !== drum);
+      }
+      this.attachments.push(entry);
     }
 
     const flashMat = new THREE.MeshBasicMaterial({
@@ -200,6 +225,20 @@ export class ViewModel {
       mesh.visible = false;
       scene.add(mesh);
       this.casings.push({ mesh, vel: new THREE.Vector3(), spin: new THREE.Vector3(), life: 0, played: true });
+    }
+  }
+
+  /** Shows the upgrades that change the guns' look (suppressor, drum magazine). */
+  setUpgrades(u: Upgrades): void {
+    const key = JSON.stringify(u);
+    if (key === this.upgradesKey) return;
+    this.upgradesKey = key;
+    this.silenced = (u.vaimennin ?? 0) > 0;
+    const drum = (u.rumpu ?? 0) > 0;
+    for (const a of this.attachments) {
+      a.suppressor.visible = this.silenced;
+      if (a.drum) a.drum.visible = drum;
+      for (const c of a.mag ?? []) c.visible = !drum;
     }
   }
 

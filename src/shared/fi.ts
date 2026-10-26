@@ -142,4 +142,62 @@ export const FI = {
 
   /** Ranks, alokas (start) to vääpeli (TJ 0), and how the varusmestari addresses them. */
   ranks: ['alokas', 'sotamies', 'korpraali', 'alikersantti', 'kersantti', 'ylikersantti', 'vääpeli'],
+  /** "Ylennys sotamieheksi": the same ranks in the translative. */
+  ranksTo: ['alokkaaksi', 'sotamieheksi', 'korpraaliksi', 'alikersantiksi', 'kersantiksi', 'ylikersantiksi', 'vääpeliksi'],
+  /** Short forms for the kill feed and scoreboard. */
+  rankAbbr: ['Alok.', 'Stm.', 'Kpl.', 'Alik.', 'Kers.', 'Ylik.', 'Vääp.'],
+
+  /**
+   * The TJ ladder. Placeholders: {rank} {name} the player, {code} what to send, {office} and
+   * {number} a contact to write to, {n} a count, {tj} days left, {upgrade} an upgrade's name.
+   */
+  ladder: {
+    /** Why there is something new on offer: a kill streak or a death streak. */
+    offerKill: ['Kunniamaininta, {rank} {name}. Varastossa olisi jotain sinulle.', 'Kunniamaininta. Joku on kerrankin tehnyt töitä.', 'Kunniamaininta tuli tänne asti. Katsotaan mitä löytyy.'],
+    offerDeath: ['Vahinkoilmoitus käsitelty. Korvaavaa kalustoa on tarjolla.', 'Vahinkoilmoitus käsitelty. Kokoa ei ole, ota mikä on.', 'Vahinkoilmoitus käsitelty. Ei se aina sinun vikasi ole. Yleensä on.'],
+    /** A new offer while the previous one is unfinished: the old one stays valid. */
+    queued: ['Seuraava tehtävä odottaa, mutta edellinen on kesken. Jonossa: {n}.', 'Hoida ensin edellinen. Jonossa: {n}.'],
+    /** Stage 1: the rifle. */
+    stage1: ['Nimellesi on kirjattu rynnäkkökivääri. Kuittaa vastaanotto viestillä: {code}', 'Rynkky odottaa luukulla. Kuittaa: {code}', 'Ase on varattu nimellesi. Lähetä {code}, niin kirjaan sen ulos.'],
+    stage1Codes: ['KUITTAAN', 'SELVÄ', 'UUDISTUS', 'VASTAANOTETTU'],
+    stage1Done: ['Kuitattu. Rynnäkkökivääri on nyt sinun. Älä hukkaa sitä.', 'Kuitattu. Rynkky on sinun. Ykkösnäppäin, jos et muuten löydä.'],
+    /** Stage 2: the proper form of address at the asevarasto. */
+    stage2: ['Varastossa on parannuksia, mutta ensin muodollisuudet. Kirjoita: {code}', 'Täällä puhutellaan oikein. Lähetä: {code}', 'Ennen kuin mitään luovutetaan, kirjoita: {code}'],
+    stage2Codes: ['PYYDÄN LUPAA PUHUTELLA', 'HERRA KERSANTTI {RANK} {NAME}', 'UUDENLAINEN UUDISTUS', 'VESIHIISI SIHISI HISSISSÄ', 'MUSTAN KISSAN PAKSUT POSKET', 'KOKOO KOKOON KOKO KOKKO'],
+    /** Stage 3: "not ours" — off to an office at a new number. */
+    stage3: ['Ei kuulu meille. Ota yhteys: {office}, numero {number}.', 'Väärä luukku. {office} hoitaa tämän. Numero on {number}.', 'Tämä menee ylemmäs. {office}, {number}. Kirjoita itse, en minä sinua sinne vie.'],
+    offices: [
+      ['Komppanian toimisto', 'Komppanian toimistolle'],
+      ['Esikunta', 'Esikunnalle'],
+      ['Huolto-osasto', 'Huolto-osastolle'],
+    ] as [string, string][],
+    /** The office's first message when the player opens its chat: a phrase to send… */
+    officePhrase: ['{office}. Asianne? Pyynnöt vain kirjallisena muodossa: {code}', '{office}, päivystäjä. Kirjoita pyyntösi näin: {code}'],
+    officePhrases: ['HALUAN PAREMMAN ASEEN', 'ANON PARANNUSTA ASEESEENI', 'PYYDÄN LISÄVARUSTEITA', 'TARVITSEN SITÄ OIKEASTI'],
+    /** …or a wall of regulations with the code word hidden in it ({code} in capitals). */
+    officeRules: [
+      '{office}. Palvelusohjesäännön mukaisesti varusmies, joka anoo lisävarusteita, on velvollinen ensin perehtymään asiaa koskeviin määräyksiin. Anomus käsitellään järjestyksessä, ellei esimies toisin määrää, ja käsittelyn kesto riippuu muun muassa kalustotilanteesta, vuorokaudenajasta ja käsittelijän mielialasta. Hyväksytty anomus vahvistetaan tunnussanalla {code}, joka lähetetään tähän numeroon. Väärin lähetetyt tunnussanat käsitellään torstaisin hernekeiton jälkeen.',
+      '{office}. Varusmiehen on noudatettava saamiaan käskyjä viipymättä ja täsmällisesti. Kalustoa luovutetaan vain kuittausta vastaan, ja kuittaus annetaan kirjallisesti. Mikäli kuittaus on puutteellinen, epäselvä tai lähetetty väärään osoitteeseen, se katsotaan tekemättömäksi. Tämän pyynnön kuittaussana on {code}. Kuittaussanaa ei lausuta ääneen eikä kirjoiteta seinään. Kiire odottamaan.',
+    ],
+    officeWords: ['TELTTA', 'KAMINA', 'NUOTIO', 'KOMPASSI', 'SAAPAS', 'KENTTÄLAPIO', 'MAKUUPUSSI', 'HERNEKEITTO'],
+    /** An office replying to anything else. */
+    officeOther: ['Ei kuulu meille.', 'Toimisto on kiinni. Kiire odottamaan.', 'Pyynnöt kirjallisena ja oikeassa muodossa.'],
+    /** Stage 4: a voice note from the Huoltopäällikkö at a long number. */
+    stage4: ['Huoltopäällikkö hoitaa loput. Numero {number}. Kuuntele mitä hän sanoo.', 'Nyt mennään huoltopäällikön kautta: {number}. Hän lähettää tunnuksen ääniviestinä.'],
+    huolto: 'Huoltopäällikkö',
+    huoltoNote: ['Huoltopäällikkö. Tunnus tulee ääniviestinä. Vastaa tunnuksella.', 'Huolto. Kuuntele viesti ja kirjoita tunnus.'],
+    /** Code words the voice note spells out in the phonetic alphabet. */
+    stage4Codes: ['KETTU', 'KARHU', 'HIRVI', 'ILVES', 'SUSI', 'MÄYRÄ', 'JÄNIS', 'PÖLLÖ', 'TIKKA', 'NAALI', 'AHMA', 'SAUKKO'],
+    /** A stage done: promotion. */
+    promoted: ['Hyvä. Ylennys {rankTo}. TJ {tj}.', 'Kuitattu. Olet nyt {rank}. TJ {tj}.', 'Selvä. Ylennys {rankTo}. Aamuja jäljellä: {tj}.'],
+    /** The upgrade screen's heading on the phone. */
+    upgradeTitle: 'Kokoa ei ole, ota mikä on.',
+    upgradeTaken: ['Kuitattu: {upgrade}.', '{upgrade} luovutettu. Allekirjoitus tähän.', '{upgrade}. Älä riko sitä heti.'],
+    /** The right code in the wrong chat. */
+    wrongChat: ['Väärä luukku. Lähetä se sinne, minne käskettiin.', 'Se ei kuulu tänne. Lue ohje uudestaan.'],
+    /** Sotkun munkkikahvit: KIITOS completes the next challenge. */
+    munkkiDone: ['Munkkikahvit tekivät tehtävänsä. Hoidettu.', 'Kiitos itsellesi. Tehtävä kuitattu munkin voimalla.'],
+    /** The ladder is done. */
+    tj0: 'TJ 0. Kotiutettu. Asevarasto on suljettu. LATAA ja KRANAATTI toimivat vielä, koska olen hyvä ihminen.',
+  },
 };

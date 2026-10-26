@@ -17,6 +17,12 @@ const ASEVARASTO = FI.varusmestari.number;
 /** What bots type when they want a reload: mostly right, sometimes not. */
 const RELOAD_TEXTS = ['Lataa', 'lataa', 'LATAA', 'Lataa!', 'lataa', 'Lataa', 'lataaa', 'ltaa', 'lata', 'lataa nyt', 'laataa'];
 
+/** A thumb slip: one letter dropped or doubled. */
+function slip(code: string): string {
+  const i = Math.floor(Math.random() * code.length);
+  return Math.random() < 0.5 ? code.slice(0, i) + code.slice(i + 1) : code.slice(0, i) + code[i] + code.slice(i);
+}
+
 /**
  * A server-side player that walks the nav graph, notices enemies in its field of view,
  * turns and aims with human-like error and fires through the same validation as humans.
@@ -44,10 +50,14 @@ export class Bot {
   private jumpUntil = 0;
   private wasAlive = false;
   private lastHurtBy = 0;
-  /** Texting the varusmestari: the phone is out and the draft grows letter by letter. */
-  private typing: { text: string; shown: number; nextAt: number } | null = null;
+  /** Texting: the phone is out and the draft grows letter by letter. */
+  private typing: { text: string; shown: number; nextAt: number; conv: string } | null = null;
   private phoneDownAt = 0;
   private retypeAt = 0;
+  /** TJ ladder: when to answer the open task, and when to pick an upgrade. */
+  private task: object | null = null;
+  private taskAt = 0;
+  private choiceAt = 0;
 
   constructor(
     readonly p: ServerPlayer,
@@ -253,14 +263,41 @@ export class Bot {
   private textReload(now: number): void {
     if (this.typing || now < this.retypeAt || (this.p.reload && now < this.p.reload.end)) return;
     const text = RELOAD_TEXTS[Math.floor(Math.random() * RELOAD_TEXTS.length)]!;
-    this.typing = { text, shown: 0, nextAt: now + 350 + Math.random() * 450 };
+    this.typing = { text, shown: 0, nextAt: now + 350 + Math.random() * 450, conv: ASEVARASTO };
     this.p.phone.out = true;
+  }
+
+  /** The ladder: answer tasks after a while (in quiet moments), and take an upgrade. */
+  private ladder(now: number): void {
+    const p = this.p;
+    const l = p.ladder;
+    if (l.choice) {
+      if (!this.choiceAt) this.choiceAt = now + 2000 + Math.random() * 4000;
+      else if (now >= this.choiceAt) {
+        this.choiceAt = 0;
+        this.room.ladder.choose(p, l.choice.options[Math.floor(Math.random() * l.choice.options.length)]!);
+      }
+    }
+    if (l.open !== this.task) {
+      this.task = l.open;
+      this.taskAt = now + 4000 + Math.random() * 14000;
+    }
+    const c = l.open;
+    if (!c || this.typing || this.target || now < this.taskAt) return;
+    // Contacts have to be opened by hand, bots included.
+    if (c.conv !== ASEVARASTO && !p.phone.convs.has(c.conv)) this.room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    const text = Math.random() < 0.15 ? slip(c.code) : c.code;
+    this.typing = { text, shown: 0, nextAt: now + 500 + Math.random() * 600, conv: c.conv };
+    p.phone.out = true;
+    // If that went wrong, try again a bit later.
+    this.taskAt = now + 9000 + Math.random() * 9000;
   }
 
   private updatePhone(now: number): void {
     const p = this.p;
     // Quiet moment and a part-empty magazine: top up.
-    if (!this.typing && !this.target && p.ammo[p.weapon] < TUNING[p.weapon].magazine * 0.4 && Math.random() < 0.01) this.textReload(now);
+    if (!this.typing && !this.target && p.ammo[p.weapon] < p.gun(p.weapon).magazine * 0.4 && Math.random() < 0.01) this.textReload(now);
+    this.ladder(now);
     const t = this.typing;
     if (!t) {
       if (p.phone.out && now >= this.phoneDownAt) p.phone.out = false;
@@ -276,16 +313,16 @@ export class Bot {
     if (now < t.nextAt) return;
     if (t.shown < t.text.length) {
       t.shown++;
-      p.phone.draft = { conv: ASEVARASTO, text: t.text.slice(0, t.shown), at: now };
+      p.phone.draft = { conv: t.conv, text: t.text.slice(0, t.shown), at: now };
       t.nextAt = now + 110 + Math.random() * 150;
       return;
     }
-    const kind = this.room.varusmestari.receive(p, { rid: `bot${p.id}-${now.toFixed(0)}`, conv: ASEVARASTO, text: t.text, life: p.life, round: this.room.round.n });
+    const kind = this.room.varusmestari.receive(p, { rid: `bot${p.id}-${now.toFixed(0)}`, conv: t.conv, text: t.text, life: p.life, round: this.room.round.n });
     this.typing = null;
     // The "Sending…" moment, then the phone goes down.
     this.phoneDownAt = now + 650;
     // A typo: read the reply, then try again.
-    if (kind !== 'command') this.retypeAt = now + 1800 + Math.random() * 1200;
+    if (kind !== 'command' && t.conv === ASEVARASTO) this.retypeAt = now + 1800 + Math.random() * 1200;
   }
 
   private goTo(x: number, y: number, z: number): void {

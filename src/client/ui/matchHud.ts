@@ -1,4 +1,5 @@
 import { PHONE } from '../../shared/config';
+import { FI } from '../../shared/fi';
 import { ACCENTS, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { wrapAngle } from '../../shared/math';
@@ -43,6 +44,8 @@ export class MatchHud {
   private timer: HTMLDivElement;
   private timerRound: HTMLDivElement;
   private timerText: HTMLDivElement;
+  private ladderLine: HTMLDivElement;
+  private taskLine: HTMLDivElement;
   private board: HTMLDivElement;
   private death: HTMLDivElement;
   private deathTitle: HTMLDivElement;
@@ -75,6 +78,8 @@ export class MatchHud {
     this.timer = el('div', 'round-timer', this.root);
     this.timerRound = el('div', 'round-n', this.timer);
     this.timerText = el('div', 'round-time', this.timer);
+    this.ladderLine = el('div', 'ladder-line', this.root);
+    this.taskLine = el('div', 'task-line', this.ladderLine);
     this.board = el('div', 'scoreboard hidden', this.root);
     this.death = el('div', 'death hidden', this.root);
     this.deathTitle = el('div', 'death-title', this.death);
@@ -116,6 +121,7 @@ export class MatchHud {
     const line = el('div', 'feed-line', this.feed);
     if (killer?.id === myId || victim?.id === myId) line.classList.add('mine');
     const name = (p: PlayerInfo | undefined) => {
+      el('span', 'feed-rank', line, `${FI.rankAbbr[p?.rank ?? 0] ?? ''} `);
       const s = el('span', 'feed-name', line, p?.name ?? '?');
       s.style.setProperty('--accent', accentOf(p));
       return s;
@@ -151,6 +157,19 @@ export class MatchHud {
     }
     this.typoLines.push({ node: item, t: 0 });
     while (this.typoLines.length > PHONE.typoLines) this.typoLines.shift()!.node.remove();
+  }
+
+  /** Rank and TJ under the round timer, and whether a task or an upgrade waits on the phone. */
+  ladder(rank: number, tj: number, open: boolean, queued: number, choice: boolean): void {
+    const r = FI.ranks[rank] ?? FI.ranks[0]!;
+    const head = `${r[0]!.toUpperCase()}${r.slice(1)} · TJ ${tj}`;
+    const task = choice ? UI.hud.upgradeWaiting : open ? UI.hud.taskOpen + (queued > 0 ? ` · ${fill(UI.hud.taskQueued, { n: queued })}` : '') : '';
+    if (this.changed('ladder', head + task)) {
+      this.ladderLine.textContent = head;
+      this.taskLine.textContent = task;
+      this.ladderLine.appendChild(this.taskLine);
+      this.taskLine.classList.toggle('hidden', !task);
+    }
   }
 
   /** Our own phone: connected, offline, or not paired yet. */
@@ -217,7 +236,7 @@ export class MatchHud {
     if (!show) return;
     const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
     const ended = round?.state === 'ended';
-    const key = JSON.stringify([sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone]), ended, round?.n, ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0]);
+    const key = JSON.stringify([sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank]), ended, round?.n, ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0]);
     if (!this.changed('board', key)) return;
     this.board.innerHTML = '';
     const head = el('div', 'sb-head', this.board);
@@ -239,6 +258,7 @@ export class MatchHud {
       const n = el('div', 'sb-name', r);
       const chip = el('span', 'sb-chip', n);
       chip.style.background = accentOf(p);
+      el('span', 'sb-rank-abbr', n, FI.rankAbbr[p.rank] ?? '');
       el('span', '', n, p.name);
       if (!p.bot && p.phone !== 'none') {
         const ph = el('span', `sb-phone ${p.phone}`, n, '📱');

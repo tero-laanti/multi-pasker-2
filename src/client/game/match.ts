@@ -17,6 +17,7 @@ import {
   type Snapshot,
 } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
+import { UPGRADES, weaponStats } from '../../shared/upgrades';
 import type { Net } from '../net';
 import type { MatchHud } from '../ui/matchHud';
 import type { PairInfo } from '../ui/pair';
@@ -277,6 +278,19 @@ export class MatchMode implements GameMode {
       case 'paired':
         hud.note(e.replaced ? UI.hud.phoneReplaced : UI.hud.phonePaired, 3);
         break;
+      case 'ladder':
+        this.hud.ladder(e.rank, e.tj, e.open, e.queued, e.choice);
+        break;
+      case 'upgrades': {
+        g.weapons.upgrades = { ...e.u };
+        if (e.id) {
+          const def = UPGRADES[e.id];
+          const lv = e.u[e.id] ?? 1;
+          hud.note(fill(UI.hud.upgradeTaken, { name: def.name, benefit: def.benefit(lv) }), 3.5);
+          g.deps.audio.play('hit_kill', { bus: 'ui', volume: 0.35, rate: 1.4 });
+        }
+        break;
+      }
     }
   }
 
@@ -285,10 +299,18 @@ export class MatchMode implements GameMode {
     const g = this.game;
     const audio = g.deps.audio;
     const m = this.remotes.muzzle(e.p, this.v) ?? this.v.set(e.o[0], e.o[1], e.o[2]);
-    this.remotes.players.get(e.p)?.char.muzzleFlash();
-    g.effects.tracer(m.x, m.y, m.z, e.e[0], e.e[1], e.e[2]);
     const dist = m.distanceTo(g.eye);
-    if (dist < FAR_SHOT) {
+    // Suppressed: no flash or tracer, a dull thump heard only nearby.
+    const silenced = weaponStats(e.w, this.players.get(e.p)?.upgrades ?? {}).silenced;
+    if (silenced) {
+      audio.playAt(`${e.w}_suppressed`, m.x, m.y, m.z, { volume: 0.9, refDistance: 2.5, rolloff: 1.4, maxDistance: 40, gunshot: true });
+    } else {
+      this.remotes.players.get(e.p)?.char.muzzleFlash();
+      g.effects.tracer(m.x, m.y, m.z, e.e[0], e.e[1], e.e[2]);
+    }
+    if (silenced) {
+      // No loud report.
+    } else if (dist < FAR_SHOT) {
       audio.playAt(`${e.w}_shot`, m.x, m.y, m.z, { volume: 0.95, refDistance: 5, rolloff: 1, maxDistance: 300, gunshot: true });
       if (dist < 18) audio.playAt(`${e.w}_tail`, m.x, m.y, m.z, { volume: 0.35, refDistance: 6, rolloff: 1 });
     } else {

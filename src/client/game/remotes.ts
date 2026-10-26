@@ -163,8 +163,10 @@ export class Remotes {
         ads: (s.flags & PF.ADS) !== 0,
         reloading: (s.flags & PF.RELOAD) !== 0,
         weapon: rp.weapon,
-        phone: (s.flags & PF.PHONE) !== 0,
+        // Tumma tila: nobody sees them on the phone.
+        phone: (s.flags & PF.PHONE) !== 0 && !rp.info.upgrades?.tumma,
       });
+      rp.char.setUpgrades(rp.info.upgrades ?? {});
       if (alive) {
         rp.sounds(dt, this.audio, this.world, this.tr, eye);
         rp.updateVisibility(dt, this.world, this.tr, eye);

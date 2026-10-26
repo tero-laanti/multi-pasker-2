@@ -1,6 +1,7 @@
 import { PHONE, TUNING } from '../../shared/config';
 import { classify, normalize, type Classified } from '../../shared/chat';
 import { FI } from '../../shared/fi';
+import { level } from '../../shared/upgrades';
 import type { PhoneMessage } from '../../shared/protocol';
 import type { ServerPlayer } from './player';
 import type { Room } from './room';
@@ -45,6 +46,25 @@ export class Varusmestari {
     phone.add(V.number, { id: phone.newId(), from: 'them', text: pick(V.welcome), at: Date.now() });
   }
 
+  /**
+   * A message from the asevarasto (or a contact's number) into the player's chat, after a
+   * typing pause; messages queue so they arrive one at a time.
+   */
+  post(p: ServerPlayer, from: string, text: string, voice?: { url: string; duration: number }): void {
+    const phone = p.phone;
+    if (from === V.number && !phone.convs.has(V.number)) this.greet(p);
+    if (!phone.convs.has(from)) return;
+    const now = this.room.now();
+    const typing = voice ? 1400 : Math.min(PHONE.typingMax, Math.max(PHONE.typingMin, text.length / PHONE.typingCps)) * 1000;
+    const start = Math.max(now + 300, phone.busyUntil);
+    phone.busyUntil = start + typing;
+    phone.schedule(start, () => phone.send({ t: 'typing', conv: from, on: true }));
+    phone.schedule(start + typing, () => {
+      phone.send({ t: 'typing', conv: from, on: false });
+      phone.add(from, { id: phone.newId(), from: 'them', text: voice ? undefined : text, voice, at: Date.now() });
+    });
+  }
+
   /** A message sent from a phone (or a bot pretending to have one). */
   receive(p: ServerPlayer, req: SendRequest): Classified['kind'] | 'retry' | 'unknownNumber' {
     const phone = p.phone;
@@ -64,6 +84,21 @@ export class Varusmestari {
     phone.add(conv.id, out);
     phone.schedule(now + 120, () => phone.setState(conv.id, out.id, 'delivered'));
 
+    // The TJ ladder first: the right code in the right chat completes the task.
+    const [r0, r1] = PHONE.readDelay;
+    const ladder = this.room.ladder.check(p, conv.id, text);
+    if (ladder === 'done') {
+      phone.schedule(now + 250, () => phone.setState(conv.id, out.id, 'read'));
+      return 'command';
+    }
+    const contact = this.room.ladder.contact(p, conv.id);
+    if (ladder === 'wrongChat' || (contact && conv.id !== V.number)) {
+      const reply = pick(ladder === 'wrongChat' ? FI.ladder.wrongChat : FI.ladder.officeOther);
+      phone.schedule(now + (r0 + Math.random() * (r1 - r0)) * 1000, () => phone.setState(conv.id, out.id, 'read'));
+      this.post(p, conv.id, reply);
+      this.room.offerTypo(p, conv.name, text, reply);
+      return 'other';
+    }
     if (conv.id !== V.number) {
       // Numbers that don't exist: the message bounces.
       phone.schedule(now + 500, () => {
@@ -74,9 +109,8 @@ export class Varusmestari {
       return 'unknownNumber';
     }
 
-    const c = classify(text, false);
+    const c = classify(text, level(p.ladder.upgrades, 'pikavalinta') > 0);
     const d = this.decide(p, req, c, text, now);
-    const [r0, r1] = PHONE.readDelay;
     const read = now + (d.command ? 250 : (r0 + Math.random() * (r1 - r0)) * 1000);
     phone.schedule(read, () => phone.setState(conv.id, out.id, 'read'));
     if (d.reply) {

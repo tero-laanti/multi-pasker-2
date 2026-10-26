@@ -78,9 +78,12 @@ on the next page load; no code changes needed.
 Tips:
 
 - Mono, 44.1 or 48 kHz. Trim silence at both ends (leave about 50 ms).
-- The phonetic-alphabet words are separate files that the game splices into voice notes
-  (e.g. KETTU = Kalle, Eemeli, Tyyne, Tyyne, Urho). Say every word the same way and at the same
-  level so the joins sound natural.
+- The phonetic-alphabet words, *Tunnus:* and the voice-note intros and outros are separate files
+  that the server splices into one voice note (e.g. KETTU = intro, Tunnus, Kalle, Eemeli, Tyyne,
+  Tyyne, Urho, outro). **Save these as WAV** (any sample rate, 16/24-bit or float, mono or stereo):
+  other formats can't be spliced, and the placeholder is used for that word instead. The server
+  trims silence and evens out the level, but the joins sound most natural if every word is said
+  the same way. Restart the server after adding recordings.
 - The Swedish notes are spoken in Finland-Swedish, like a duty officer at Nylands brigad.
 - Texts and file names come from \`src/shared/fi.ts\` (the \`voice\` section). This document and
   the placeholders are regenerated with \`npm run gen:voice\`.

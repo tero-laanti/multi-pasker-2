@@ -106,6 +106,11 @@ export class PhoneNet {
     this.raw({ t: 'out', on });
   }
 
+  /** Upgrade choice; the request id makes a resend after a reconnect harmless. */
+  choose(rid: string, id: string): void {
+    this.raw({ t: 'choose', rid, id: id as Extract<PhoneClientMsg, { t: 'choose' }>['id'] });
+  }
+
   /** Unconfirmed sends. */
   pending(rid: string): boolean {
     return this.outbox.has(rid);

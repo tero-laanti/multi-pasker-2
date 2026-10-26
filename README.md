@@ -6,9 +6,10 @@ The interface is in English; voice lines, range commands and the varusmestari's 
 Finnish. The full brief is in [docs/BRIEF.md](docs/BRIEF.md) and the technology choices are in
 [docs/STACK.md](docs/STACK.md).
 
-> **Status:** milestone 4 of 7: the shooting range, LAN free-for-all matches on the garrison map
-> with bots, and the phone: pairing, the messaging app with its own keyboard, and the
-> varusmestari's LATAA and KRANAATTI. Upgrades, ranks and the TJ ladder come next.
+> **Status:** milestone 5 of 7: the shooting range, LAN free-for-all matches on the garrison map
+> with bots, the phone (pairing, the messaging app with its own keyboard, the varusmestari's
+> LATAA and KRANAATTI), and the TJ ladder's stages 1–4 with ranks and upgrades. Stages 5–6,
+> the end-of-round awards and the evening scoreboard come next.
 > Real-device test script: [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md).
 
 ## Requirements
@@ -97,6 +98,29 @@ the host can turn on F2 → *R reloads directly* for everyone (`npm run dev` ser
 
 For development, F2 → *Open phone simulator* opens the phone app in a window that you type into
 with the computer's keyboard (only on `npm run dev` servers or the host machine).
+
+## The TJ ladder
+
+Your first kill or first death brings an offer from the asevarasto; after that, every 3rd kill
+(*Kunniamaininta*) and every 3rd death (*Vahinkoilmoitus käsitelty*) bring another (more with a
+big crowd). Each completed task promotes you (alokas → sotamies → … → vääpeli) and counts TJ
+down from 6. One task is open at a time; later offers wait in the queue.
+
+| Stage | Where | What |
+|---|---|---|
+| 1 | Asevarasto | send the word it asks for: you get the rifle |
+| 2 | Asevarasto | send a phrase exactly (tongue twisters included) |
+| 3 | an office at a new number | open a chat with that number yourself, then send its phrase or the code word hidden in a wall of regulations |
+| 4 | the huoltopäällikkö at a 17-digit +358 number | a voice note spells the code in the phonetic alphabet |
+
+Stages 2 and up open an upgrade screen on the phone (*Kokoa ei ole, ota mikä on.*): three choices
+with their exact effect. Upgrades last until the round ends: a longer magazine, a muzzle brake, a
+lighter bolt, a suppressor (quiet, no flash, visible), a grenade belt, dark mode (nobody sees you
+on the phone), speed dial (`L` and `K`), sotkun munkkikahvit (KIITOS completes the next task),
+and a drum magazine on the later stages. The desktop shows your rank and TJ under the clock and a
+note when a task or an upgrade waits on the phone.
+
+F2 → *Trigger an offer* and *Advance the ladder* skip the waiting while testing.
 
 The dev panel's match controls (bots, round restart, gate, kill speed, giving weapons) work from
 the host machine, or from any machine on a `npm run dev` server. The *network conditioner*
@@ -243,7 +267,7 @@ looking at a pose in development: `/tools/handlab/index.html` on the dev server.
 src/shared/    config.ts, ui.ts, fi.ts, protocol.ts, collision/, map/, nav.ts, history.ts, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
 src/client/    app.ts, net.ts, game/ (core loop, range and match modes, remote players, weapons, viewmodel, models, effects), render/, audio/, ui/
 src/phone/     the phone app: app.ts, keyboard.ts, net.ts, media.ts
-src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari), lan.ts, http.ts, tuningWriter.ts
+src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari, ladder), voicenotes.ts, lan.ts, http.ts, tuningWriter.ts
 tools/         sound import/synthesis, voice placeholders, e2e screenshot driver
 assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults; models/ (hand model)
 ```
@@ -251,7 +275,9 @@ assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder
 Browser tests drive real Chrome through Playwright: `npx tsx tools/e2e/shot.ts <outDir> <scenario.js>`
 runs a scripted scenario against a running server and saves screenshots, and
 `npx tsx tools/e2e/phone-flow.ts <outDir> --url=http://localhost:8088/ --phone=390x844` joins a
-desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow.
+desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow, and
+`tools/e2e/ladder-flow.ts` climbs the TJ ladder through the phone (codes typed on its keyboard,
+the upgrade screen, the office number, the voice note).
 
 ### Measured performance (milestone 3)
 

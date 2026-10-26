@@ -1,5 +1,5 @@
 import { FI } from '../shared/fi';
-import { ACCENTS, PROTOCOL_VERSION, type MsgState, type PhoneConversation, type PhoneMessage, type PhoneServerMsg, type PhoneStatus } from '../shared/protocol';
+import { ACCENTS, PROTOCOL_VERSION, type MsgState, type PhoneConversation, type PhoneMessage, type PhoneServerMsg, type PhoneStatus, type UpgradeOffer } from '../shared/protocol';
 import { UI } from '../shared/ui';
 import { Keyboard } from './keyboard';
 import { Media } from './media';
@@ -86,6 +86,10 @@ export class PhoneApp {
   private playing: { audio: HTMLAudioElement; bubble: HTMLElement } | null = null;
   /** After sending: the short "Sending…" screen, then back to the chat list. */
   private sending: { rid: string; since: number; timer: number } | null = null;
+  /** The upgrade screen, while a choice is waiting. */
+  private upgrade: UpgradeOffer | null = null;
+  private upgradePick: string | null = null;
+  private upgradeSent = false;
 
   constructor(private root: HTMLElement) {
     this.screen = h('div', 'screen', undefined, root);
@@ -146,6 +150,7 @@ export class PhoneApp {
         this.dev = m.dev;
         this.replacedOld = m.replaced;
         this.convs = new Map(m.convs.map((c) => [c.id, c]));
+        this.setUpgrade(m.upgrade);
         if (this.view === 'chat' || this.view === 'list') {
           this.render();
           break;
@@ -175,6 +180,10 @@ export class PhoneApp {
       case 'status':
         this.status = m.s;
         this.renderBanner();
+        this.renderRank();
+        break;
+      case 'upgrade':
+        this.setUpgrade(m.offer);
         break;
       case 'conv':
         if (!this.convs.has(m.c.id)) this.convs.set(m.c.id, m.c);
@@ -329,10 +338,66 @@ export class PhoneApp {
     this.sending = { rid, since, timer: window.setTimeout(check, 50) };
   }
 
-  /** The phone is "out" (in the character's hand) while a chat or the number pad is open. */
+  /** The phone is "out" (in the character's hand) while a chat, the number pad or an upgrade is open. */
   private updateOut(): void {
     const visible = document.visibilityState === 'visible';
-    this.net.out(visible && (this.view === 'chat' || this.sheetOpen));
+    this.net.out(visible && (this.view === 'chat' || this.sheetOpen || this.upgrade !== null));
+  }
+
+  /** Rank and days left in the list header: "Sotamies · TJ 5". */
+  private renderRank(): void {
+    const el = this.screen.querySelector<HTMLElement>('.bar-brand');
+    if (!el || !this.status) return;
+    const rank = FI.ranks[this.status.rank] ?? FI.ranks[0]!;
+    el.textContent = `${rank[0]!.toUpperCase()}${rank.slice(1)} · ${fill(P.tj, { n: this.status.tj })}`;
+  }
+
+  private setUpgrade(offer: UpgradeOffer | null): void {
+    this.upgrade = offer;
+    this.upgradePick = null;
+    this.upgradeSent = false;
+    this.renderUpgrade();
+    this.updateOut();
+  }
+
+  /**
+   * "Kokoa ei ole, ota mikä on." Three upgrades with their exact benefit; tap one, then take it.
+   * It sits over whatever the phone shows and comes back after a reconnect until chosen.
+   */
+  private renderUpgrade(): void {
+    this.root.querySelector('.upgrade-wrap')?.remove();
+    const offer = this.upgrade;
+    if (!offer || this.view === 'pair' || this.view === 'confirm' || this.view === 'sound' || this.view === 'replaced') return;
+    const wrap = h('div', 'upgrade-wrap', undefined, this.root);
+    const box = h('div', 'upgrade', undefined, wrap);
+    h('div', 'upgrade-title', offer.title, box);
+    h('div', 'upgrade-sub', P.upgradeChoose, box);
+    let take: HTMLButtonElement | null = null;
+    for (const o of offer.options) {
+      const card = h('div', 'upgrade-card', undefined, box);
+      card.classList.toggle('picked', this.upgradePick === o.id);
+      const head = h('div', 'upgrade-head', undefined, card);
+      h('div', 'upgrade-name', o.name, head);
+      if (o.level > 1) h('div', 'upgrade-level', fill(P.upgradeLevel, { n: o.level }), head);
+      h('div', 'upgrade-benefit', o.benefit, card);
+      card.onclick = () => {
+        if (this.upgradeSent) return;
+        this.upgradePick = o.id;
+        for (const c of box.querySelectorAll('.upgrade-card')) c.classList.remove('picked');
+        card.classList.add('picked');
+        if (take) take.disabled = false;
+      };
+    }
+    take = h('button', 'btn primary big', this.upgradeSent ? P.sendingScreen : P.upgradeTake, box);
+    take.disabled = !this.upgradePick || this.upgradeSent;
+    take.onclick = () => {
+      const id = this.upgradePick;
+      if (!id || this.upgradeSent) return;
+      this.upgradeSent = true;
+      take!.disabled = true;
+      take!.textContent = P.sendingScreen;
+      this.net.choose(`${this.token.slice(0, 8)}-u${Date.now().toString(36)}`, id);
+    };
   }
 
   // ---- views ----
@@ -344,6 +409,7 @@ export class PhoneApp {
       this.sending = null;
     }
     this.render();
+    this.renderUpgrade();
     this.updateOut();
   }
 
@@ -496,7 +562,8 @@ export class PhoneApp {
   private renderList(s: HTMLElement): void {
     const bar = this.bar(s);
     h('div', 'bar-title', P.chats, bar);
-    h('div', 'bar-brand', P.appName, bar);
+    h('div', 'bar-brand', '', bar);
+    this.renderRank();
     this.banner(s);
     const list = h('div', 'convs', undefined, s);
     const convs = this.sortedConvs();

@@ -33,6 +33,26 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
   res.end(data);
 }
 
+/** An in-memory body, with byte ranges (iOS Safari needs them to play audio). */
+export function sendBuffer(req: IncomingMessage, res: ServerResponse, buf: Buffer, type: string): void {
+  const range = req.headers.range;
+  const m = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
+  if (m) {
+    const start = m[1] ? parseInt(m[1], 10) : 0;
+    const end = m[2] ? Math.min(parseInt(m[2], 10), buf.length - 1) : buf.length - 1;
+    if (start > end || start >= buf.length) {
+      res.writeHead(416, { 'content-range': `bytes */${buf.length}` });
+      res.end();
+      return;
+    }
+    res.writeHead(206, { 'content-type': type, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${buf.length}`, 'accept-ranges': 'bytes', 'cache-control': 'no-cache' });
+    res.end(buf.subarray(start, end + 1));
+    return;
+  }
+  res.writeHead(200, { 'content-type': type, 'content-length': buf.length, 'accept-ranges': 'bytes', 'cache-control': 'no-cache' });
+  res.end(req.method === 'HEAD' ? undefined : buf);
+}
+
 export function sendFile(req: IncomingMessage, res: ServerResponse, file: string, cache: string): void {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) {
@@ -107,6 +127,16 @@ export class AudioFolder {
         const f = path.join(d, name + ext);
         if (fs.existsSync(f)) return f;
       }
+    }
+    return null;
+  }
+
+  /** A WAV for `name`: the recording if it is a WAV, otherwise the placeholder (for splicing). */
+  resolveWav(name: string): string | null {
+    if (!/^[a-z0-9_\-]+$/i.test(name)) return null;
+    for (const d of [this.dir, this.fallbackDir]) {
+      const f = path.join(d, `${name}.wav`);
+      if (fs.existsSync(f)) return f;
     }
     return null;
   }

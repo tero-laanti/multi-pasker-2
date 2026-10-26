@@ -259,4 +259,26 @@ console.log('Phone');
   out('phone_out', expEnv(biquad(noise(N(0.22), rng(77)), RATE, 'bandpass', (t) => 1200 + t * 9000, 1.8), RATE, 0.03, 0.05), -14);
 }
 
+console.log('Suppressed shots');
+{
+  // A suppressor leaves a dull thump, a hiss of gas and the action cycling.
+  for (const [name, f0, act] of [
+    ['pistol_suppressed', 170, 0.6],
+    ['rifle_suppressed', 140, 0.8],
+  ] as const) {
+    for (let v = 1; v <= 3; v++) {
+      const r = rng(400 + v + (name.startsWith('rifle') ? 10 : 0));
+      const len = 0.45;
+      const thump = expEnv(sine(N(len), RATE, f0 + r() * 20, f0 * 0.45, 0.04), RATE, 0.0008, 0.035);
+      const gas = expEnv(biquad(noise(N(len), r), RATE, 'bandpass', 2400 + r() * 600, 0.9), RATE, 0.0005, 0.045);
+      const body = expEnv(biquad(brown(N(len), r), RATE, 'lowpass', 900, 0.7), RATE, 0.001, 0.05);
+      const action = mix(N(len), [modes(N(len), RATE, [[2900 + r() * 300, 1, 0.012], [4700, 0.5, 0.008]]), 1]);
+      const clack = new Float32Array(N(len));
+      const at = N(0.035 + r() * 0.01);
+      for (let i = 0; i + at < clack.length; i++) clack[i + at] = action[i]! * act;
+      out(`${name}_${v}`, room(mix(N(len), [thump, 0.9], [gas, 0.55], [body, 0.6], [clack, 0.5]), 0.12, 0.3, 0.25), -5);
+    }
+  }
+}
+
 console.log('Done →', OUT);

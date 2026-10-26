@@ -3,6 +3,8 @@ import { TUNING, type WeaponId } from '../../shared/config';
 import { PositionHistory } from '../../shared/history';
 import type { GameEvent, PlayerInfo, PhoneStatus } from '../../shared/protocol';
 import { Phone } from './phone';
+import { Ladder } from './ladder';
+import { maxGrenades, weaponStats } from '../../shared/upgrades';
 
 export interface Reload {
   w: WeaponId;
@@ -56,6 +58,7 @@ export class ServerPlayer {
   /** Sequence number of the last fire message received. */
   lastFireSeq = 0;
   readonly phone = new Phone();
+  readonly ladder = new Ladder();
   /** Increases with every respawn; phone requests from an earlier life have no effect. */
   life = 0;
   /** Index into FI.ranks: alokas (0) to vääpeli (6). */
@@ -90,11 +93,31 @@ export class ServerPlayer {
       connected: this.connected,
       ping: Math.round(this.rtt),
       phone: this.phone.status(),
+      rank: this.rank,
+      upgrades: { ...this.ladder.upgrades },
     };
   }
 
+  /** Magazine size and fire rate with this player's upgrades. */
+  gun(w: WeaponId) {
+    return weaponStats(w, this.ladder.upgrades);
+  }
+
   phoneStatus(round: number): PhoneStatus {
-    return { name: this.name, alive: this.alive, life: this.life, round, grenades: this.grenades, maxGrenades: this.maxGrenades, rank: this.rank, desktop: this.connected };
+    const l = this.ladder;
+    return {
+      name: this.name,
+      alive: this.alive,
+      life: this.life,
+      round,
+      grenades: this.grenades,
+      maxGrenades: this.maxGrenades,
+      rank: this.rank,
+      tj: l.tj,
+      challenge: !!l.open,
+      queued: l.queued,
+      desktop: this.connected,
+    };
   }
 
   send(msg: object): void {
@@ -112,7 +135,8 @@ export class ServerPlayer {
   /** Fresh life: full magazines in every owned weapon, no grenades, no reload in progress. */
   resetLife(): void {
     this.hp = TUNING.player.health;
-    for (const w of this.owned) this.ammo[w] = TUNING[w].magazine;
+    for (const w of this.owned) this.ammo[w] = this.gun(w).magazine;
+    this.maxGrenades = maxGrenades(this.ladder.upgrades);
     this.reload = null;
     this.grenades = 0;
     this.lastDamageAt = -1e9;
