@@ -7,6 +7,7 @@ import { UI } from '../../shared/ui';
 import type { MapData } from '../../shared/map/types';
 import { SURFACE_NAMES } from '../../shared/map/types';
 import { DEG, clamp, damp, lerp, viewDir, type Vec3 } from '../../shared/math';
+import { spreadFor } from '../../shared/weapons';
 import { Mover, newMoveState, type MoveCmd, type MoveState } from '../../shared/movement';
 import type { AudioEngine } from '../audio/engine';
 import type { Input } from '../input';
@@ -71,6 +72,8 @@ export interface GameMode {
   readonly alive: boolean;
   /** False when shooting is not allowed (between rounds). */
   readonly firing?: boolean;
+  /** A chat is open on the player's phone: the phone is in the off hand. */
+  readonly phoneOut?: boolean;
   /** Fixed-step update after the local player and weapons have stepped. */
   step(dt: number): void;
   /**
@@ -294,6 +297,7 @@ export class Game {
     const sprint = shift && forward > 0 && !adsHeld && this.sprintLock <= 0;
     if (sprint && this.crouchWanted) this.crouchWanted = false;
 
+    const phone = this.mode.phoneOut === true;
     if (this.mode.alive) {
       const cmd: MoveCmd = {
         forward,
@@ -303,7 +307,7 @@ export class Game {
         crouch: this.crouchWanted,
         sprint,
         ads: this.weapons.ads > 0.5,
-        speedMul: TUNING[this.weapons.current].moveSpeedMul,
+        speedMul: TUNING[this.weapons.current].moveSpeedMul * lerp(1, TUNING.phoneOut.moveSpeedMul, this.weapons.phone),
       };
       const wasGround = this.move.onGround;
       this.prevEye.copy(this.eye);
@@ -346,6 +350,7 @@ export class Game {
           maxSpeed: TUNING.move.walkSpeed,
           airborne: !this.move.onGround,
           crouched: this.move.crouched,
+          phone,
         },
         aim,
       );
@@ -522,14 +527,17 @@ export class Game {
     renderer.render(this.sunShade);
   }
 
+  /** Hip-fire cone for the crosshair. */
   private currentSpread(): number {
     const w = this.weapons;
-    const T = TUNING[w.current];
-    const hs = Math.hypot(this.move.vx, this.move.vz);
-    const moveK = clamp(hs / TUNING.move.walkSpeed, 0, 1);
-    let s = T.spreadHip + T.spreadMove * moveK + w.bloom;
-    if (!this.move.onGround) s += T.spreadAir;
-    if (this.move.crouched) s *= T.spreadCrouchMul;
-    return Math.min(s, T.spreadMax + (this.move.onGround ? 0 : T.spreadAir));
+    return spreadFor(TUNING[w.current], {
+      ads: 0,
+      speed: Math.hypot(this.move.vx, this.move.vz),
+      maxSpeed: TUNING.move.walkSpeed,
+      airborne: !this.move.onGround,
+      crouched: this.move.crouched,
+      bloom: w.bloom,
+      phone: w.phone,
+    });
   }
 }

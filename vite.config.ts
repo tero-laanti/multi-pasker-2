@@ -12,7 +12,7 @@ export default defineConfig({
     sourcemap: true,
     chunkSizeWarningLimit: 4000,
     rolldownOptions: {
-      input: { main: 'index.html' },
+      input: { main: 'index.html', phone: 'phone.html' },
     },
   },
 });

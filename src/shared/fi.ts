@@ -1,6 +1,6 @@
 /**
  * Finnish content: what is spoken or typed in Finnish in the game (range commands, voice
- * lines, in-world place names and, later, the varusmestari's script and the phone commands).
+ * lines, in-world place names, the varusmestari's script and the phone commands).
  * Interface text is English and lives in ui.ts.
  * Edit freely: the keys are used by code, the strings are yours.
  */
@@ -91,4 +91,55 @@ export const FI = {
     ] as [string, string, string][],
   },
 
+  /**
+   * The varusmestari at the asevarasto. Each list is a set of variants picked at random.
+   * `{cmd}` is the command the player probably meant, `{rank}` the player's rank (alokas…).
+   * Commands themselves (LATAA, KRANAATTI, PUNNERRETTU) are matched in shared/chat.ts.
+   */
+  varusmestari: {
+    /** Contact name and number shown on the phone. */
+    name: 'Asevarasto',
+    number: '7413',
+    /** First message in the chat; it stays in the history as the instructions. */
+    welcome: [
+      'Asevarasto. Palvelut:\nLATAA – lataan aseen joka sinulla on kädessä.\nKRANAATTI – yksi kranaatti, heitto G:llä.\nMuuta ei ole. Kiire odottamaan.',
+    ],
+    /** Short acknowledgements after a reload; an empty string means no reply at all. */
+    reloadOk: ['Kuitattu.', 'Ladattu. Seuraava.', 'Lipas vaihdettu.', 'Tässä. Älä tuhlaa.', 'Ota ja mene.', 'Patruunat eivät kasva puussa.', '', '', ''],
+    reloadFull: ['Lipas on täynnä. Ammu ensin, {rank}.', 'Täysi lipas. Mitä sinä oikein lataat?', 'Lippaassa on jo kaikki. Laske itse.'],
+    reloadBusy: ['Jo ladataan. Kiire odottamaan.', 'Yksi lataus kerrallaan.'],
+    grenadeOk: ['Yksi kranaatti. Sokka pysyy paikallaan kunnes heität.', 'Kranaatti kuitattu. Älä pudota sitä jalkoihisi.', 'Tässä. Heitä kauas. Kauemmas kuin luulet.', 'Kuitattu. Heitto G:llä, ei hampailla.'],
+    grenadeLimit1: ['Yksi per mies.', 'Sinulla on jo kranaatti. Käytä se ensin.'],
+    grenadeLimit2: ['Kaksi per mies. Vyö ei veny.', 'Vyö on täynnä. Heitä ensin.'],
+    grenadeCooldown: ['Kranaatit loppu. Uusi erä tulee kun tulee.', 'Varasto on tyhjä. Kysy hetken päästä.', 'Ei ole. Huolto on matkalla.'],
+    dead: ['Kaatuneita ei palvella.', 'Kuolleet eivät tilaa mitään.', 'Ensin ylös, sitten viestit.'],
+    oldRound: ['Se oli eri kierros. Aloita alusta.'],
+    nearMiss: ['Tarkoititko {cmd}? Täällä ei arvailla.', '{cmd} kirjoitetaan {cmd}. Uudestaan.', 'Lue ohje. {cmd}. Ei muuta.'],
+    swear: ['{rank}! Kieli! Punnerra kymmenen ja ilmoita: PUNNERRETTU.', 'Tuollaista kieltä ei käytetä asevarastolle. Kymmenen punnerrusta, ja ilmoitat: PUNNERRETTU.'],
+    locked: ['Punnerrukset ensin. Ilmoita: PUNNERRETTU.', 'Ei palvelua ennen kuin olet punnertanut. PUNNERRETTU.'],
+    unlocked: ['Hyvä. Palvelu jatkuu.', 'No niin. Ja kieli kurissa jatkossa.'],
+    unlockedNotLocked: ['Kukaan ei käskenyt punnertaa. Mutta hyvä.'],
+    question: ['Kiire odottamaan.', 'Kysymykset kirjallisena komppanian toimistoon.'],
+    help: ['Apua jaetaan torstaisin hernekeiton yhteydessä.'],
+    english: ['Puolustusvoimissa puhutaan suomea. Tai ruotsia.', 'Englanniksi ei palvella. Suomeksi, kiitos.'],
+    swedish: ['Nylands brigad on Dragsvikissä. Täällä puhutaan suomea.'],
+    greeting: ['Päivää. Asiaan.', 'Terve terve. Mitä tarvitaan? LATAA vai KRANAATTI.', 'Moi vaan. Ei tämä mikään chatti ole.'],
+    thanks: ['Ei kestä. Mene jo.', 'Kiitokset hernekeittojonoon.', 'Joo joo.'],
+    numbers: ['Numerot toimistolle. Täällä tilataan sanoilla.', 'Ei tämä mikään vaihde ole.'],
+    empty: ['Puhu suomea.', 'Mitä?'],
+    spam: ['Yksi viesti kerrallaan, {rank}.', 'Rauhoitu. Täällä ei juosta.'],
+    other: [
+      'Ei kuulu meille.',
+      'Kokoa ei ole, ota mikä on. LATAA tai KRANAATTI.',
+      'Tästä luukusta saa kahta asiaa: LATAA ja KRANAATTI.',
+      'Palvelusohjesääntö ei tunne tuollaista pyyntöä.',
+      'TJ on pitkä ja sinä kirjoitat tuollaista.',
+      'Mitä?',
+    ],
+    /** Message to a number that doesn't exist. */
+    unknownNumber: 'Numeroa ei ole olemassa.',
+  },
+
+  /** Ranks, alokas (start) to vääpeli (TJ 0), and how the varusmestari addresses them. */
+  ranks: ['alokas', 'sotamies', 'korpraali', 'alikersantti', 'kersantti', 'ylikersantti', 'vääpeli'],
 };

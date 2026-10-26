@@ -136,16 +136,17 @@ function finnishFlag(): THREE.CanvasTexture {
 }
 
 function chainLink(): THREE.CanvasTexture {
+  // Wire about a quarter of the area: crisp diamonds up close, a light haze from afar.
   const c = document.createElement('canvas');
-  c.width = c.height = 64;
+  c.width = c.height = 32;
   const g = c.getContext('2d')!;
   g.strokeStyle = 'rgba(170,175,170,1)';
-  g.lineWidth = 2;
+  g.lineWidth = 3;
   g.beginPath();
   g.moveTo(0, 0);
-  g.lineTo(64, 64);
-  g.moveTo(64, 0);
-  g.lineTo(0, 64);
+  g.lineTo(32, 32);
+  g.moveTo(32, 0);
+  g.lineTo(0, 32);
   g.stroke();
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -261,11 +262,14 @@ export function buildProps(props: PropDef[], density: number): PropsView {
     const fence = new THREE.Group();
     const tex = chainLink();
     tex.repeat.set(len / 0.12, 1.8 / 0.12);
+    // Blended, not alpha-tested: far away the thin wires average into a faint grey haze
+    // instead of vanishing and leaving bare posts.
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(len, 1.8),
-      new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, metalness: 0.5, roughness: 0.5 }),
+      new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide, metalness: 0.5, roughness: 0.5 }),
     );
     tex.format = THREE.RGBAFormat;
+    tex.anisotropy = 8;
     mesh.position.y = 0.9;
     fence.add(mesh);
     const posts = Math.floor(len / 3) + 1;

@@ -1,0 +1,165 @@
+import { PHONE, TUNING } from '../../shared/config';
+import { classify, normalize, type Classified } from '../../shared/chat';
+import { FI } from '../../shared/fi';
+import type { PhoneMessage } from '../../shared/protocol';
+import type { ServerPlayer } from './player';
+import type { Room } from './room';
+
+const V = FI.varusmestari;
+
+function pick(list: readonly string[]): string {
+  return list[Math.floor(Math.random() * list.length)] ?? '';
+}
+
+function capitalize(s: string): string {
+  return s ? s[0]!.toLocaleUpperCase('fi-FI') + s.slice(1) : s;
+}
+
+export interface SendRequest {
+  rid: string;
+  conv: string;
+  text: string;
+  life: number;
+  round: number;
+}
+
+interface Decision {
+  reply: string;
+  /** Shown to everyone in the typo feed (anything that wasn't valid here). */
+  public: boolean;
+  /** A command that was carried out or answered on its merits (read quickly). */
+  command: boolean;
+}
+
+/**
+ * The armourer: reads what players text the asevarasto, carries out LATAA and KRANAATTI
+ * on the server's own state, and answers everything else from the script in fi.ts.
+ */
+export class Varusmestari {
+  constructor(private room: Room) {}
+
+  /** Opens the asevarasto chat with the instructions (they stay in the history). */
+  greet(p: ServerPlayer): void {
+    const phone = p.phone;
+    phone.conv(V.number, V.name);
+    phone.add(V.number, { id: phone.newId(), from: 'them', text: pick(V.welcome), at: Date.now() });
+  }
+
+  /** A message sent from a phone (or a bot pretending to have one). */
+  receive(p: ServerPlayer, req: SendRequest): Classified['kind'] | 'retry' | 'unknownNumber' {
+    const phone = p.phone;
+    const now = this.room.now();
+    if (phone.rids.has(req.rid)) {
+      // A retry after a reconnect: confirm what we already have, act on nothing.
+      const m = phone.convs.get(req.conv)?.messages.find((x) => x.id === req.rid);
+      if (m) phone.send({ t: 'msg', conv: req.conv, m });
+      return 'retry';
+    }
+    phone.rids.add(req.rid);
+    const text = req.text.slice(0, 300);
+    phone.draft = null;
+    phone.activeUntil = now + PHONE.activeTime * 1000;
+    const conv = phone.convs.get(req.conv) ?? phone.conv(req.conv, req.conv);
+    const out: PhoneMessage = { id: req.rid, from: 'me', text, at: Date.now(), state: 'sent' };
+    phone.add(conv.id, out);
+    phone.schedule(now + 120, () => phone.setState(conv.id, out.id, 'delivered'));
+
+    if (conv.id !== V.number) {
+      // Numbers that don't exist: the message bounces.
+      phone.schedule(now + 500, () => {
+        phone.setState(conv.id, out.id, 'failed');
+        phone.add(conv.id, { id: phone.newId(), from: 'system', text: V.unknownNumber, at: Date.now() });
+      });
+      this.room.offerTypo(p, conv.name, text, V.unknownNumber);
+      return 'unknownNumber';
+    }
+
+    const c = classify(text, false);
+    const d = this.decide(p, req, c, text, now);
+    const [r0, r1] = PHONE.readDelay;
+    const read = now + (d.command ? 250 : (r0 + Math.random() * (r1 - r0)) * 1000);
+    phone.schedule(read, () => phone.setState(conv.id, out.id, 'read'));
+    if (d.reply) {
+      const typing = Math.min(PHONE.typingMax, Math.max(PHONE.typingMin, d.reply.length / PHONE.typingCps)) * 1000;
+      const start = Math.max(read + 150, phone.busyUntil);
+      phone.busyUntil = start + typing;
+      const reply = d.reply;
+      phone.schedule(start, () => phone.send({ t: 'typing', conv: conv.id, on: true }));
+      phone.schedule(start + typing, () => {
+        phone.send({ t: 'typing', conv: conv.id, on: false });
+        phone.add(conv.id, { id: phone.newId(), from: 'them', text: reply, at: Date.now() });
+      });
+    }
+    if (d.public) this.room.offerTypo(p, V.name, text, d.reply);
+    return c.kind;
+  }
+
+  private decide(p: ServerPlayer, req: SendRequest, c: Classified, text: string, now: number): Decision {
+    const phone = p.phone;
+    const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
+    const say = (list: readonly string[], cmd = '') => capitalize(pick(list).replace(/\{rank\}/g, rank).replace(/\{cmd\}/g, cmd));
+    const answer = (list: readonly string[], cmd = ''): Decision => ({ reply: say(list, cmd), public: true, command: false });
+    const ok = (reply: string): Decision => ({ reply, public: false, command: true });
+
+    // Spam: many messages in a short time, or the same thing over and over.
+    phone.recent.push({ at: now, text: normalize(text) });
+    phone.recent = phone.recent.filter((r) => now - r.at < PHONE.spamWindow * 1000).slice(-10);
+    const last = phone.recent.slice(-PHONE.spamRepeat);
+    const spam = phone.recent.length >= PHONE.spamCount || (last.length === PHONE.spamRepeat && last.every((r) => r.text === last[0]!.text));
+
+    if (phone.locked) {
+      if (c.kind === 'command' && c.cmd === 'PUNNERRETTU') {
+        phone.locked = false;
+        return ok(say(V.unlocked));
+      }
+      return answer(V.locked);
+    }
+    if (c.kind === 'swear') {
+      phone.locked = true;
+      p.stats.pushups++;
+      return answer(V.swear);
+    }
+    if (c.kind !== 'command') {
+      if (spam) return answer(V.spam);
+      switch (c.kind) {
+        case 'nearMiss':
+          return answer(V.nearMiss, c.cmd);
+        case 'question':
+          return answer(V.question);
+        case 'help':
+          return answer(V.help);
+        case 'english':
+          return answer(V.english);
+        case 'swedish':
+          return answer(V.swedish);
+        case 'greeting':
+          return answer(V.greeting);
+        case 'thanks':
+          return answer(V.thanks);
+        case 'numbers':
+          return answer(V.numbers);
+        case 'empty':
+          return answer(V.empty);
+        default:
+          return answer(V.other);
+      }
+    }
+    if (c.cmd === 'PUNNERRETTU') return ok(say(V.unlockedNotLocked));
+    // Services: only for this round and this life, never queued.
+    if (req.round !== this.room.round.n) return ok(say(V.oldRound));
+    if (!p.alive || req.life !== p.life) return answer(V.dead);
+    if (c.cmd === 'LATAA') {
+      const r = this.room.startReload(p);
+      if (r === 'full') return ok(say(V.reloadFull));
+      if (r === 'busy') return ok(say(V.reloadBusy));
+      if (r === 'dead') return answer(V.dead);
+      p.stats.reloads++;
+      return ok(say(V.reloadOk));
+    }
+    if (p.grenades >= p.maxGrenades) return ok(say(p.maxGrenades > 1 ? V.grenadeLimit2 : V.grenadeLimit1));
+    if (now - phone.lastGrenadeAt < TUNING.grenade.supplyCooldown * 1000) return ok(say(V.grenadeCooldown));
+    if (!this.room.giveGrenade(p)) return answer(V.dead);
+    phone.lastGrenadeAt = now;
+    return ok(say(V.grenadeOk));
+  }
+}

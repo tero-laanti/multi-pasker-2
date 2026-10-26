@@ -6,14 +6,16 @@ The interface is in English; voice lines, range commands and the varusmestari's 
 Finnish. The full brief is in [docs/BRIEF.md](docs/BRIEF.md) and the technology choices are in
 [docs/STACK.md](docs/STACK.md).
 
-> **Status:** milestone 3 of 7: the shooting range and LAN free-for-all matches on the garrison
-> map with bots. The phone and the varusmestari come in the next milestones; until then the
-> host can let R reload directly (see *Playing a match*).
+> **Status:** milestone 4 of 7: the shooting range, LAN free-for-all matches on the garrison map
+> with bots, and the phone: pairing, the messaging app with its own keyboard, and the
+> varusmestari's LATAA and KRANAATTI. Upgrades, ranks and the TJ ladder come next.
+> Real-device test script: [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md).
 
 ## Requirements
 
 - **Host machine:** macOS or Windows with [Node.js](https://nodejs.org/) 22.12 or newer (24 LTS recommended).
-- **Players:** a desktop browser, Chrome or Edge (Firefox best effort), on the same network as the host.
+- **Players:** a desktop browser, Chrome or Edge (Firefox best effort), and a phone (iPhone Safari or
+  Android Chrome), all on the same network as the host. No app to install.
 - Everything is bundled: nothing is loaded from the internet while playing.
 
 ## Install and start
@@ -71,9 +73,29 @@ shows you as *left* to the others; you can come back during the round.
 **Bots** fill empty slots for testing: F2 → *Add bot* / *Fill with bots (15)*, or start the server
 with `PASKER_BOTS=15 npm start` (`set PASKER_BOTS=15` first on Windows).
 
-**Reloading before the phone exists:** reloading is meant to happen by texting the varusmestari
-(next milestone). Until then, the host turns on F2 → *R reloads directly*, which applies to
-everyone. `npm run dev` servers start with it on.
+## The phone
+
+Reloads and grenades come from the armourer, *varusmestari*, by text message from your own phone.
+
+1. After joining, the *Click to play* screen (and the Esc menu) shows a **QR code**. Scan it with
+   the phone's camera and open the link. Or open `http://<address>/phone` on the phone and type the
+   4-digit code shown below the QR code.
+2. The phone shows whose phone it is. Tap **Start** (keeps the screen on and enables sound) and
+   check that you hear the chime.
+3. Open the **Asevarasto** chat and text `LATAA` to reload the gun in your hands, or `KRANAATTI`
+   for a grenade (throw it with G). Case, spaces and punctuation don't matter; anything else
+   gets a reply from the armourer, and typos, swearing and chatter are shown to everyone.
+
+While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
+sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
+away. Messages you type on the phone use the app's own keyboard (no autocorrect or paste).
+
+One phone per player: pairing another phone replaces the first. A phone that loses its connection
+(screen lock, reload) comes back to the same chats. On the desktop, R only reminds you to text;
+the host can turn on F2 → *R reloads directly* for everyone (`npm run dev` servers start with it on).
+
+For development, F2 → *Open phone simulator* opens the phone app in a window that you type into
+with the computer's keyboard (only on `npm run dev` servers or the host machine).
 
 The dev panel's match controls (bots, round restart, gate, kill speed, giving weapons) work from
 the host machine, or from any machine on a `npm run dev` server. The *network conditioner*
@@ -90,6 +112,11 @@ hit registration.
   reach the host. Use the main network, or a dedicated router/hotspot for the party.
 - **Wrong address printed:** VPN clients (Tailscale, corporate VPNs) and virtual adapters can
   confuse the choice; use `--host` with the address shown in the Wi-Fi settings.
+- **Phone can't open the link or keeps reconnecting:** the phone must be on the same Wi-Fi as the
+  host (not mobile data, not a guest network). If the QR code is missing, the server could not
+  find its LAN address; start it with `--host <address>`.
+- **Phone screen dims or locks:** tap **Start** on the phone after (re)loading the page; it plays a
+  tiny silent video that keeps the screen on. Low Power Mode on iPhone can still lock the screen.
 - **Mouse doesn't lock / look feels accelerated:** click the game view. The first click after
   Esc needs about a second (browser rule). *Raw input* is on by default; if the browser doesn't
   support it the game falls back to normal pointer lock (F3 shows which).
@@ -177,6 +204,11 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
   jitter (about 50–70 ms on a LAN). Hits are claimed by the shooter against what they saw; the
   server rewinds the target (at most 200 ms) and checks line of sight through the collision world,
   so cover always blocks. The server owns health, damage, ammunition, grenades, score and rounds.
+- **Phone app** (`/phone`, about 11 KB gzipped, no Three.js): a single page with its own keyboard
+  (the compose field is not an input element, so the OS keyboard never opens). Every send carries
+  a request id and the life and round it was sent in; the server acts on it once and only for the
+  current life and round. Drafts and the chat-open state are streamed for the kill feed and the
+  phone in hand. The varusmestari's matching is in `src/shared/chat.ts`, his script in `fi.ts`.
 - **Bots** run on the server with the same movement code, A* over a navigation graph built from
   the map, a field of view, reaction time and aim error, and fire through the same validation
   as players.
@@ -187,13 +219,16 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
 ```
 src/shared/    config.ts, ui.ts, fi.ts, protocol.ts, collision/, map/, nav.ts, history.ts, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
 src/client/    app.ts, net.ts, game/ (core loop, range and match modes, remote players, weapons, viewmodel, models, effects), render/, audio/, ui/
-src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots), lan.ts, http.ts, tuningWriter.ts
+src/phone/     the phone app: app.ts, keyboard.ts, net.ts, media.ts
+src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari), lan.ts, http.ts, tuningWriter.ts
 tools/         sound import/synthesis, voice placeholders, e2e screenshot driver
 assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults
 ```
 
 Browser tests drive real Chrome through Playwright: `npx tsx tools/e2e/shot.ts <outDir> <scenario.js>`
-runs a scripted scenario against a running server and saves screenshots.
+runs a scripted scenario against a running server and saves screenshots, and
+`npx tsx tools/e2e/phone-flow.ts <outDir> --url=http://localhost:8088/ --phone=390x844` joins a
+desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow.
 
 ### Measured performance (milestone 3)
 

@@ -1,7 +1,8 @@
 import type { WebSocket } from 'ws';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { PositionHistory } from '../../shared/history';
-import type { GameEvent, PlayerInfo } from '../../shared/protocol';
+import type { GameEvent, PlayerInfo, PhoneStatus } from '../../shared/protocol';
+import { Phone } from './phone';
 
 export interface Reload {
   w: WeaponId;
@@ -54,6 +55,13 @@ export class ServerPlayer {
   rtt = 0;
   /** Sequence number of the last fire message received. */
   lastFireSeq = 0;
+  readonly phone = new Phone();
+  /** Increases with every respawn; phone requests from an earlier life have no effect. */
+  life = 0;
+  /** Index into FI.ranks: alokas (0) to vääpeli (6). */
+  rank = 0;
+  /** Counters for the end-of-round awards. */
+  stats = { pushups: 0, reloads: 0, typos: 0, deathsTyping: 0, longestDraft: '', phoneMs: 0 };
 
   constructor(
     readonly id: number,
@@ -72,7 +80,21 @@ export class ServerPlayer {
   }
 
   info(): PlayerInfo {
-    return { id: this.id, name: this.name, color: this.color, bot: this.bot, kills: this.kills, deaths: this.deaths, connected: this.connected, ping: Math.round(this.rtt) };
+    return {
+      id: this.id,
+      name: this.name,
+      color: this.color,
+      bot: this.bot,
+      kills: this.kills,
+      deaths: this.deaths,
+      connected: this.connected,
+      ping: Math.round(this.rtt),
+      phone: this.phone.status(),
+    };
+  }
+
+  phoneStatus(round: number): PhoneStatus {
+    return { name: this.name, alive: this.alive, life: this.life, round, grenades: this.grenades, maxGrenades: this.maxGrenades, rank: this.rank, desktop: this.connected };
   }
 
   send(msg: object): void {

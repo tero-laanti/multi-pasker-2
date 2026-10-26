@@ -18,6 +18,7 @@ export interface DevActions {
   fillBots(): void;
   restartRound(): void;
   killMe(): void;
+  openSimulator(): void;
   setGate(open: boolean): void;
   gateOpen(): boolean;
   setNetConditions(latencyMs: number, jitterMs: number): void;
@@ -78,6 +79,7 @@ export class DevPanel {
     btn(this.matchBox, UI.dev.fillBots, () => a.fillBots());
     btn(this.matchBox, UI.dev.restartRound, () => a.restartRound());
     btn(this.matchBox, UI.dev.killMe, () => a.killMe());
+    btn(this.matchBox, UI.pair.simulator, () => a.openSimulator());
     this.gate = check(this.matchBox, UI.dev.gateOpen, () => a.gateOpen(), (on) => a.setGate(on));
     this.direct = check(this.root, UI.dev.rDirect, () => a.directReload(), (on) => a.setDirectReload(on));
 

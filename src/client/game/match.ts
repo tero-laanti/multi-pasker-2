@@ -19,6 +19,7 @@ import {
 import { UI } from '../../shared/ui';
 import type { Net } from '../net';
 import type { MatchHud } from '../ui/matchHud';
+import type { PairInfo } from '../ui/pair';
 import type { Game, GameMode } from './game';
 import { Remotes } from './remotes';
 
@@ -50,9 +51,15 @@ export class MatchMode implements GameMode {
   alive = false;
   hp = 100;
   protected = false;
+  /** Our own phone has a chat open (from our entry in the snapshots). */
+  phoneOut = false;
   joined = false;
   players = new Map<number, PlayerInfo>();
   round: RoundInfo | null = null;
+  /** How to pair a phone with us; null until the server says. */
+  pairInfo: PairInfo | null = null;
+  dev = false;
+  onPairInfo: (info: PairInfo) => void = () => {};
   readonly remotes: Remotes;
   private stateSeq = 0;
   private fireSeq = 0;
@@ -112,6 +119,11 @@ export class MatchMode implements GameMode {
         this.setPlayers(msg.players);
         this.setRound(msg.round);
         this.game.devDirectReload = msg.dev;
+        this.dev = msg.dev;
+        break;
+      case 'pairInfo':
+        this.pairInfo = { url: msg.url, token: msg.token, code: msg.code, phone: msg.phone };
+        this.onPairInfo(this.pairInfo);
         break;
       case 'players':
         this.setPlayers(msg.players);
@@ -129,6 +141,7 @@ export class MatchMode implements GameMode {
     const me = s.players.find((p) => p.id === this.myId);
     if (me) {
       this.protected = (me.flags & PF.PROTECTED) !== 0;
+      this.phoneOut = (me.flags & PF.PHONE) !== 0;
       if (this.alive) this.hp = me.hp;
     }
   }
@@ -193,7 +206,7 @@ export class MatchMode implements GameMode {
         const killer = this.players.get(e.a);
         const victim = this.players.get(e.v);
         const weapon = e.w === 'grenade' ? UI.hud.grenadeWeapon : (UI.hud.weapons[e.w] ?? e.w);
-        this.hud.kill(e.a === e.v ? undefined : killer, victim, weapon, e.head, this.myId);
+        this.hud.kill(e.a === e.v ? undefined : killer, victim, weapon, e.head, this.myId, e.draft);
         if (e.v === this.myId) this.die(e.a, e.w);
         else if (e.a === this.myId) {
           hud.hitMarker('kill');
@@ -257,6 +270,12 @@ export class MatchMode implements GameMode {
         break;
       case 'note':
         hud.note(e.text, 3);
+        break;
+      case 'typo':
+        this.hud.typo(this.players.get(e.p), e.to, e.text, e.reply);
+        break;
+      case 'paired':
+        hud.note(e.replaced ? UI.hud.phoneReplaced : UI.hud.phonePaired, 3);
         break;
     }
   }
@@ -406,6 +425,7 @@ export class MatchMode implements GameMode {
     }
 
     this.hud.health(this.alive ? this.hp : 0);
+    this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut);
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);
     const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';

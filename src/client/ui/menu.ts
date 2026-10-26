@@ -53,6 +53,8 @@ export class Menu {
   private joinError!: HTMLDivElement;
   private joinButton!: HTMLButtonElement;
   private quitButton: HTMLButtonElement;
+  private overlayRow: HTMLDivElement;
+  private pauseRow: HTMLDivElement;
   private settingsReturn: 'main' | 'pause' = 'main';
 
   constructor(
@@ -87,11 +89,13 @@ export class Menu {
 
     this.overlay = h('div', 'screen overlay hidden', undefined, this.root);
     this.overlayText = h('div', 'overlay-text', UI.menu.clickToPlay, this.overlay);
-    this.overlay.appendChild(this.controls());
+    this.overlayRow = h('div', 'overlay-row', undefined, this.overlay);
+    this.overlayRow.appendChild(this.controls());
 
     this.pause = h('div', 'screen pause hidden', undefined, this.root);
     h('div', 'title small', UI.menu.paused, this.pause);
-    const pb = h('div', 'buttons', undefined, this.pause);
+    this.pauseRow = h('div', 'overlay-row', undefined, this.pause);
+    const pb = h('div', 'buttons', undefined, this.pauseRow);
     const resume = h('button', 'btn primary', UI.menu.resume, pb);
     resume.onclick = () => actions.resume();
     const ps = h('button', 'btn', UI.menu.settings, pb);
@@ -153,6 +157,12 @@ export class Menu {
     this.join.classList.remove('hidden');
     this.joinInput.focus();
     this.joinInput.select();
+  }
+
+  /** Phone pairing panels in the click-to-play and pause screens (matches only). */
+  addPairPanels(overlay: HTMLElement, pause: HTMLElement): void {
+    this.overlayRow.appendChild(overlay);
+    this.pauseRow.appendChild(pause);
   }
 
   /** In a match the pause menu leaves the match instead of quitting the range. */

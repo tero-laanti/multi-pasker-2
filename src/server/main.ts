@@ -10,7 +10,7 @@ import { applyTuning, type TuningTree } from './tuningWriter';
 import { buildGarrison } from '../shared/map/garrison';
 import { Room } from './game/room';
 import type { ServerPlayer } from './game/player';
-import type { ClientMsg } from '../shared/protocol';
+import type { ClientMsg, PhoneClientMsg } from '../shared/protocol';
 import { mergeTuning, type TuningNode } from '../shared/tuningTree';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req));
   });
 
-  room = new Room(buildGarrison(), { dev: args.dev });
+  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined });
   const bots = Number(process.env.PASKER_BOTS ?? 0);
   for (let i = 0; i < bots; i++) room.addBot();
   startTickLoop();
@@ -102,7 +102,12 @@ async function handleRequest(
   vite: ((req: http.IncomingMessage, res: http.ServerResponse, next: () => void) => void) | null,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://x');
-  const p = url.pathname;
+  let p = url.pathname;
+  // The phone app lives at /phone.
+  if (p === '/phone' || p === '/phone/') {
+    p = '/phone.html';
+    req.url = p + url.search;
+  }
 
   if (p === '/api/info') {
     sendJson(res, 200, { lan, port: args.port, dev: args.dev, joinUrl: lan ? `http://${lan}:${args.port}/` : null });
@@ -198,6 +203,8 @@ function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
   const isHost = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
   console.log(`[ws] connection #${id} from ${addr}`);
   let player: ServerPlayer | null = null;
+  /** Set when this connection is a phone: the player it belongs to. */
+  let phoneOf: ServerPlayer | null = null;
   const stats = setInterval(() => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs: tickStats.avg, tickMaxMs: tickStats.max, tickHz: NET.tickHz, ticks: tickCount }));
   }, 1000);
@@ -208,9 +215,9 @@ function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
       room.onBinary(player, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
       return;
     }
-    let msg: ClientMsg;
+    let msg: ClientMsg | PhoneClientMsg;
     try {
-      msg = JSON.parse(String(data)) as ClientMsg;
+      msg = JSON.parse(String(data)) as ClientMsg | PhoneClientMsg;
     } catch {
       return;
     }
@@ -224,11 +231,18 @@ function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
       if (player) console.log(`[room] ${player.name} (#${player.id}) joined`);
       return;
     }
-    if (player) room.onMessage(player, msg);
+    if (msg.t === 'phoneHello') {
+      phoneOf = room.phoneJoin(ws, msg, isHost);
+      if (phoneOf) console.log(`[phone] ${phoneOf.name}'s phone connected`);
+      return;
+    }
+    if (phoneOf) room.onPhoneMessage(phoneOf, msg as PhoneClientMsg);
+    else if (player) room.onMessage(player, msg as ClientMsg);
   });
   ws.on('close', () => {
     clearInterval(stats);
     if (player && player.ws === ws) room.disconnect(player);
+    if (phoneOf) room.phoneDisconnect(phoneOf, ws);
     console.log(`[ws] connection #${id} closed`);
   });
 }

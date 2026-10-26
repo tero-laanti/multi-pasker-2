@@ -18,6 +18,7 @@ import { DevPanel } from './ui/dev';
 import { Hud } from './ui/hud';
 import { MatchHud } from './ui/matchHud';
 import { Menu, loadName, saveName } from './ui/menu';
+import { PairPanel, type PairInfo } from './ui/pair';
 import { StatsOverlay } from './ui/stats';
 import { TuningPanel } from './ui/tuning';
 
@@ -45,6 +46,7 @@ export class App {
   private hud: Hud;
   private matchHud: MatchHud;
   private menu: Menu;
+  private pairPanels: PairPanel[];
   private stats: StatsOverlay;
   private tuning: TuningPanel;
   private dev!: DevPanel;
@@ -82,6 +84,8 @@ export class App {
       toggleStats: () => this.stats.toggle(),
       toggleDev: () => this.dev.toggle(),
     });
+    this.pairPanels = [new PairPanel(() => this.openSimulator()), new PairPanel(() => this.openSimulator())];
+    this.menu.addPairPanels(this.pairPanels[0]!.root, this.pairPanels[1]!.root);
     this.input.onLook = (dx, dy) => this.game?.onLook(dx, dy);
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKeyDown = (code) => this.onKey(code);
@@ -157,6 +161,7 @@ export class App {
       fillBots: () => this.devCommand('fillBots'),
       restartRound: () => this.devCommand('restartRound'),
       killMe: () => this.devCommand('killMe'),
+      openSimulator: () => this.openSimulator(),
       setGate: (open) => this.devCommand('gate', open),
       gateOpen: () => this.match?.round?.gateOpen ?? false,
       setNetConditions: (lat, jit) => {
@@ -250,12 +255,24 @@ export class App {
     if (this.match) this.match.dispose();
     const token = storage('local')?.getItem(TOKEN_KEY) ?? undefined;
     this.match = new MatchMode(this.matchGame, this.net, this.matchHud, { name, token });
+    this.match.onPairInfo = (info) => this.showPairInfo(info);
     this.matchGame.mode = this.match;
     this.match.hello();
     window.clearTimeout(this.joinTimer);
     this.joinTimer = window.setTimeout(() => {
       if (this.match && !this.match.joined && this.mode !== 'match') this.menu.showJoin(UI.menu.serverOffline);
     }, 4000);
+  }
+
+  private showPairInfo(info: PairInfo | null): void {
+    for (const p of this.pairPanels) p.update(info, this.match?.dev ?? false);
+  }
+
+  /** Development: the phone app in a phone-sized window, typed on with the real keyboard. */
+  private openSimulator(): void {
+    const token = this.match?.pairInfo?.token;
+    if (!token) return;
+    window.open(`/phone?sim=1#${token}`, 'kenttaposti-sim', 'width=460,height=960');
   }
 
   private onServerMessage(msg: ServerMsg): void {
@@ -321,6 +338,7 @@ export class App {
       this.matchGame?.deactivate();
       storage('session')?.removeItem(IN_MATCH_KEY);
       this.menu.setInMatch(false);
+      this.showPairInfo(null);
       this.hud.setMatch(false);
       this.matchHud.setVisible(false);
       this.matchHud.reset();

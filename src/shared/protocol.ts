@@ -186,6 +186,8 @@ export interface PlayerInfo {
   connected: boolean;
   /** Round-trip time the player's client measured (ms). */
   ping: number;
+  /** Their phone: never paired, connected, or paired but disconnected. */
+  phone: 'none' | 'online' | 'offline';
 }
 
 export interface ShotClaim {
@@ -212,7 +214,9 @@ export type ServerMsg =
   | { t: 'stats'; tickMs: number; tickMaxMs: number; tickHz: number }
   | { t: 'players'; players: PlayerInfo[] }
   /** `st`: server time the events happened. */
-  | { t: 'events'; e: GameEvent[]; st: number };
+  | { t: 'events'; e: GameEvent[]; st: number }
+  /** How to pair a phone to this player: QR link and the short code for typing in. */
+  | { t: 'pairInfo'; url: string; token: string; code: string; phone: 'none' | 'online' | 'offline' };
 
 export interface RoundInfo {
   /** Round number this evening. */
@@ -239,7 +243,11 @@ export type GameEvent =
   | { k: 'round'; round: RoundInfo }
   | { k: 'give'; w: WeaponId }
   | { k: 'serials'; pistol: string; rifle: string }
-  | { k: 'note'; text: string };
+  | { k: 'note'; text: string }
+  /** A phone message that wasn't valid where it was sent, with the reply: shown to everyone. */
+  | { k: 'typo'; p: number; to: string; text: string; reply: string }
+  /** Our phone was paired (`replaced`: it took over from another phone). */
+  | { k: 'paired'; replaced: boolean };
 
 /** Accent colours for name tags and caps: 8 strong hues, also told apart by the name tag. */
 export const ACCENTS = [0xe8b21c, 0xd8453a, 0x3b8fe0, 0x2fb36a, 0xb259d6, 0xf08a2c, 0x29b8b8, 0xe05a9a];
@@ -251,3 +259,63 @@ export function cleanName(raw: string): string {
     .replace(/[^A-Za-z0-9ÅÄÖåäö]/g, '')
     .slice(0, 12);
 }
+
+// ---- Phone ----
+
+export type MsgState = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+export interface PhoneMessage {
+  /** Outgoing: the phone's request id; incoming: the server's id. */
+  id: string;
+  from: 'me' | 'them' | 'system';
+  text?: string;
+  /** A voice note the phone plays through an <audio> element. */
+  voice?: { url: string; duration: number };
+  /** Wall-clock time (ms since 1970) for the time stamp. */
+  at: number;
+  state?: MsgState;
+}
+
+export interface PhoneConversation {
+  /** The number; also the conversation's id. */
+  id: string;
+  name: string;
+  messages: PhoneMessage[];
+  unread: number;
+}
+
+/** What the phone needs to know about its player's game state. */
+export interface PhoneStatus {
+  name: string;
+  alive: boolean;
+  /** Increases with every respawn; requests from an earlier life have no effect. */
+  life: number;
+  round: number;
+  grenades: number;
+  maxGrenades: number;
+  rank: number;
+  /** The desktop is connected. */
+  desktop: boolean;
+}
+
+export type PhoneClientMsg =
+  | { t: 'phoneHello'; v: number; pair?: string; code?: string; token?: string; sim?: boolean }
+  | { t: 'send'; rid: string; conv: string; text: string; life: number; round: number }
+  | { t: 'open'; conv: string }
+  | { t: 'read'; conv: string }
+  | { t: 'draft'; conv: string; text: string }
+  | { t: 'touch' }
+  /** A chat (or the new-chat number pad) is open: the phone is in the player's hand. */
+  | { t: 'out'; on: boolean }
+  | { t: 'ping'; id: number; rtt?: number };
+
+export type PhoneServerMsg =
+  | { t: 'phoneWelcome'; token: string; player: { id: number; name: string; color: number }; convs: PhoneConversation[]; status: PhoneStatus; dev: boolean; replaced: boolean }
+  | { t: 'pairFailed'; reason: 'code' | 'version' | 'sim' | 'token' }
+  | { t: 'msg'; conv: string; m: PhoneMessage }
+  | { t: 'state'; conv: string; id: string; state: MsgState }
+  | { t: 'typing'; conv: string; on: boolean }
+  | { t: 'conv'; c: PhoneConversation }
+  | { t: 'status'; s: PhoneStatus }
+  | { t: 'replaced' }
+  | { t: 'pong'; id: number; st: number };

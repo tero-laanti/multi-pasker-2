@@ -203,6 +203,16 @@ export const TUNING = {
     innerRadius: 1.2,
     supplyCooldown: 15,
   },
+  /** Holding the phone (a chat is open): the gun is in one hand. */
+  phoneOut: {
+    /** Hip spread is multiplied, then widened by this many degrees. */
+    spreadMul: 1.8,
+    spreadAdd: 3.5,
+    recoilMul: 1.5,
+    moveSpeedMul: 0.92,
+    /** Seconds to raise or put away the phone. */
+    raiseTime: 0.3,
+  },
 };
 // TUNING-END
 
@@ -235,6 +245,28 @@ export const NET = {
   /** Shot validation rewinds remote positions at most this far. */
   maxRewind: 0.2,
   pingInterval: 1,
+};
+
+export const PHONE = {
+  /** Seconds a touch on the phone counts as recent activity. */
+  activeTime: 2.5,
+  /** A victim counts as typing (kill-feed draft) if their draft changed this recently (s). */
+  draftRecent: 6,
+  /** Public typo feed: one line per this many seconds, at most this many lines, fade time. */
+  typoInterval: 1.5,
+  typoLines: 4,
+  typoFade: 6,
+  /** Spam: this many messages within the window (s), or the same text this many times. */
+  spamCount: 5,
+  spamWindow: 4,
+  spamRepeat: 3,
+  /** Varusmestari timing (s): read delay, typing speed (chars/s), typing time limits. */
+  readDelay: [0.35, 1.1] as [number, number],
+  typingCps: 28,
+  typingMin: 0.6,
+  typingMax: 2.6,
+  /** Drafts and touch activity are streamed at most this often (s). */
+  streamInterval: 0.25,
 };
 
 export const AUDIO = {

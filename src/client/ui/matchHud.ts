@@ -1,3 +1,4 @@
+import { PHONE } from '../../shared/config';
 import { ACCENTS, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { wrapAngle } from '../../shared/math';
@@ -49,6 +50,9 @@ export class MatchHud {
   private confirm: HTMLDivElement;
   private protect: HTMLDivElement;
   private status: HTMLDivElement;
+  private phoneLine: HTMLDivElement;
+  private typoFeed: HTMLDivElement;
+  private typoLines: FeedLine[] = [];
   private damageDirs: DamageDir[] = [];
   private feedLines: FeedLine[] = [];
   private hurt = 0;
@@ -65,6 +69,8 @@ export class MatchHud {
     const bar = el('div', 'health-bar', this.healthBox);
     this.healthFill = el('div', 'health-fill', bar);
     this.healthNum = el('div', 'health-num', this.healthBox);
+    this.phoneLine = el('div', 'phone-line', this.healthBox);
+    this.typoFeed = el('div', 'typofeed', this.root);
     this.feed = el('div', 'killfeed', this.root);
     this.timer = el('div', 'round-timer', this.root);
     this.timerRound = el('div', 'round-n', this.timer);
@@ -105,8 +111,8 @@ export class MatchHud {
     if (this.damageDirs.length > 6) this.damageDirs.shift()!.node.remove();
   }
 
-  /** Kill feed line; `draft` is the victim's unfinished phone message (later milestones). */
-  kill(killer: PlayerInfo | undefined, victim: PlayerInfo | undefined, weapon: string, head: boolean, myId: number): void {
+  /** Kill feed line; `draft` is what the victim was typing on their phone when they died. */
+  kill(killer: PlayerInfo | undefined, victim: PlayerInfo | undefined, weapon: string, head: boolean, myId: number, draft?: string): void {
     const line = el('div', 'feed-line', this.feed);
     if (killer?.id === myId || victim?.id === myId) line.classList.add('mine');
     const name = (p: PlayerInfo | undefined) => {
@@ -123,7 +129,37 @@ export class MatchHud {
       name(victim);
       el('span', 'feed-weapon', line, UI.hud.selfKill);
     }
+    if (draft) {
+      el('span', 'feed-typing', line, ` — ${UI.hud.wasTyping} `);
+      el('span', 'feed-draft', line, `‘${draft}’`);
+    }
     this.push(line);
+  }
+
+  /** Public typo feed: a phone message that wasn't valid, and the varusmestari's answer. */
+  typo(from: PlayerInfo | undefined, to: string, text: string, reply: string): void {
+    const item = el('div', 'typo', this.typoFeed);
+    const l1 = el('div', 'typo-msg', item);
+    const n = el('span', 'typo-name', l1, from?.name ?? '?');
+    n.style.setProperty('--accent', accentOf(from));
+    el('span', 'typo-to', l1, ` → ${to}: `);
+    el('span', 'typo-text', l1, text);
+    if (reply) {
+      const l2 = el('div', 'typo-reply', item);
+      el('span', 'typo-name them', l2, `${to}: `);
+      el('span', '', l2, reply);
+    }
+    this.typoLines.push({ node: item, t: 0 });
+    while (this.typoLines.length > PHONE.typoLines) this.typoLines.shift()!.node.remove();
+  }
+
+  /** Our own phone: connected, offline, or not paired yet. */
+  phone(state: 'none' | 'online' | 'offline', out: boolean): void {
+    const key = `${state}${out}`;
+    if (!this.changed('phone', key)) return;
+    this.phoneLine.textContent = state === 'online' ? `📱 ${UI.hud.phoneOnline}` : state === 'offline' ? `📱 ${UI.hud.phoneOffline}` : UI.hud.phoneNone;
+    this.phoneLine.dataset.state = state;
+    this.phoneLine.classList.toggle('out', out);
   }
 
   notice(text: string): void {
@@ -181,7 +217,7 @@ export class MatchHud {
     if (!show) return;
     const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
     const ended = round?.state === 'ended';
-    const key = JSON.stringify([sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected]), ended, round?.n, ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0]);
+    const key = JSON.stringify([sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone]), ended, round?.n, ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0]);
     if (!this.changed('board', key)) return;
     this.board.innerHTML = '';
     const head = el('div', 'sb-head', this.board);
@@ -204,6 +240,10 @@ export class MatchHud {
       const chip = el('span', 'sb-chip', n);
       chip.style.background = accentOf(p);
       el('span', '', n, p.name);
+      if (!p.bot && p.phone !== 'none') {
+        const ph = el('span', `sb-phone ${p.phone}`, n, '📱');
+        ph.title = p.phone === 'online' ? UI.scoreboard.phoneOnline : UI.scoreboard.phoneOffline;
+      }
       if (p.bot) el('span', 'sb-tag', n, UI.scoreboard.bot);
       if (p.id === myId) el('span', 'sb-tag you', n, UI.scoreboard.you);
       if (!p.connected && !p.bot) el('span', 'sb-tag', n, UI.scoreboard.away);
@@ -231,6 +271,11 @@ export class MatchHud {
       if (f.t > 7) f.node.classList.add('fade');
     }
     while (this.feedLines.length && this.feedLines[0]!.t > 7.6) this.feedLines.shift()!.node.remove();
+    for (const f of this.typoLines) {
+      f.t += dt;
+      if (f.t > PHONE.typoFade) f.node.classList.add('fade');
+    }
+    while (this.typoLines.length && this.typoLines[0]!.t > PHONE.typoFade + 0.6) this.typoLines.shift()!.node.remove();
     if (this.confirmTimer > 0) {
       this.confirmTimer -= dt;
       if (this.confirmTimer <= 0) this.confirm.classList.remove('show');

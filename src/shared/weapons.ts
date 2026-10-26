@@ -64,6 +64,8 @@ export interface SpreadInput {
   airborne: boolean;
   crouched: boolean;
   bloom: number;
+  /** 0..1: how far the phone is up (one-handed shooting). */
+  phone?: number;
 }
 
 /** Cone half-angle in degrees for the next shot. */
@@ -73,6 +75,8 @@ export function spreadFor(t: WeaponTuning, s: SpreadInput): number {
   if (s.airborne) hip += t.spreadAir;
   if (s.crouched) hip *= t.spreadCrouchMul;
   hip = Math.min(hip, t.spreadMax + (s.airborne ? t.spreadAir : 0));
+  const ph = s.phone ?? 0;
+  if (ph > 0) hip = hip * (1 + (TUNING.phoneOut.spreadMul - 1) * ph) + TUNING.phoneOut.spreadAdd * ph;
   const ads = t.spreadAds + t.spreadAdsMove * moveK + s.bloom * 0.15 + (s.airborne ? t.spreadAir * 0.5 : 0);
   return lerp(hip, ads, s.ads);
 }

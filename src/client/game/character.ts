@@ -79,6 +79,10 @@ const GRIP: Record<WeaponId, [THREE.Vector3, THREE.Vector3]> = {
   pistol: [new THREE.Vector3(0.03, -0.21, -0.47), new THREE.Vector3(0.0, -0.23, -0.43)],
 };
 
+/** The phone in the left hand, in aim-bone space, its screen turned up towards the face. */
+const PHONE_AT = new THREE.Vector3(-0.05, -0.16, -0.3);
+const PHONE_HAND = new THREE.Vector3(-0.05, -0.2, -0.29);
+
 const MATERIAL = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0.04, emissive: 0x111419 });
 
 interface Part {
@@ -182,7 +186,8 @@ function characterGeometry(accent: number): THREE.BufferGeometry {
     if (g.getAttribute('uv1')) g.deleteAttribute('uv1');
     const n = g.getAttribute('position').count;
     const cols = new Float32Array(n * 3);
-    c.setHex(p.color).convertSRGBToLinear();
+    // setHex takes sRGB and stores linear (colour management is on).
+    c.setHex(p.color);
     for (let i = 0; i < n; i++) {
       cols[i * 3] = c.r;
       cols[i * 3 + 1] = c.g;
@@ -237,6 +242,48 @@ function armPose(w: WeaponId): ArmPose {
 
 const ARM_POSES: Record<WeaponId, ArmPose> = { rifle: armPose('rifle'), pistol: armPose('pistol') };
 
+/** Left arm holding the phone (the gun stays in the right hand). */
+const PHONE_ARM = (() => {
+  const ul = new THREE.Quaternion();
+  const fl = new THREE.Quaternion();
+  solveArm(new THREE.Vector3(-0.2, 0, 0), PHONE_HAND, new THREE.Vector3(-0.9, -1, 0.2), ul, fl);
+  return { ul, fl };
+})();
+
+const PHONE_BODY = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.4, metalness: 0.3 });
+const PHONE_SCREEN = new THREE.MeshBasicMaterial({ color: 0xd8ecff, toneMapped: false });
+let glowTex: THREE.CanvasTexture | null = null;
+
+function phoneGlowTexture(): THREE.CanvasTexture {
+  if (glowTex) return glowTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(210,235,255,0.9)');
+  grad.addColorStop(0.35, 'rgba(150,200,255,0.35)');
+  grad.addColorStop(1, 'rgba(120,180,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  glowTex = new THREE.CanvasTexture(c);
+  glowTex.colorSpace = THREE.SRGBColorSpace;
+  return glowTex;
+}
+
+function phoneModel(): THREE.Group {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.145, 0.009), PHONE_BODY);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.128), PHONE_SCREEN);
+  screen.position.z = 0.0052;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: phoneGlowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, opacity: 0.8 }));
+  glow.scale.set(0.46, 0.46, 1);
+  glow.position.z = 0.03;
+  g.add(body, screen, glow);
+  g.position.copy(PHONE_AT);
+  g.rotation.set(-0.65, 0.2, 0);
+  return g;
+}
+
 export interface CharacterState {
   /** World velocity (m/s) and facing. */
   vx: number;
@@ -249,6 +296,8 @@ export interface CharacterState {
   ads: boolean;
   reloading: boolean;
   weapon: WeaponId;
+  /** A chat is open on their phone: it is in their left hand. */
+  phone: boolean;
 }
 
 function nameTagTexture(name: string, accent: number): THREE.CanvasTexture {
@@ -305,6 +354,8 @@ export class Character {
   private sprint = 0;
   private legYaw = 0;
   private reload = 0;
+  private phoneK = 0;
+  private phone: THREE.Group;
   private weapon: WeaponId = 'pistol';
   /** 0 alive, rising to 1 while falling over. */
   private death = 0;
@@ -343,6 +394,9 @@ export class Character {
     );
     this.flash.visible = false;
     this.object.add(this.flash);
+    this.phone = phoneModel();
+    this.phone.visible = false;
+    this.bones[B.aim]!.add(this.phone);
     this.setWeapon('pistol');
   }
 
@@ -409,6 +463,7 @@ export class Character {
     this.air = damp(this.air, s.onGround ? 0 : 1, 10, dt);
     this.sprint = damp(this.sprint, s.sprinting ? 1 : 0, 8, dt);
     this.reload = damp(this.reload, s.reloading ? 1 : 0, 10, dt);
+    this.phoneK = damp(this.phoneK, s.phone && !this.dying ? 1 : 0, 9, dt);
 
     // Legs turn towards the walking direction (back-pedalling keeps them facing forward).
     let angle = speed > 0.4 ? Math.atan2(vr, vf) : 0;
@@ -438,10 +493,17 @@ export class Character {
     const lean = 0.5 * c + 0.28 * this.sprint;
     const pitch = clamp(s.pitch, -1.3, 1.3);
     bn[B.spine]!.rotation.set(-lean + pitch * 0.25, this.legYaw, 0, 'YXZ');
-    bn[B.head]!.rotation.set(lean + pitch * 0.5, 0, 0);
+    bn[B.head]!.rotation.set(lean + pitch * 0.5 - 0.45 * this.phoneK, 0, 0);
+    // Phone out: the left hand leaves the gun for the phone; the gun hangs a little lower.
+    const arms = ARM_POSES[this.weapon];
+    bn[B.armUL]!.quaternion.slerpQuaternions(arms.ul, PHONE_ARM.ul, this.phoneK);
+    bn[B.armFL]!.quaternion.slerpQuaternions(arms.fl, PHONE_ARM.fl, this.phoneK);
+    this.phone.visible = this.phoneK > 0.35;
     // Aim: full pitch; sprinting lowers the gun across the chest, reloading tips it.
     const aimPitch = pitch * 0.75 + lean;
-    bn[B.aim]!.rotation.set(aimPitch * (1 - this.sprint) - 0.75 * this.sprint - 0.35 * this.reload, 0.55 * this.sprint, 0.5 * this.reload, 'YXZ');
+    // Sprinting lowers the gun across the chest, but a phone stays up in front of the face.
+    const sprint = this.sprint * (1 - 0.75 * this.phoneK);
+    bn[B.aim]!.rotation.set(aimPitch * (1 - sprint) - 0.75 * sprint - 0.35 * this.reload - 0.22 * this.phoneK, 0.55 * sprint, 0.5 * this.reload, 'YXZ');
     if (s.ads) bn[B.aim]!.position.set(-0.04, 0.4 + 0.04, 0);
     else bn[B.aim]!.position.set(0, 0.4, 0);
 
@@ -489,6 +551,7 @@ export class Character {
     this.tag.material.map?.dispose();
     this.tag.material.dispose();
     this.flash.material.dispose();
+    (this.phone.children[2] as THREE.Sprite).material.dispose();
     this.mesh.skeleton.dispose();
   }
 }

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { NET, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { NET, PHONE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
 import { blastReaches, explosionDamage, GRENADE_RADIUS, stepGrenade, type Grenade } from '../../shared/grenade';
 import { rayPlayer, type HitZone } from '../../shared/hitbox';
 import type { MapData, SpawnPoint } from '../../shared/map/types';
@@ -18,12 +18,17 @@ import {
   encodeSnapshot,
   type ClientMsg,
   type GameEvent,
+  type PhoneClientMsg,
   type PlayerSnap,
   type RoundInfo,
 } from '../../shared/protocol';
 import { damageFor } from '../../shared/weapons';
 import { Bot } from './bot';
 import { ServerPlayer } from './player';
+import { Varusmestari } from './varusmestari';
+import { FI } from '../../shared/fi';
+
+const FI_NUMBER = FI.varusmestari.number;
 
 export const ROUND_TIME = 240_000;
 export const INTERMISSION = 12_000;
@@ -34,6 +39,16 @@ const BOT_NAMES = ['Virtanen', 'Korhonen', 'Mäkinen', 'Nieminen', 'Mäkelä', '
 export interface RoomOptions {
   dev: boolean;
   now?: () => number;
+  /** Address phones use to reach the server, e.g. http://192.168.1.23:8088/ (never localhost). */
+  publicUrl?: string;
+}
+
+interface TypoCandidate {
+  p: number;
+  to: string;
+  text: string;
+  reply: string;
+  at: number;
 }
 
 /** The match: players, bots, rounds, shots and damage. Ticked at NET.tickHz by the server. */
@@ -47,6 +62,9 @@ export class Room {
   /** Dev: R reloads directly instead of messaging the varusmestari. */
   directReload: boolean;
   tickMs = 0;
+  readonly varusmestari = new Varusmestari(this);
+  private typos: TypoCandidate[] = [];
+  private lastTypoAt = -1e9;
   private events: GameEvent[] = [];
   private grenades: (Grenade & { owner: number })[] = [];
   private nextGrenadeId = 1;
@@ -97,6 +115,7 @@ export class Room {
       p.ws = ws;
       p.isHost = isHost;
       p.newSerials();
+      p.phone.pairCode = this.freePairCode();
       this.players.set(p.id, p);
       this.respawn(p);
       this.updateGate();
@@ -115,7 +134,142 @@ export class Room {
     });
     this.broadcastPlayers();
     this.sendSpawnState(p);
+    this.sendPairInfo(p);
+    p.phone.sendStatus(p.phoneStatus(this.round.n));
     return p;
+  }
+
+  private freePairCode(): string {
+    const used = new Set([...this.players.values()].map((p) => p.phone.pairCode));
+    for (;;) {
+      const code = String(1000 + Math.floor(Math.random() * 9000));
+      if (!used.has(code)) return code;
+    }
+  }
+
+  sendPairInfo(p: ServerPlayer): void {
+    const base = this.opts.publicUrl ?? '';
+    p.send({ t: 'pairInfo', url: base ? `${base}phone#${p.phone.pairToken}` : '', token: p.phone.pairToken, code: p.phone.pairCode, phone: p.phone.status() });
+  }
+
+  // ---- phones ----
+
+  /** A phone connects: pairing by QR token or short code, or resuming with its own token. */
+  phoneJoin(ws: WebSocket, msg: Extract<PhoneClientMsg, { t: 'phoneHello' }>, isHost: boolean): ServerPlayer | null {
+    const fail = (reason: 'code' | 'version' | 'sim' | 'token') => {
+      ws.send(JSON.stringify({ t: 'pairFailed', reason }));
+      return null;
+    };
+    if (msg.v !== PROTOCOL_VERSION) return fail('version');
+    if (msg.sim && !this.opts.dev && !isHost) return fail('sim');
+    const humans = [...this.players.values()].filter((p) => !p.bot);
+    let p: ServerPlayer | undefined;
+    let pairing = false;
+    if (msg.token) p = humans.find((x) => x.phone.paired && x.phone.token === msg.token);
+    if (!p && msg.pair) {
+      p = humans.find((x) => x.phone.pairToken === msg.pair);
+      pairing = !!p;
+    }
+    if (!p && msg.code) {
+      p = humans.find((x) => x.phone.pairCode === msg.code?.trim());
+      pairing = !!p;
+    }
+    if (!p) return fail(msg.token && !msg.pair && !msg.code ? 'token' : 'code');
+    const phone = p.phone;
+    let replaced = false;
+    if (pairing) {
+      // One phone per player: a new phone takes over, and the old one is told.
+      if (phone.ws && phone.ws !== ws) {
+        phone.send({ t: 'replaced' });
+        phone.ws.close(4001, 'replaced');
+        replaced = true;
+      } else if (phone.paired) replaced = true;
+      const first = !phone.paired;
+      phone.token = randomUUID();
+      if (first) this.varusmestari.greet(p);
+    } else if (phone.ws && phone.ws !== ws) {
+      phone.ws.close(4002, 'resumed elsewhere');
+    }
+    phone.ws = ws;
+    phone.sim = !!msg.sim;
+    ws.send(
+      JSON.stringify({
+        t: 'phoneWelcome',
+        token: phone.token,
+        player: { id: p.id, name: p.name, color: p.color },
+        convs: [...phone.convs.values()],
+        status: p.phoneStatus(this.round.n),
+        dev: this.opts.dev,
+        replaced,
+      }),
+    );
+    phone.sendStatus(p.phoneStatus(this.round.n), true);
+    if (pairing) p.outbox.push({ k: 'paired', replaced });
+    this.sendPairInfo(p);
+    this.broadcastPlayers();
+    return p;
+  }
+
+  phoneDisconnect(p: ServerPlayer, ws: WebSocket): void {
+    if (p.phone.ws !== ws) return;
+    p.phone.ws = null;
+    p.phone.out = false;
+    this.sendPairInfo(p);
+    this.broadcastPlayers();
+  }
+
+  onPhoneMessage(p: ServerPlayer, msg: PhoneClientMsg): void {
+    const phone = p.phone;
+    const now = this.now();
+    switch (msg.t) {
+      case 'send':
+        if (typeof msg.text !== 'string' || typeof msg.rid !== 'string' || typeof msg.conv !== 'string') return;
+        this.varusmestari.receive(p, msg);
+        break;
+      case 'open': {
+        const id = String(msg.conv).replace(/[^\d+]/g, '').slice(0, 24);
+        if (id && !phone.convs.has(id)) phone.conv(id, id);
+        break;
+      }
+      case 'read': {
+        const c = phone.convs.get(msg.conv);
+        if (c) c.unread = 0;
+        break;
+      }
+      case 'draft': {
+        const text = String(msg.text ?? '').slice(0, 200);
+        phone.draft = { conv: String(msg.conv), text, at: now };
+        phone.activeUntil = now + PHONE.activeTime * 1000;
+        if (text.length > p.stats.longestDraft.length) p.stats.longestDraft = text;
+        break;
+      }
+      case 'touch':
+        phone.activeUntil = now + PHONE.activeTime * 1000;
+        break;
+      case 'out':
+        phone.out = !!msg.on;
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** Candidate for the public typo feed; the tick picks one line per interval. */
+  offerTypo(p: ServerPlayer, to: string, text: string, reply: string): void {
+    p.stats.typos++;
+    this.typos.push({ p: p.id, to, text, reply, at: this.now() });
+    if (this.typos.length > 32) this.typos.shift();
+  }
+
+  private flushTypos(now: number): void {
+    if (now - this.lastTypoAt < PHONE.typoInterval * 1000) return;
+    this.typos = this.typos.filter((t) => now - t.at < 3000);
+    if (this.typos.length === 0) return;
+    // Longer messages are funnier: they win the slot.
+    const best = this.typos.reduce((a, b) => (b.text.length > a.text.length ? b : a));
+    this.typos = [];
+    this.lastTypoAt = now;
+    this.emit({ k: 'typo', p: best.p, to: best.to, text: best.text.slice(0, 120), reply: best.reply });
   }
 
   /** Socket closed or player left: the player stays (for a rejoin) but is shown as disconnected. */
@@ -231,6 +385,7 @@ export class Room {
     p.pitch = 0;
     p.flags = PF.ALIVE;
     p.alive = true;
+    p.life++;
     p.resetLife();
     p.weapon = p.owned.includes('rifle') ? 'rifle' : 'pistol';
     p.protectedUntil = this.now() + TUNING.player.spawnProtect * 1000;
@@ -479,8 +634,15 @@ export class Room {
     v.reload = null;
     v.grenades = 0;
     if (a && a !== v) a.kills++;
-    v.respawnAt = this.now() + TUNING.player.respawnTime * 1000;
-    this.emit({ k: 'kill', a: a?.id ?? 0, v: v.id, w, head });
+    const now = this.now();
+    v.respawnAt = now + TUNING.player.respawnTime * 1000;
+    // Killed mid-message: the unfinished draft goes into the kill feed.
+    const d = v.phone.draft;
+    const typing = d && d.text.trim() && (v.phone.out || now - d.at < PHONE.draftRecent * 1000) ? d.text.trim().slice(0, 60) : undefined;
+    if (typing) v.stats.deathsTyping++;
+    const ev: GameEvent = { k: 'kill', a: a?.id ?? 0, v: v.id, w, head };
+    if (typing) ev.draft = typing;
+    this.emit(ev);
     this.broadcastPlayers();
   }
 
@@ -532,6 +694,11 @@ export class Room {
       p.deaths = 0;
       p.owned = ['pistol'];
       p.maxGrenades = 1;
+      p.phone.resetRound();
+      if (p.phone.paired) {
+        p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: `#round ${this.round.n}`, at: Date.now() });
+        this.varusmestari.greet(p);
+      }
       p.newSerials();
       p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle });
       if (p.connected || p.bot) this.respawn(p);
@@ -554,12 +721,18 @@ export class Room {
     }
 
     for (const bot of this.bots) bot.update(dt, now);
+    for (const p of this.players.values()) p.phone.tick(now);
+    if (this.tickCount % 3 === 0) {
+      for (const p of this.players.values()) if (p.phone.online) p.phone.sendStatus(p.phoneStatus(this.round.n));
+    }
+    this.flushTypos(now);
 
     for (const p of this.players.values()) {
       if (!p.alive) {
         if (this.round.state === 'playing' && now >= p.respawnAt && (p.connected || p.bot)) this.respawn(p);
         continue;
       }
+      if (p.phone.out) p.stats.phoneMs += dt * 1000;
       // Health regeneration after a quiet spell.
       if (p.hp < TUNING.player.health && now - p.lastDamageAt > TUNING.player.regenDelay * 1000) {
         p.hp = Math.min(TUNING.player.health, p.hp + TUNING.player.regenRate * dt);
@@ -600,6 +773,7 @@ export class Room {
     if (now < p.protectedUntil) f |= PF.PROTECTED;
     if (p.reload && now < p.reload.end) f |= PF.RELOAD;
     if (p.bot) f |= PF.BOT;
+    if (p.alive && p.phone.out && (p.phone.online || p.bot)) f |= PF.PHONE;
     return f;
   }
 

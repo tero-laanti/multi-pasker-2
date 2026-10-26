@@ -13,6 +13,8 @@ export interface WeaponInput {
   maxSpeed: number;
   airborne: boolean;
   crouched: boolean;
+  /** A chat is open on the player's phone: one-handed, no aiming down sights. */
+  phone: boolean;
 }
 
 export interface Aim {
@@ -72,6 +74,9 @@ export class WeaponController {
 
   ads = 0;
   adsPrev = 0;
+  /** 0..1: the phone coming up in the off hand. */
+  phone = 0;
+  phonePrev = 0;
   sprintPose = 0;
   sprintPosePrev = 0;
   cooldown = 0;
@@ -138,6 +143,7 @@ export class WeaponController {
     this.current = owned.includes('rifle') ? 'rifle' : 'pistol';
     this.next = null;
     this.ads = this.adsPrev = 0;
+    this.phone = this.phonePrev = 0;
     this.sprintPose = this.sprintPosePrev = 0;
     this.punchP = this.punchY = this.punchPrevP = this.punchPrevY = 0;
     this.punchTP = this.punchTY = this.pendP = this.pendY = 0;
@@ -241,7 +247,10 @@ export class WeaponController {
     const sprintIn = 1 / Math.max(0.01, t.sprintInTime);
     const sprintOut = 1 / Math.max(0.01, t.sprintToFire);
     this.sprintPose = inp.sprinting ? Math.min(1, this.sprintPose + dt * sprintIn) : Math.max(0, this.sprintPose - dt * sprintOut);
-    const wantAds = inp.adsHeld && this.canAds && !inp.sprinting;
+    this.phonePrev = this.phone;
+    const phoneRate = dt / Math.max(0.01, TUNING.phoneOut.raiseTime);
+    this.phone = inp.phone ? Math.min(1, this.phone + phoneRate) : Math.max(0, this.phone - phoneRate);
+    const wantAds = inp.adsHeld && this.canAds && !inp.sprinting && !inp.phone;
     this.ads = wantAds ? Math.min(1, this.ads + dt / Math.max(0.01, t.adsTime)) : Math.max(0, this.ads - dt / Math.max(0.01, t.adsOutTime));
     if (this.state === 'inspecting' && inp.adsHeld) this.state = 'ready';
 
@@ -299,6 +308,7 @@ export class WeaponController {
       airborne: inp.airborne,
       crouched: inp.crouched,
       bloom: this.bloom,
+      phone: this.phone,
     });
     const shotIdx = this.shotIndex;
     // Aim = view + punch; spread is a cone around it.
@@ -325,6 +335,7 @@ export class WeaponController {
     let mul = 1;
     mul *= 1 + (t.recoilAdsMul - 1) * this.ads;
     if (inp.crouched) mul *= t.recoilCrouchMul;
+    mul *= 1 + (TUNING.phoneOut.recoilMul - 1) * this.phone;
     recoilKick(t, shotIdx, this.rng() * 2 - 1, this.rng() * 2 - 1, this.kick);
     const kp = this.kick.pitch * mul;
     const ky = this.kick.yaw * mul;

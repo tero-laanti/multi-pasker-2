@@ -12,6 +12,7 @@ const idle: WeaponInput = {
   maxSpeed: 5,
   airborne: false,
   crouched: false,
+  phone: false,
 };
 
 function ready(): WeaponController {
@@ -169,5 +170,23 @@ describe('recoil pattern', () => {
     const r = TUNING.rifle;
     const first = recoilKick(r, 0, 0, 0, k).yaw - r.recoilYawBias;
     expect(Math.abs(first)).toBeLessThan(r.recoilYawAmp * 0.3);
+  });
+});
+
+describe('holding the phone', () => {
+  it('blocks aiming down sights and widens the hip spread', () => {
+    const w = ready();
+    const aim = { yaw: 0, pitch: 0 };
+    for (let i = 0; i < 120; i++) w.step(SIM_DT, { ...idle, adsHeld: true, phone: true }, aim);
+    expect(w.ads).toBe(0);
+    expect(w.phone).toBe(1);
+    const shots: number[] = [];
+    for (const phone of [false, true]) {
+      const c = ready();
+      for (let i = 0; i < 120; i++) c.step(SIM_DT, { ...idle, phone }, aim);
+      c.step(SIM_DT, { ...idle, phone, fireHeld: true, firePressed: true }, aim);
+      shots.push(c.shots[0]!.spread);
+    }
+    expect(shots[1]!).toBeGreaterThan(shots[0]! * 1.8 + 3);
   });
 });

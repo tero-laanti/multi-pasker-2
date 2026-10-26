@@ -245,4 +245,18 @@ console.log('Bullets passing and taking hits');
   }
 }
 
+console.log('Phone');
+{
+  // Sound check chime: two soft bell tones.
+  const len = 1.1;
+  const bell = (f: number, delay: number) => expEnv(modes(N(len), RATE, [[f, 1, 0.5], [f * 2.01, 0.35, 0.3], [f * 3.02, 0.12, 0.18]]), RATE, 0.004, 0.45, delay);
+  out('phone_chime', mix(N(len), [bell(880, 0), 0.8], [bell(1318.5, 0.16), 0.7]), -6);
+  // Incoming message: a short bright double pling.
+  const len2 = 0.45;
+  const pling = (f: number, delay: number) => expEnv(modes(N(len2), RATE, [[f, 1, 0.14], [f * 2.0, 0.3, 0.08]]), RATE, 0.002, 0.11, delay);
+  out('phone_in', mix(N(len2), [pling(1568, 0), 0.8], [pling(2093, 0.09), 0.7]), -8);
+  // Sent: a quick soft upward swish.
+  out('phone_out', expEnv(biquad(noise(N(0.22), rng(77)), RATE, 'bandpass', (t) => 1200 + t * 9000, 1.8), RATE, 0.03, 0.05), -14);
+}
+
 console.log('Done →', OUT);

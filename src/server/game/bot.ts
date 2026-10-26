@@ -1,6 +1,7 @@
 import { MASK } from '../../shared/collision/brush';
 import { TraceResult } from '../../shared/collision/world';
 import { TUNING, type WeaponId } from '../../shared/config';
+import { FI } from '../../shared/fi';
 import { rayPlayer } from '../../shared/hitbox';
 import { DEG, clamp, wrapAngle } from '../../shared/math';
 import { Mover, emptyCmd, newMoveState, type MoveState } from '../../shared/movement';
@@ -11,6 +12,10 @@ import type { Room } from './room';
 
 /** Bot skill: reaction time, aim error and turn speed. 0.5 is a casual player. */
 export const BOT_SKILL = 0.5;
+
+const ASEVARASTO = FI.varusmestari.number;
+/** What bots type when they want a reload: mostly right, sometimes not. */
+const RELOAD_TEXTS = ['Lataa', 'lataa', 'LATAA', 'Lataa!', 'lataa', 'Lataa', 'lataaa', 'ltaa', 'lata', 'lataa nyt', 'laataa'];
 
 /**
  * A server-side player that walks the nav graph, notices enemies in its field of view,
@@ -39,6 +44,10 @@ export class Bot {
   private jumpUntil = 0;
   private wasAlive = false;
   private lastHurtBy = 0;
+  /** Texting the varusmestari: the phone is out and the draft grows letter by letter. */
+  private typing: { text: string; shown: number; nextAt: number } | null = null;
+  private phoneDownAt = 0;
+  private retypeAt = 0;
 
   constructor(
     readonly p: ServerPlayer,
@@ -57,6 +66,9 @@ export class Bot {
     const p = this.p;
     if (!p.alive) {
       this.wasAlive = false;
+      this.typing = null;
+      p.phone.out = false;
+      p.phone.draft = null;
       return;
     }
     if (!this.wasAlive) {
@@ -114,6 +126,8 @@ export class Bot {
     cmd.yaw = p.yaw;
     cmd.jump = now < this.jumpUntil;
 
+    this.updatePhone(now);
+    if (p.phone.out) cmd.speedMul *= TUNING.phoneOut.moveSpeedMul;
     this.mover.step(this.move, cmd, dt);
     p.x = this.move.x;
     p.y = this.move.y;
@@ -191,7 +205,9 @@ export class Bot {
     // Only shoot when the remaining aim error is small for the distance.
     const tolerance = clamp(Math.atan2(0.35, dist), 0.6 * DEG, 6 * DEG);
     if (Math.abs(this.aimErrYaw) > tolerance * 2.5) return;
-    const spread = (this.move.sprinting ? 3 : 0.4 + (1 - skill) * 1.6) * DEG;
+    let spread = (this.move.sprinting ? 3 : 0.4 + (1 - skill) * 1.6) * DEG;
+    // One-handed while texting, like everyone else.
+    if (p.phone.out) spread = spread * TUNING.phoneOut.spreadMul + TUNING.phoneOut.spreadAdd * DEG;
     const yaw = p.yaw + (Math.random() * 2 - 1) * spread;
     const pitch = p.pitch + (Math.random() * 2 - 1) * spread * 0.6;
     const cp = Math.cos(pitch);
@@ -229,8 +245,47 @@ export class Bot {
       this.room.switchWeapon(p, other);
       this.nextShotAt = now + TUNING[other].drawTime * 1000;
     } else {
-      this.room.startReload(p);
+      this.textReload(now);
     }
+  }
+
+  /** Reloads come from the varusmestari, for bots too: open the chat and type. */
+  private textReload(now: number): void {
+    if (this.typing || now < this.retypeAt || (this.p.reload && now < this.p.reload.end)) return;
+    const text = RELOAD_TEXTS[Math.floor(Math.random() * RELOAD_TEXTS.length)]!;
+    this.typing = { text, shown: 0, nextAt: now + 350 + Math.random() * 450 };
+    this.p.phone.out = true;
+  }
+
+  private updatePhone(now: number): void {
+    const p = this.p;
+    // Quiet moment and a part-empty magazine: top up.
+    if (!this.typing && !this.target && p.ammo[p.weapon] < TUNING[p.weapon].magazine * 0.4 && Math.random() < 0.01) this.textReload(now);
+    const t = this.typing;
+    if (!t) {
+      if (p.phone.out && now >= this.phoneDownAt) p.phone.out = false;
+      return;
+    }
+    // An enemy appears: half the time the phone goes away, half the time they keep typing.
+    if (this.target && t.shown < t.text.length && Math.random() < 0.004) {
+      this.typing = null;
+      p.phone.out = false;
+      p.phone.draft = null;
+      return;
+    }
+    if (now < t.nextAt) return;
+    if (t.shown < t.text.length) {
+      t.shown++;
+      p.phone.draft = { conv: ASEVARASTO, text: t.text.slice(0, t.shown), at: now };
+      t.nextAt = now + 110 + Math.random() * 150;
+      return;
+    }
+    const kind = this.room.varusmestari.receive(p, { rid: `bot${p.id}-${now.toFixed(0)}`, conv: ASEVARASTO, text: t.text, life: p.life, round: this.room.round.n });
+    this.typing = null;
+    // The "Sending…" moment, then the phone goes down.
+    this.phoneDownAt = now + 650;
+    // A typo: read the reply, then try again.
+    if (kind !== 'command') this.retypeAt = now + 1800 + Math.random() * 1200;
   }
 
   private goTo(x: number, y: number, z: number): void {

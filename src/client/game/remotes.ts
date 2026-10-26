@@ -163,6 +163,7 @@ export class Remotes {
         ads: (s.flags & PF.ADS) !== 0,
         reloading: (s.flags & PF.RELOAD) !== 0,
         weapon: rp.weapon,
+        phone: (s.flags & PF.PHONE) !== 0,
       });
       if (alive) {
         rp.sounds(dt, this.audio, this.world, this.tr, eye);
