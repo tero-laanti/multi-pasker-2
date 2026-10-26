@@ -1,4 +1,4 @@
-import { FI } from '../../shared/fi';
+import { UI } from '../../shared/ui';
 import { DRILL, type DrillResult } from '../../shared/rangeSim';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
@@ -23,6 +23,7 @@ export class Hud {
   private drill: HTMLDivElement;
   private results: HTMLDivElement;
   private centerNote: HTMLDivElement;
+  private grenadeEl: HTMLDivElement;
   private last = new Map<string, string | number | boolean>();
   private bannerTimer = 0;
   private hitTimer = 0;
@@ -40,6 +41,7 @@ export class Hud {
     const row = el('div', 'ammo-row', this.ammoBox);
     this.ammo = el('div', 'ammo', row);
     this.ammoMax = el('div', 'ammo-max', row);
+    this.grenadeEl = el('div', 'grenade-count', this.ammoBox);
     this.banner = el('div', 'banner', this.root);
     this.hint = el('div', 'hint', this.root);
     this.drill = el('div', 'drill', this.root);
@@ -70,7 +72,7 @@ export class Hud {
 
   weapon(name: string, ammo: number, max: number, reloading: boolean): void {
     if (this.changed('wname', name)) this.weaponName.textContent = name;
-    const a = reloading ? FI.hud.reloading : String(ammo);
+    const a = reloading ? UI.hud.reloading : String(ammo);
     if (this.changed('ammo', a)) {
       this.ammo.textContent = a;
       this.ammo.classList.toggle('reloading', reloading);
@@ -80,6 +82,11 @@ export class Hud {
     if (this.changed('low', low)) this.ammoBox.classList.toggle('low', low);
     const empty = !reloading && ammo === 0;
     if (this.changed('empty', empty)) this.ammoBox.classList.toggle('empty', empty);
+  }
+
+  grenades(n: number, max: number): void {
+    const text = n > 0 ? `${UI.hud.grenade} ${'●'.repeat(n)}${'○'.repeat(Math.max(0, max - n))}` : '';
+    if (this.changed('gren', text)) this.grenadeEl.textContent = text;
   }
 
   refillFlash(): void {
@@ -112,10 +119,10 @@ export class Hud {
   drillStatus(phase: 'idle' | 'briefing' | 'running', time: number, score: number): void {
     const text =
       phase === 'idle'
-        ? FI.range.freeFire
+        ? UI.range.freeFire
         : phase === 'briefing'
-          ? FI.range.drillIntro
-          : `${FI.range.drill} · ${FI.range.time} ${Math.max(0, DRILL.duration - time).toFixed(1)} s · ${FI.range.score} ${score}`;
+          ? UI.range.drillIntro
+          : `${UI.range.drill} · ${UI.range.time} ${Math.max(0, DRILL.duration - time).toFixed(1)} s · ${UI.range.score} ${score}`;
     if (this.changed('drill', text)) this.drill.textContent = text;
     if (this.changed('drillPhase', phase)) this.drill.classList.toggle('active', phase !== 'idle');
   }
@@ -123,18 +130,18 @@ export class Hud {
   showResults(r: DrillResult, best: number, isBest: boolean): void {
     const acc = r.shots > 0 ? Math.round((r.hits / r.shots) * 100) : 0;
     this.results.innerHTML = '';
-    el('div', 'results-title', this.results, isBest ? FI.range.newBest : FI.range.score);
+    el('div', 'results-title', this.results, isBest ? UI.range.newBest : UI.range.score);
     el('div', 'results-score', this.results, String(r.score));
     const grid = el('div', 'results-grid', this.results);
     const row = (k: string, v: string) => {
       el('div', 'k', grid, k);
       el('div', 'v', grid, v);
     };
-    row(FI.range.downs, `${r.downs} / ${r.spawned}`);
-    row(FI.range.hits, String(r.hits));
-    row(FI.range.heads, String(r.heads));
-    row(FI.range.accuracy, `${acc} %`);
-    row(FI.range.best, String(best));
+    row(UI.range.downs, `${r.downs} / ${r.spawned}`);
+    row(UI.range.hits, String(r.hits));
+    row(UI.range.heads, String(r.heads));
+    row(UI.range.accuracy, `${acc} %`);
+    row(UI.range.best, String(best));
     this.results.classList.add('show');
     window.setTimeout(() => this.results.classList.remove('show'), 7000);
   }

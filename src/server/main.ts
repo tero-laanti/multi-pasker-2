@@ -29,7 +29,7 @@ function parseArgs(argv: string[]): Args {
     else if (a === '--host') args.host = argv[++i];
     else if (a.startsWith('--host=')) args.host = a.slice(7);
   }
-  if (!Number.isInteger(args.port) || args.port <= 0 || args.port > 65535) throw new Error(`Virheellinen portti: ${args.port}`);
+  if (!Number.isInteger(args.port) || args.port <= 0 || args.port > 65535) throw new Error(`Invalid port: ${args.port}`);
   return args;
 }
 
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
     });
     viteMiddleware = vite.middlewares;
   } else if (!fs.existsSync(path.join(DIST, 'index.html'))) {
-    console.error('Käännös puuttuu. Aja "npm start" (kääntää ja käynnistää) tai "npm run build".');
+    console.error('No client build found. Run "npm start" (builds and starts) or "npm run build".');
     process.exit(1);
   }
 
@@ -78,7 +78,7 @@ async function main(): Promise<void> {
   });
 
   const shutdown = () => {
-    console.log('\nSammutetaan…');
+    console.log('\nShutting down…');
     for (const c of wss.clients) c.close(1001, 'server shutdown');
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1500).unref();
@@ -119,7 +119,7 @@ async function handleRequest(
   }
   if (p === '/dev/tuning' && req.method === 'POST') {
     if (!isLoopback(req)) {
-      sendJson(res, 403, { error: 'Tallennus toimii vain palvelinkoneella (localhost).' });
+      sendJson(res, 403, { error: 'Saving only works on the server machine (localhost).' });
       return;
     }
     const body = JSON.parse(await readBody(req)) as TuningTree;
@@ -175,7 +175,7 @@ let nextClientId = 1;
 function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
   const id = nextClientId++;
   const addr = req.socket.remoteAddress;
-  console.log(`[ws] yhteys #${id} ${addr}`);
+  console.log(`[ws] connection #${id} from ${addr}`);
   const stats = setInterval(() => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs, tickHz: NET.tickHz, ticks: tickCount }));
   }, 1000);
@@ -191,26 +191,26 @@ function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
   });
   ws.on('close', () => {
     clearInterval(stats);
-    console.log(`[ws] yhteys #${id} suljettu`);
+    console.log(`[ws] connection #${id} closed`);
   });
 }
 
 function printBanner(args: Args, lan: string | null): void {
   const line = '─'.repeat(56);
   console.log(line);
-  console.log(` MULTI-PASKER ${args.dev ? '(kehitystila)' : ''}`);
+  console.log(` MULTI-PASKER ${args.dev ? '(development)' : ''}`);
   console.log(line);
   if (lan) {
-    console.log(` Tietokoneet: avaa selaimessa  http://${lan}:${args.port}/`);
+    console.log(` Players: open  http://${lan}:${args.port}/  in Chrome or Edge`);
   } else {
-    console.log(' LAN-osoitetta ei löytynyt. Anna osoite: npm start -- --host 192.168.x.y');
+    console.log(' No LAN address found. Set one with: npm start -- --host 192.168.x.y');
   }
   const others = lanCandidates().filter((c) => c.address !== lan);
   if (others.length > 0) {
-    console.log(' Muut osoitteet (jos yllä oleva ei toimi):');
+    console.log(' Other addresses (if the one above does not work):');
     for (const c of others) console.log(`   http://${c.address}:${args.port}/   (${c.name})`);
   }
-  console.log(' Pysäytä: Ctrl+C');
+  console.log(' Stop: Ctrl+C');
   console.log(line);
 }
 

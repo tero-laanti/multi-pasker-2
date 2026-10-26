@@ -1,7 +1,9 @@
-import { FI } from '../shared/fi';
+import * as THREE from 'three';
+import { UI } from '../shared/ui';
 import { buildRange } from '../shared/map/range';
 import { AudioEngine } from './audio/engine';
 import { Game } from './game/game';
+import { prepareHands } from './game/models/hands';
 import { Input } from './input';
 import { Net } from './net';
 import { Renderer } from './render/renderer';
@@ -60,7 +62,7 @@ export class App {
     window.addEventListener('beforeunload', (e) => {
       if (this.mode === 'playing') {
         e.preventDefault();
-        e.returnValue = FI.menu.leaveConfirm;
+        e.returnValue = UI.menu.leaveConfirm;
       }
     });
     document.addEventListener('pointerdown', () => this.audio.unlock());
@@ -75,10 +77,13 @@ export class App {
     this.renderer.setView(this.settings.fov, this.settings.renderScale);
     this.audio.setVolumes(this.settings.masterVolume, this.settings.effectsVolume);
     await document.fonts.ready.catch(() => undefined);
-    const audioLoad = this.audio.load((done, total) => this.menu.showLoading(`${FI.menu.loading} ${done}/${total}`));
+    const audioLoad = this.audio.load((done, total) => this.menu.showLoading(`${UI.menu.loading} ${done}/${total}`));
+    await prepareHands();
     this.game = new Game({ renderer: this.renderer, audio: this.audio, input: this.input, settings: this.settings, hud: this.hud }, map);
     this.dev = new DevPanel(this.root, {
       reload: () => this.game?.reload(),
+      giveRifle: () => this.game?.give('rifle'),
+      giveGrenade: () => this.game?.giveGrenade(),
       startDrill: () => this.game?.range.startDrill(),
       setDirectReload: (on) => {
         if (this.game) this.game.devDirectReload = on;
@@ -88,7 +93,7 @@ export class App {
         if (this.game) this.game.killSpeed = p;
       },
       killSpeed: () => this.game?.killSpeed ?? 'cod',
-      connection: () => (this.net.stats.connected ? FI.dev.connected : FI.dev.disconnected),
+      connection: () => (this.net.stats.connected ? UI.dev.connected : UI.dev.disconnected),
     });
     await audioLoad;
     this.mode = 'menu';
@@ -114,7 +119,7 @@ export class App {
       simSteps: this.game?.lastFrameSteps ?? 0,
       snapshotRate: null,
       interpDelay: null,
-      extra: () => [`Raakasyöte: ${this.input.rawActive ? 'käytössä' : 'ei käytössä'}   Ääniä: ${this.audio.activeGunshots}`],
+      extra: () => [`Raw input: ${this.input.rawActive ? 'on' : 'off'}   Gunshot voices: ${this.audio.activeGunshots}`],
     });
   }
 
@@ -147,7 +152,7 @@ export class App {
     try {
       await this.input.lock(this.settings.rawInput);
     } catch {
-      this.menu.showOverlay(false, FI.menu.pointerLockFailed);
+      this.menu.showOverlay(false, UI.menu.pointerLockFailed);
     }
   }
 
@@ -195,6 +200,15 @@ export class App {
       input: this.input,
       manual: (on: boolean) => {
         this.manualClock = on;
+      },
+      /** Renders the held weapon and hands from an orbit camera (degrees, metres). */
+      vmOrbit: (yawDeg: number, pitchDeg: number, dist: number, fov = 30) => {
+        const vm = this.game?.viewmodel;
+        const m = vm?.model(this.game!.weapons.current);
+        if (!m) return;
+        m.root.updateWorldMatrix(true, true);
+        const target = new THREE.Vector3(0, -0.03, -0.06).applyMatrix4(m.root.matrixWorld);
+        this.renderer.renderViewmodelOrbit(target, (yawDeg * Math.PI) / 180, (pitchDeg * Math.PI) / 180, dist, fov);
       },
       play: () => {
         this.mode = 'playing';

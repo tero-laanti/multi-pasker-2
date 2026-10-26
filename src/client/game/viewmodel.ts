@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { DEG, clamp, damp, lerp, smoothstep } from '../../shared/math';
 import { buildPistol, type WeaponModel } from './models/pistol';
-import type { WeaponController } from './weapons';
+import { buildRifle } from './models/rifle';
+import { THROW_RELEASE, type WeaponController } from './weapons';
+import { grenadeMesh } from './grenades';
 
 /** Piecewise curve through [time, value] keys with smoothstep easing between them. */
 function curve(t: number, keys: [number, number][]): number {
@@ -134,6 +136,7 @@ export class ViewModel {
   private flashSide: THREE.Group;
   private flashTime = 1;
   private casings: Casing[] = [];
+  private heldGrenade = grenadeMesh();
   private casingIndex = 0;
   onCasingLand: (() => void) | null = null;
   /** World-space muzzle flash strength for lighting (0..1). */
@@ -142,8 +145,11 @@ export class ViewModel {
   constructor(private scene: THREE.Scene) {
     scene.add(this.holder);
     this.models.pistol = buildPistol();
-    this.holder.add(this.models.pistol.root);
-    this.models.pistol.root.visible = false;
+    this.models.rifle = buildRifle();
+    for (const m of Object.values(this.models)) {
+      this.holder.add(m.root);
+      m.root.visible = false;
+    }
 
     const flashMat = new THREE.MeshBasicMaterial({
       map: flashTexture(),
@@ -173,6 +179,8 @@ export class ViewModel {
     this.flashFront.visible = false;
     this.flashSide.visible = false;
 
+    this.heldGrenade.visible = false;
+    scene.add(this.heldGrenade);
     const brass = new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 1, roughness: 0.3 });
     const geo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.019, 10);
     for (let i = 0; i < 10; i++) {
@@ -181,6 +189,14 @@ export class ViewModel {
       scene.add(mesh);
       this.casings.push({ mesh, vel: new THREE.Vector3(), spin: new THREE.Vector3(), life: 0, played: true });
     }
+  }
+
+  /** Muzzle position of the shown weapon in viewmodel (camera) space. */
+  muzzlePosition(out: THREE.Vector3): THREE.Vector3 {
+    const m = this.shown ? this.models[this.shown] : undefined;
+    if (!m) return out.set(0.1, -0.05, -0.5);
+    m.muzzle.updateWorldMatrix(true, false);
+    return out.setFromMatrixPosition(m.muzzle.matrixWorld);
   }
 
   model(id: WeaponId): WeaponModel | undefined {
@@ -223,9 +239,9 @@ export class ViewModel {
     this.sway.x.v += clamp(-mo.lookX * 0.0009 * swayK, -0.5, 0.5);
     this.sway.y.v += clamp(-mo.lookY * 0.0009 * swayK, -0.5, 0.5);
 
-    // Walk bob in step with stride, scaled by speed.
-    const stride = mo.sprinting ? 2.1 : 1.65;
-    this.bobPhase += (mo.speed * dt * Math.PI * 2) / stride;
+    // Walk bob in step with the footsteps: half a cycle (one dip) per step.
+    const stepLen = mo.sprinting ? 2.4 : mo.crouched ? 1.4 : 1.9;
+    this.bobPhase += (mo.speed * dt * Math.PI) / stepLen;
     const targetBob = mo.onGround ? clamp(mo.speed / TUNING.move.walkSpeed, 0, 1.5) : 0;
     this.bobAmt = damp(this.bobAmt, targetBob, 10, dt);
     const bobK = this.bobAmt * T.bob * (1 - ads * 0.88) * (mo.crouched ? 0.6 : 1) * (mo.sprinting ? 1.6 : 1);
@@ -258,10 +274,10 @@ export class ViewModel {
 
     // Bob, breathing, sway, landing.
     const ph = this.bobPhase;
-    p.x += Math.sin(ph) * 0.0065 * bobK;
-    p.y -= Math.abs(Math.sin(ph)) * 0.0085 * bobK;
-    p.roll += Math.sin(ph) * 0.012 * bobK;
-    p.yaw += Math.sin(ph) * 0.006 * bobK;
+    p.x += Math.sin(ph) * 0.005 * bobK;
+    p.y -= Math.abs(Math.sin(ph)) * 0.0065 * bobK;
+    p.roll += Math.sin(ph) * 0.01 * bobK;
+    p.yaw += Math.sin(ph) * 0.005 * bobK;
     const breathe = 1 - ads * 0.75;
     p.y += Math.sin(this.time * 1.7) * 0.0011 * breathe;
     p.pitch += Math.sin(this.time * 1.1) * 0.0022 * breathe;
@@ -294,6 +310,17 @@ export class ViewModel {
     for (const ch of this.flashSide.children) ((ch as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = f * 0.9;
 
     this.updateCasings(dt);
+
+    // Grenade in view from the start of the throw until it leaves the hand.
+    const throwing = w.state === 'throwing' && w.progress < THROW_RELEASE;
+    this.heldGrenade.visible = throwing;
+    if (throwing) {
+      const k = w.progress / THROW_RELEASE;
+      const rise = Math.min(1, k / 0.55);
+      const fling = Math.max(0, (k - 0.55) / 0.45);
+      this.heldGrenade.position.set(-0.2 + 0.06 * rise + 0.08 * fling, -0.3 + 0.16 * rise + 0.08 * fling, -0.42 - 0.02 * rise - 0.25 * fling);
+      this.heldGrenade.rotation.set(-0.4 - 1.2 * fling, 0.3, 0.2);
+    }
   }
 
   private onShot(m: WeaponModel, T: (typeof TUNING)['pistol'], ads: number): void {
@@ -321,6 +348,7 @@ export class ViewModel {
     const c = this.casings[this.casingIndex++ % this.casings.length]!;
     m.eject.updateWorldMatrix(true, false);
     c.mesh.position.setFromMatrixPosition(m.eject.matrixWorld);
+    c.mesh.scale.set(...m.casingScale);
     c.vel.set(0.9 + Math.random() * 0.5, 1.1 + Math.random() * 0.5, 0.25 + Math.random() * 0.3);
     c.spin.set(Math.random() * 30, Math.random() * 30, 20 + Math.random() * 20);
     c.mesh.rotation.set(0, 0, Math.PI / 2);
@@ -357,6 +385,7 @@ export class ViewModel {
     const lh = m.hands.left;
     lh.position.set(0, 0, 0);
     lh.rotation.set(0, 0, 0);
+    lh.visible = m.supportHandAtRest;
     switch (w.state) {
       case 'reloading': {
         const empty = w.reloadEmpty;
@@ -385,6 +414,19 @@ export class ViewModel {
           [refill + 0.08, -0.08],
           [end, 0],
         ]);
+        // Long guns lift further and tilt more so the magwell comes into view.
+        const lift = curve(t, [
+          [0, 0],
+          [0.16, 1],
+          [refill + 0.08, 1],
+          [end, 0],
+        ]);
+        p.x += m.reloadLift.x * lift;
+        p.y += m.reloadLift.y * lift;
+        p.z += m.reloadLift.z * lift;
+        p.roll += m.reloadLift.roll * lift;
+        p.pitch += m.reloadLift.pitch * lift;
+        p.yaw += m.reloadLift.yaw * lift;
         // Lift the gun into view and towards the centre so the magazine change is visible.
         p.x += curve(t, [
           [0, 0],
@@ -408,17 +450,19 @@ export class ViewModel {
           [refill + 0.1, 0.035],
           [end, 0],
         ]);
-        // Magazine: drops out, a fresh one rises and slams home at the refill moment.
+        // Magazine: rocks out (AK) or drops, a fresh one comes up and seats at the refill moment.
         let d: number;
         if (t < 0.1) d = 0;
-        else if (t < 0.32) d = Math.pow((t - 0.1) / 0.22, 2) * 0.22;
+        else if (t < 0.32) d = Math.pow((t - 0.1) / 0.22, 2) * 0.24;
         else if (t < 0.4) d = 0.3;
-        else if (t < refill - 0.04) d = lerp(0.18, 0.014, smoothstep(0, 1, (t - 0.4) / (refill - 0.04 - 0.4)));
-        else if (t < refill) d = lerp(0.014, 0, (t - (refill - 0.04)) / 0.04);
+        else if (t < refill - 0.05) d = lerp(0.2, 0.012, smoothstep(0, 1, (t - 0.4) / (refill - 0.05 - 0.4)));
+        else if (t < refill) d = lerp(0.012, 0, (t - (refill - 0.05)) / 0.05);
         else d = 0;
+        const rock = t < 0.06 ? 0 : t < 0.14 ? (t - 0.06) / 0.08 : t < refill - 0.05 ? 1 : t < refill ? 1 - (t - (refill - 0.05)) / 0.05 : 0;
         m.mag.visible = !(t >= 0.32 && t < 0.4);
-        m.mag.position.copy(m.magAxis).multiplyScalar(d);
-        // Support hand: off to the pouch, back under the grip with the fresh magazine, seats it.
+        m.mag.position.copy(m.magPivot).addScaledVector(m.magAxis, d);
+        m.mag.rotation.x = rock * m.magRock;
+        // Support hand: off to the pouch, back holding the fresh magazine, seats it.
         const away = curve(t, [
           [0.06, 0],
           [0.2, 1],
@@ -431,47 +475,72 @@ export class ViewModel {
           [refill, 1],
           [refill + 0.1, 0],
         ]);
-        lh.position.set(-0.06 * away, -0.24 * away, 0.14 * away);
-        lh.rotation.x = 0.6 * away;
-        if (under > 0) {
-          lh.position.x += 0.024 * under;
-          lh.position.y += (-0.06 + m.magAxis.y * d) * under;
-          lh.position.z += (0.03 + m.magAxis.z * d) * under;
-          lh.rotation.z = -0.5 * under;
+        const rack = empty
+          ? curve(t, [
+              [refill + 0.06, 0],
+              [0.7, 1],
+              [0.81, 1],
+              [0.92, 0],
+            ])
+          : 0;
+        const b = empty
+          ? curve(t, [
+              [0.7, 0],
+              [0.76, 1],
+              [0.81, 1],
+              [0.83, 0],
+            ])
+          : 0;
+        m.bolt.position.z = b * m.boltTravel;
+        const offU = new THREE.Vector3().copy(m.magHandOffset).addScaledVector(m.magAxis, d);
+        const offR = new THREE.Vector3().copy(m.rackOffset);
+        offR.z += b * m.boltTravel;
+        const offA = new THREE.Vector3(-0.06, -0.24, 0.14);
+        if (m.supportHandAtRest) {
+          lh.position.copy(offA).multiplyScalar(away).addScaledVector(offU, under).addScaledVector(offR, rack);
+          lh.rotation.x = 0.6 * away - 0.5 * rack;
+        } else {
+          // One-handed weapon: the left hand comes up from out of view only to help.
+          const w = Math.max(under, rack);
+          lh.position.copy(offA).multiplyScalar(1 - w).addScaledVector(offU, under).addScaledVector(offR, rack);
+          lh.rotation.x = 0.6 * (1 - w) - 0.5 * rack;
+          lh.visible = w > 0.02;
         }
-        if (empty) {
-          const b = curve(t, [
-            [0.7, 0],
-            [0.76, 0.026],
-            [0.81, 0.026],
-            [0.83, 0],
-          ]);
-          m.bolt.position.z = b;
-          const rack = curve(t, [
-            [refill + 0.06, 0],
-            [0.7, 1],
-            [0.81, 1],
-            [0.92, 0],
-          ]);
-          lh.position.addScaledVector(m.rackOffset, rack);
-          lh.position.z += b * rack;
-          lh.rotation.x -= 0.5 * rack;
-        }
+        lh.rotation.z = -0.5 * under;
         break;
       }
       case 'inspecting': {
         const show = curve(t, [
           [0, 0],
-          [0.22, 1],
-          [0.78, 1],
+          [0.24, 1],
+          [0.8, 1],
           [1, 0],
         ]);
-        p.yaw -= 0.95 * show;
-        p.roll += 0.35 * show + Math.sin(t * Math.PI * 2) * 0.04 * show;
-        p.pitch += 0.12 * show;
-        p.x -= 0.075 * show;
-        p.y += 0.035 * show;
-        p.z += 0.06 * show;
+        const ip = m.inspectPose;
+        p.x += ip.x * show;
+        p.y += ip.y * show;
+        p.z += ip.z * show;
+        p.pitch += ip.pitch * show;
+        p.yaw += ip.yaw * show;
+        p.roll += ip.roll * show + Math.sin(t * Math.PI * 2) * 0.03 * show;
+        // The support hand lets go while the gun is turned over.
+        lh.position.set(-0.05 * show, -0.22 * show, 0.12 * show);
+        lh.rotation.x = 0.5 * show;
+        lh.visible = m.supportHandAtRest && show < 0.98;
+        break;
+      }
+      case 'throwing': {
+        // The gun dips out of the way while the other hand throws.
+        const k = curve(t, [
+          [0, 0],
+          [0.3, 1],
+          [0.6, 1],
+          [1, 0],
+        ]);
+        p.y -= 0.1 * k;
+        p.pitch -= 0.45 * k;
+        p.roll += 0.3 * k;
+        p.x += 0.03 * k;
         break;
       }
       case 'holstering': {

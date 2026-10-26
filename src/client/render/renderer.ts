@@ -129,7 +129,7 @@ export class Renderer {
 
     this.vmHemi = new THREE.HemisphereLight(0xc4dcf2, 0x6b6a4c, 1.0);
     this.vmSun = new THREE.DirectionalLight(0xfff1dc, 2.6);
-    this.vmFlash = new THREE.PointLight(0xffb866, 0, 1.5, 2);
+    this.vmFlash = new THREE.PointLight(0xffb866, 0, 0.7, 2);
     this.vmFlash.position.set(0.1, -0.05, -0.5);
     // Soft fill from the viewer's side keeps the gun readable in shade.
     const vmFill = new THREE.DirectionalLight(0xdce6ff, 0.55);
@@ -228,6 +228,21 @@ export class Renderer {
     gl.render(this.vmScene, this.vmCamera);
     this.info.calls = gl.info.render.calls;
     this.info.triangles = gl.info.render.triangles;
+  }
+
+  /** Debug: renders only the viewmodel scene from an orbit camera around `target`. */
+  renderViewmodelOrbit(target: THREE.Vector3, yaw: number, pitch: number, dist: number, fov = 30): void {
+    const cam = new THREE.PerspectiveCamera(fov, this.camera.aspect, 0.005, 10);
+    cam.position.set(
+      target.x + dist * Math.sin(yaw) * Math.cos(pitch),
+      target.y + dist * Math.sin(pitch),
+      target.z + dist * Math.cos(yaw) * Math.cos(pitch),
+    );
+    cam.lookAt(target);
+    this.gl.setClearColor(0x6d7480, 1);
+    this.gl.clear(true, true, false);
+    this.gl.render(this.vmScene, cam);
+    this.gl.setClearColor(0x000000, 1);
   }
 
   gpuName(): string {

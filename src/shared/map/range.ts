@@ -2,6 +2,7 @@ import { makeRng } from '../math';
 import { MapBuilder } from './builder';
 import type { MapData } from './types';
 import { FI } from '../fi';
+import { UI } from '../ui';
 
 /**
  * Ampumarata: a summer shooting range with a covered firing point, six lanes with targets
@@ -61,7 +62,7 @@ export function buildRange(): MapData {
 
   // Start plate: shooting it starts a drill.
   m.target({ kind: 'start', x: 0, y: 1.3, z: -6, yaw: 0, radius: 0.22 });
-  m.prop({ kind: 'sign', x: 0, y: 0.75, z: -6, text: S.start, size: 0.9 });
+  m.prop({ kind: 'sign', x: 0, y: 0.75, z: -6, text: UI.range.startSign, size: 0.9 });
 
   // Drill cover downrange and the pop-up targets that use it.
   const barrier = (x: number, z: number, len = 2.4) => m.box(x - len / 2, 0.02, z - 0.3, x + len / 2, 0.85, z + 0.3, 'concrete');

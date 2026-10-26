@@ -1,8 +1,10 @@
-import { FI } from '../../shared/fi';
+import { UI } from '../../shared/ui';
 import type { KillSpeedPreset } from '../../shared/config';
 
 export interface DevActions {
   reload(): void;
+  giveRifle(): void;
+  giveGrenade(): void;
   startDrill(): void;
   setDirectReload(on: boolean): void;
   directReload(): boolean;
@@ -26,7 +28,7 @@ export class DevPanel {
     parent.appendChild(this.root);
     const title = document.createElement('div');
     title.className = 'dev-title';
-    title.textContent = FI.dev.title;
+    title.textContent = UI.dev.title;
     this.root.appendChild(title);
     const btn = (label: string, fn: () => void) => {
       const b = document.createElement('button');
@@ -36,23 +38,25 @@ export class DevPanel {
       this.root.appendChild(b);
       return b;
     };
-    btn(FI.dev.reload, () => a.reload());
-    btn(FI.dev.restartDrill, () => a.startDrill());
+    btn(UI.dev.reload, () => a.reload());
+    btn(UI.dev.giveRifle, () => a.giveRifle());
+    btn(UI.dev.giveGrenade, () => a.giveGrenade());
+    btn(UI.dev.restartDrill, () => a.startDrill());
     const direct = document.createElement('label');
     direct.className = 'dev-check';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = a.directReload();
     cb.onchange = () => a.setDirectReload(cb.checked);
-    direct.append(cb, document.createTextNode(' ' + FI.dev.rDirect));
+    direct.append(cb, document.createTextNode(' ' + UI.dev.rDirect));
     this.root.appendChild(direct);
     const ks = document.createElement('div');
     ks.className = 'dev-row';
-    ks.textContent = FI.dev.killSpeed + ': ';
+    ks.textContent = UI.dev.killSpeed + ': ';
     const sel = document.createElement('select');
     for (const [v, l] of [
-      ['cod', FI.dev.killSpeedCod],
-      ['scramble', FI.dev.killSpeedScramble],
+      ['cod', UI.dev.killSpeedCod],
+      ['scramble', UI.dev.killSpeedScramble],
     ] as [KillSpeedPreset, string][]) {
       const o = document.createElement('option');
       o.value = v;
@@ -67,7 +71,7 @@ export class DevPanel {
     this.conn.className = 'dev-row';
     this.root.appendChild(this.conn);
     window.setInterval(() => {
-      if (this.visible) this.conn.textContent = `${FI.dev.connection}: ${a.connection()}`;
+      if (this.visible) this.conn.textContent = `${UI.dev.connection}: ${a.connection()}`;
     }, 500);
   }
 

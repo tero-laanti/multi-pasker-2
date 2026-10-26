@@ -14,7 +14,7 @@ import { mono, readWav, writeWav, type Wav } from './lib/wav';
 
 const [firstPack, secondPack] = process.argv.slice(2);
 if (!firstPack || !secondPack) {
-  console.error('käyttö: npx tsx tools/import-sfx.ts <Snake\'s Authentic Gun Sounds> <Snake\'s SECOND Authentic Gun Sounds>');
+  console.error('usage: npx tsx tools/import-sfx.ts <Snake\'s Authentic Gun Sounds> <Snake\'s SECOND Authentic Gun Sounds>');
   process.exit(1);
 }
 const OUT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../assets/sfx/_base');
@@ -24,7 +24,7 @@ const p1 = (...p: string[]) => path.join(secondPack, ...p);
 const p2 = (...p: string[]) => path.join(firstPack, ...p);
 
 function load(file: string): Wav {
-  if (!fs.existsSync(file)) throw new Error(`puuttuu: ${file}`);
+  if (!fs.existsSync(file)) throw new Error(`missing: ${file}`);
   return readWav(file);
 }
 
@@ -125,7 +125,7 @@ function handling(name: string, file: string, from = 0, to = Infinity, db = -3):
   write(name, rate, [normalize(fade(toMono(chanSlice(w, from, end)), rate, 0.002, 0.03), db)]);
 }
 
-console.log('Pistooli (9 mm)');
+console.log('Pistol (9 mm)');
 buildShots(
   'pistol',
   ['Single', 'Double Tap', 'Burst', 'Slow Burst', 'Spray'].map((n) => ({
@@ -144,7 +144,7 @@ handling('pistol_dry', p1('& More', 'Pistol', 'WAV', '9mm Pistol Dry Fire.wav'),
 handling('pistol_inspect', p1('& More', 'Pistol', 'WAV', '9mm Pistol Chamber Check Full.wav'), 0, Infinity, -6);
 handling('pistol_draw', p1('& More', 'Mag Pack', 'WAV', '9mm Magazine Unpack.wav'), 0, Infinity, -9);
 
-console.log('Rynnäkkökivääri (7.62x39)');
+console.log('Rifle (7.62x39)');
 buildShots(
   'rifle',
   ['Single', 'Double Tap', 'Burst', 'Spray'].map((n) => ({
@@ -167,7 +167,7 @@ handling('rifle_draw', p1('& More', 'Mag Pack', 'WAV', 'AK PolyMag Unpack.wav'),
   write('rifle_dry', w.sampleRate, [normalize(fade(x, w.sampleRate, 0.001, 0.02), -4)]);
 }
 
-console.log('Hylsyt');
+console.log('Casings');
 {
   let n = 0;
   for (const f of [
@@ -185,4 +185,4 @@ console.log('Hylsyt');
     }
   }
 }
-console.log('Valmis →', OUT);
+console.log('Done →', OUT);

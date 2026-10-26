@@ -37,7 +37,7 @@ export function sendFile(req: IncomingMessage, res: ServerResponse, file: string
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) {
       res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('Ei löytynyt');
+      res.end('Not found');
       return;
     }
     const type = MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';

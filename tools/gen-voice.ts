@@ -27,13 +27,18 @@ interface Line {
 }
 
 const V = FI.voice;
+const SPEAKERS: Record<string, string> = {
+  ammunnanjohtaja: 'Range officer (range commands)',
+  huoltopaallikko: 'Huoltopäällikkö (voice notes, Finnish)',
+  nylands: 'Nylands brigad (voice note, Swedish)',
+};
 const lines: Line[] = [
-  ...V.range.map(([file, text]) => ({ file, text, speaker: 'ammunnanjohtaja', lang: 'fi' as const, note: 'Ampumaradan ratakäsky' })),
-  { file: V.codeWord[0], text: V.codeWord[1], speaker: 'huoltopaallikko', lang: 'fi', note: 'Ennen kirjaimia: "Tunnus:"' },
-  ...V.alphabet.map(([letter, word, file]) => ({ file, text: word, speaker: 'huoltopaallikko', lang: 'fi' as const, note: `Kirjain ${letter}. Yksi sana, selkeästi, lyhyt tauko perään` })),
-  ...V.intros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Ääniviestin alku' })),
-  ...V.outros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Ääniviestin loppu' })),
-  ...V.swedish.map(([file, code, text]) => ({ file, text, speaker: 'nylands', lang: 'sv' as const, note: `Vastaus: ${code}` })),
+  ...V.range.map(([file, text]) => ({ file, text, speaker: 'ammunnanjohtaja', lang: 'fi' as const, note: 'Range command' })),
+  { file: V.codeWord[0], text: V.codeWord[1], speaker: 'huoltopaallikko', lang: 'fi', note: 'Said before the letters' },
+  ...V.alphabet.map(([letter, word, file]) => ({ file, text: word, speaker: 'huoltopaallikko', lang: 'fi' as const, note: `Letter ${letter}. One word, clearly, short pause after` })),
+  ...V.intros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Voice-note intro' })),
+  ...V.outros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Voice-note outro' })),
+  ...V.swedish.map(([file, code, text]) => ({ file, text, speaker: 'nylands', lang: 'sv' as const, note: `Answer: ${code}` })),
 ];
 
 const hasSay = os.platform() === 'darwin' && spawnSync('which', ['say']).status === 0;
@@ -59,33 +64,33 @@ for (const line of lines) {
   synth(line, wav);
   process.stdout.write('.');
 }
-console.log(`\n${lines.length} paikkamerkkiä → ${OUT}`);
+console.log(`\n${lines.length} placeholders → ${OUT}`);
 
 const bySpeaker = new Map<string, Line[]>();
 for (const l of lines) bySpeaker.set(l.speaker, [...(bySpeaker.get(l.speaker) ?? []), l]);
-let md = `# Äänitykset
+let md = `# Voice recordings
 
-Kaikki pelin äänirepliikit. Nyt kaikista on koneäänellä tehty paikkamerkki kansiossa
-\`assets/voice/_placeholder/\`. Kun äänität repliikin, tallenna se kansioon \`assets/voice/\`
-täsmälleen alla olevalla tiedostonimellä (pääte saa olla .wav, .mp3, .m4a tai .ogg). Oma äänitys
-korvaa paikkamerkin heti seuraavalla sivun latauksella, koodia ei tarvitse muuttaa.
+Every voice line in the game. Each one currently has a machine-voice placeholder in
+\`assets/voice/_placeholder/\`. To replace a line, save your recording into \`assets/voice/\`
+with exactly the file name below (extension .wav, .mp3, .m4a or .ogg). It replaces the placeholder
+on the next page load; no code changes needed.
 
-Vinkit:
+Tips:
 
-- Mono, 44,1 tai 48 kHz. Leikkaa hiljaisuus alusta ja lopusta (jätä noin 50 ms).
-- Kirjainsanat ovat yksittäisiä tiedostoja, joista peli liittää ääniviestit yhteen
-  (esim. KETTU = Kalle, Eemeli, Tyyne, Tyyne, Urho). Lausu jokainen sana samalla tavalla ja
-  samalla voimakkuudella, niin liitokset kuulostavat luontevilta.
-- Ruotsinkieliset viestit lausutaan suomenruotsiksi, kuin Nylands brigadin päivystäjä.
-- Teksti ja tiedostonimet tulevat tiedostosta \`src/shared/fi.ts\` (kohta \`voice\`).
-  Tämä dokumentti ja paikkamerkit tehdään uudelleen komennolla \`npm run gen:voice\`.
+- Mono, 44.1 or 48 kHz. Trim silence at both ends (leave about 50 ms).
+- The phonetic-alphabet words are separate files that the game splices into voice notes
+  (e.g. KETTU = Kalle, Eemeli, Tyyne, Tyyne, Urho). Say every word the same way and at the same
+  level so the joins sound natural.
+- The Swedish notes are spoken in Finland-Swedish, like a duty officer at Nylands brigad.
+- Texts and file names come from \`src/shared/fi.ts\` (the \`voice\` section). This document and
+  the placeholders are regenerated with \`npm run gen:voice\`.
 
 `;
 for (const [speaker, list] of bySpeaker) {
-  md += `## ${FI.voice.speakers[speaker] ?? speaker}\n\n| Tiedosto | Repliikki | Huomio |\n|---|---|---|\n`;
+  md += `## ${SPEAKERS[speaker] ?? speaker}\n\n| File | Line (Finnish/Swedish) | Note |\n|---|---|---|\n`;
   for (const l of list) md += `| \`${l.file}\` | ${l.text} | ${l.note} |\n`;
   md += '\n';
 }
-md += `Yhteensä ${lines.length} repliikkiä.\n`;
+md += `${lines.length} lines in total.\n`;
 fs.writeFileSync(DOC, md);
-console.log(`Kirjoitettu ${DOC}`);
+console.log(`Wrote ${DOC}`);

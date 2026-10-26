@@ -29,7 +29,8 @@ export const TUNING = {
     // Fraction of horizontal speed lost on a hard landing.
     landSlowdown: 0.25,
     stepHeight: 0.45,
-    airStepHeight: 0.2,
+    // Extra step-up while airborne: lets a jump clear a ledge slightly above the jump apex.
+    airStepHeight: 0.1,
     groundSnap: 0.45,
     radius: 0.36,
     standHeight: 1.8,
@@ -50,7 +51,7 @@ export const TUNING = {
     adsTime: 0.2,
     adsOutTime: 0.16,
     // FOV magnification while aiming.
-    adsZoom: 1.15,
+    adsZoom: 1.22,
     sprintInTime: 0.18,
     sprintToFire: 0.16,
     drawTime: 0.3,

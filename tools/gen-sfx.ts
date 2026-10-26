@@ -40,7 +40,7 @@ function room(x: Signal, amount: number, size = 0.4, tail = 0.4): Signal {
   return mix(wet.length, [x, 1], [wet, amount]);
 }
 
-console.log('Askeleet');
+console.log('Footsteps');
 const steps: Record<string, (r: () => number) => Signal> = {
   concrete: (r) =>
     room(
@@ -101,7 +101,7 @@ for (let i = 1; i <= 2; i++) {
   );
 }
 
-console.log('Osumat');
+console.log('Impacts');
 const impacts: Record<string, (r: () => number) => Signal> = {
   concrete: (r) =>
     room(
@@ -151,7 +151,7 @@ for (const [surf, fn] of Object.entries(impacts)) {
   for (let i = 1; i <= 3; i++) out(`impact_${surf}_${i}`, fn(rng(5000 + i * 29 + surf.length * 71)), surf === 'flesh' ? -3 : -4);
 }
 
-console.log('Teräsmaalit');
+console.log('Steel targets');
 const plate = (r: () => number, base: number, len: number) =>
   mix(
     N(len),
@@ -161,7 +161,7 @@ const plate = (r: () => number, base: number, len: number) =>
 for (let i = 1; i <= 2; i++) out(`steel_plate_${i}`, plate(rng(300 + i), 740 + i * 40, 1.6), -3);
 for (let i = 1; i <= 2; i++) out(`steel_gong_${i}`, plate(rng(400 + i), 330 + i * 25, 2.6), -3);
 
-console.log('Osumamerkit');
+console.log('Hit markers');
 {
   const r = rng(9);
   out('hit_body', mix(N(0.08), [burst(r, 0.08, 'bandpass', 3200, 1.2, 0.0002, 0.005), 1], [expEnv(sine(N(0.08), RATE, 1900, 1700, 0.02), RATE, 0.0005, 0.012), 0.4]), -6);
@@ -174,7 +174,7 @@ console.log('Osumamerkit');
   out('ui_click', burst(r, 0.04, 'bandpass', 2400, 1.5, 0.0002, 0.004), -12);
 }
 
-console.log('Pilli');
+console.log('Whistle');
 {
   const len = 0.75;
   const x = zeros(N(len));
@@ -192,7 +192,7 @@ console.log('Pilli');
   out('whistle', room(mix(x.length, [x, 1], [gain(breath, 0.25), 1]), 0.3, 0.6, 0.6), -6);
 }
 
-console.log('Kranaatti');
+console.log('Grenade');
 {
   const r = rng(42);
   out('grenade_pin', concat(modes(N(0.08), RATE, [[2400, 1, 0.02], [3900, 0.6, 0.015]]), burst(r, 0.25, 'bandpass', 3500, 2, 0.02, 0.05)), -6);
@@ -212,4 +212,4 @@ console.log('Kranaatti');
     out(`grenade_far_${i}`, biquad(room(dry, 1.4, 0.9, 2), RATE, 'lowpass', 900, 0.7), -3);
   }
 }
-console.log('Valmis →', OUT);
+console.log('Done →', OUT);

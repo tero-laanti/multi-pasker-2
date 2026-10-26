@@ -7,5 +7,5 @@ import { App } from './app';
 const root = document.getElementById('app')!;
 new App(root).start().catch((err) => {
   console.error(err);
-  root.insertAdjacentHTML('beforeend', `<div class="fatal">Käynnistys epäonnistui: ${String(err?.message ?? err)}</div>`);
+  root.insertAdjacentHTML('beforeend', `<div class="fatal">Start-up failed: ${String(err?.message ?? err)}</div>`);
 });

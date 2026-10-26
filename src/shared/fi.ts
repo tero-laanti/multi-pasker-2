@@ -1,136 +1,23 @@
 /**
- * All player-facing Finnish text, on the desktop and the phone, lives in this file.
+ * Finnish content: what is spoken or typed in Finnish in the game (range commands, voice
+ * lines, in-world place names and, later, the varusmestari's script and the phone commands).
+ * Interface text is English and lives in ui.ts.
  * Edit freely: the keys are used by code, the strings are yours.
- * `{name}`-style placeholders are filled in by the code.
  */
 export const FI = {
-  appTitle: 'MULTI-PASKER',
-
-  menu: {
-    tagline: 'Varusmestari palvelee. Joskus.',
-    range: 'Ampumarata',
-    rangeDesc: 'Yksin harjoittelua: liikkuvat maalit, ponnahdusmaalit ja ratakäskyt.',
-    join: 'Liity peliin',
-    joinSoon: 'Moninpeli tulossa',
-    settings: 'Asetukset',
-    back: 'Takaisin',
-    clickToPlay: 'Klikkaa pelataksesi',
-    clickToResume: 'Klikkaa jatkaaksesi',
-    paused: 'Tauko',
-    resume: 'Jatka',
-    quit: 'Päävalikkoon',
-    devTools: 'Kehitystyökalut',
-    pointerLockFailed: 'Hiiren lukitus ei onnistunut. Odota hetki ja klikkaa uudelleen.',
-    loading: 'Ladataan…',
-    leaveConfirm: 'Peli on kesken. Haluatko varmasti lähteä?',
-    controlsTitle: 'Ohjaus',
-    controls: [
-      ['WASD', 'liiku'],
-      ['Hiiri', 'katse'],
-      ['Vasen', 'ammu'],
-      ['Oikea', 'tähtää'],
-      ['Shift', 'juokse'],
-      ['Välilyönti', 'hyppää'],
-      ['C', 'kyykky'],
-      ['1 / 2 / rulla', 'vaihda ase'],
-      ['G', 'heitä kranaatti'],
-      ['I', 'tarkasta ase'],
-      ['Tab', 'tulostaulu'],
-      ['R', 'muistutus: lataus hoituu puhelimella'],
-      ['Esc', 'valikko'],
-    ] as [string, string][],
-  },
-
-  settings: {
-    title: 'Asetukset',
-    sensitivity: 'Hiiren herkkyys',
-    adsSensitivity: 'Tähtäyksen herkkyyskerroin',
-    fov: 'Näkökenttä (vaaka, 16:9)',
-    invertY: 'Käänteinen pystyakseli',
-    crouchToggle: 'C vaihtaa kyykyn päälle/pois',
-    rawInput: 'Raakasyöte (ohittaa käyttöjärjestelmän hiirikiihdytyksen)',
-    masterVolume: 'Äänenvoimakkuus',
-    effectsVolume: 'Tehosteet',
-    quality: 'Grafiikan laatu',
-    qualityLow: 'Matala (integroitu näytönohjain)',
-    qualityMedium: 'Keskitaso',
-    qualityHigh: 'Korkea',
-    renderScale: 'Renderöintitarkkuus',
-    qualityNote: 'Laatutason muutos ladataan uudelleen.',
-    reset: 'Palauta oletukset',
-  },
-
-  hud: {
-    weapons: { pistol: 'Pistooli', rifle: 'Rynnäkkökivääri' } as Record<string, string>,
-    empty: 'TYHJÄ',
-    reloading: 'LADATAAN',
-    grenade: 'Kranaatti',
-    reloadHint: 'Lataus hoituu puhelimella: kirjoita varusmestarille LATAA.',
-    reloadHintDev: 'Ampumarata (kehitys): R lataa suoraan.',
-    inspect: 'Tarkastus',
-    serial: 'Sarjanumero',
-    killed: 'Kaatui',
-    headshot: 'PÄÄOSUMA',
-  },
-
   range: {
+    /** Place-name signs in the world. */
     signs: {
       title: 'AMPUMARATA',
-      start: 'AMMU ALOITTAAKSESI',
       office: 'RATATOIMISTO',
     },
-    /** Range commands shown as text; the voice lines are listed in docs/RECORDING.md. */
+    /** Range commands shown with the voice lines (see docs/RECORDING.md). */
     commands: {
       positions: 'Ampumapaikoille!',
       fire: 'Tuli vapaa!',
       cease: 'Tulitauko!',
       ended: 'Ammunta päättyi. Varmista!',
     },
-    drill: 'Harjoitus',
-    drillIntro: 'Ponnahdusmaalit nousevat. Ammu ne alas ennen kuin ne laskeutuvat.',
-    time: 'Aika',
-    hits: 'Osumat',
-    heads: 'Pääosumat',
-    downs: 'Kaadetut',
-    accuracy: 'Tarkkuus',
-    score: 'Tulos',
-    best: 'Paras',
-    newBest: 'Uusi ennätys!',
-    freeFire: 'Vapaa harjoittelu. Ammu keltaista levyä aloittaaksesi harjoituksen.',
-  },
-
-  dev: {
-    title: 'Kehitys',
-    reload: 'Lataa (ase kädessä)',
-    rDirect: 'R lataa suoraan',
-    restartDrill: 'Aloita harjoitus',
-    killSpeed: 'Tappamisnopeus',
-    killSpeedCod: 'CoD',
-    killSpeedScramble: 'Scramble',
-    giveRifle: 'Anna rynnäkkökivääri',
-    giveGrenade: 'Anna kranaatti',
-    netConditioner: 'Verkkosimulaattori',
-    latency: 'Viive (ms)',
-    jitter: 'Vaihtelu (ms)',
-    connection: 'Yhteys',
-    connected: 'yhdistetty',
-    disconnected: 'ei yhteyttä',
-    tuning: 'Säätöpaneeli (F4)',
-    stats: 'Suorituskyky (F3)',
-  },
-
-  tuning: {
-    title: 'Säätö',
-    hint: 'Muutokset tulevat voimaan heti. Tallenna kirjoittaa arvot tiedostoon src/shared/config.ts.',
-    save: 'Tallenna config.ts',
-    saved: 'Tallennettu config.ts-tiedostoon.',
-    saveFailed: 'Tallennus epäonnistui (toimii vain palvelinkoneella).',
-    exportText: 'Näytä tekstinä',
-    resetAll: 'Palauta tiedoston arvot',
-    changed: 'muutettu',
-    derived: 'Johdetut arvot',
-    filter: 'Suodata…',
-    recoilPattern: 'Rekyylikuvio (30 laukausta)',
   },
 
   /**
@@ -138,11 +25,6 @@ export const FI = {
    * docs/RECORDING.md; recordings dropped into assets/voice/ with the same file name replace them.
    */
   voice: {
-    speakers: {
-      ammunnanjohtaja: 'Ammunnanjohtaja (ratakäskyt)',
-      huoltopaallikko: 'Huoltopäällikkö (ääniviestit, suomeksi)',
-      nylands: 'Nylands brigad (ääniviesti, ruotsiksi)',
-    } as Record<string, string>,
     range: [
       ['rata_positions', 'Ampumapaikoille!'],
       ['rata_fire', 'Tuli vapaa!'],
@@ -209,18 +91,4 @@ export const FI = {
     ] as [string, string, string][],
   },
 
-  stats: {
-    frame: 'Ruutuaika',
-    fps: 'FPS',
-    rtt: 'Viive (RTT)',
-    jitter: 'Vaihtelu',
-    snapshots: 'Tilapäivitykset',
-    interp: 'Interpolointiviive',
-    tick: 'Palvelimen tick',
-    draws: 'Piirtokutsut',
-    tris: 'Kolmiot',
-    gpu: 'Näytönohjain',
-    sim: 'Simulaatioaskeleet',
-    na: '–',
-  },
 };

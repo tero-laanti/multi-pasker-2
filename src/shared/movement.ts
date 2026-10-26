@@ -337,6 +337,34 @@ export class Mover {
       st.vz = v.z;
     }
     this.stepSlideMove(st, true, T, null, dt);
+    if (wishSpeed > 0) this.ledgeAssist(st, wx, wz, T);
+  }
+
+  /**
+   * Mantle-like assist: airborne and pushing into a wall whose top is at most airStepHeight
+   * above the feet, pull the player onto it. Gives no extra height anywhere else.
+   */
+  private ledgeAssist(st: MoveState, wx: number, wz: number, T: MoveTuning): boolean {
+    const lift = T.airStepHeight;
+    if (lift <= 0) return false;
+    const h = this.hullHeight(st, T);
+    const probe = 0.06;
+    let tr = this.traceHull(st.x, st.y, st.z, st.x + wx * probe, st.y, st.z + wz * probe, h, T);
+    if (tr.fraction === 1 || Math.abs(tr.ny) > 0.3) return false;
+    tr = this.traceHull(st.x, st.y, st.z, st.x, st.y + lift, st.z, h, T);
+    if (tr.startSolid) return false;
+    const upY = tr.y;
+    tr = this.traceHull(st.x, upY, st.z, st.x + wx * probe, upY, st.z + wz * probe, h, T);
+    if (tr.fraction < 0.5) return false;
+    const fx = tr.x;
+    const fz = tr.z;
+    tr = this.traceHull(fx, upY, fz, fx, upY - lift - 0.01, fz, h, T);
+    if (tr.fraction === 1 || tr.startSolid || tr.ny < MIN_WALK_NORMAL || tr.y < st.y) return false;
+    st.x = fx;
+    st.y = tr.y;
+    st.z = fz;
+    if (st.vy < 0) st.vy = 0;
+    return true;
   }
 
   private snapToGround(st: MoveState, T: MoveTuning, ev: MoveEvents): void {
@@ -528,8 +556,9 @@ export class Mover {
     const stepHeight = gravity ? T.airStepHeight : T.stepHeight;
     if (stepHeight <= 0) return;
     const h = this.hullHeight(st, T);
-    // Never step up while still moving up, unless there is ground right below.
-    if (svy > 0) {
+    // On the ground, never step up while moving up unless there is ground right below.
+    // In the air a step is allowed while rising too (ledge assist), but only onto walkable ground.
+    if (svy > 0 && !gravity) {
       const down = this.traceHull(sx, sy, sz, sx, sy - stepHeight, sz, h, T);
       if (down.fraction === 1 || down.ny < MIN_WALK_NORMAL) return;
     }
@@ -558,9 +587,10 @@ export class Mover {
       st.z = down.z;
     }
     const landedOnSteep = down.fraction < 1 && down.ny < MIN_WALK_NORMAL;
+    const missedLedge = gravity && (down.fraction === 1 || down.startSolid);
     const stepDist = Math.hypot(st.x - sx, st.z - sz);
     const plainDist = Math.hypot(plainX - sx, plainZ - sz);
-    if (landedOnSteep || stepDist <= plainDist + 1e-4) {
+    if (landedOnSteep || missedLedge || stepDist <= plainDist + 1e-4) {
       st.x = plainX;
       st.y = plainY;
       st.z = plainZ;

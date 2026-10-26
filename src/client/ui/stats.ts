@@ -1,4 +1,4 @@
-import { FI } from '../../shared/fi';
+import { UI } from '../../shared/ui';
 import type { NetStats } from '../net';
 
 export interface StatsSource {
@@ -55,15 +55,15 @@ export class StatsOverlay {
     const avg = arr.reduce((a, b) => a + b, 0) / Math.max(1, arr.length);
     const p99 = arr[Math.floor(arr.length * 0.99)] ?? 0;
     const max = arr[arr.length - 1] ?? 0;
-    const f = (v: number, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : FI.stats.na);
-    const S = FI.stats;
+    const f = (v: number, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : UI.stats.na);
+    const S = UI.stats;
     const lines = [
       `${S.fps} ${f(1000 / avg, 0)}   ${S.frame} ${f(avg, 2)} ms  p99 ${f(p99, 2)}  max ${f(max, 2)}`,
-      `${S.sim} ${src.simSteps}/ruutu (120 Hz)`,
-      `${S.rtt} ${f(src.net.rtt)} ms   ${S.jitter} ${f(src.net.jitter)} ms   ${src.net.connected ? '' : '(ei yhteyttä)'}`,
+      `${S.sim} ${src.simSteps}/frame (120 Hz)`,
+      `${S.rtt} ${f(src.net.rtt)} ms   ${S.jitter} ${f(src.net.jitter)} ms   ${src.net.connected ? '' : '(disconnected)'}`,
       `${S.snapshots} ${src.snapshotRate === null ? S.na : f(src.snapshotRate, 0) + ' Hz'}   ${S.interp} ${src.interpDelay === null ? S.na : f(src.interpDelay * 1000, 0) + ' ms'}`,
       `${S.tick} ${f(src.net.serverTickMs, 3)} ms @ ${f(src.net.serverTickHz, 0)} Hz`,
-      `${S.draws} ${src.draws}   ${S.tris} ${src.tris.toLocaleString('fi-FI')}`,
+      `${S.draws} ${src.draws}   ${S.tris} ${src.tris.toLocaleString('en-US')}`,
       `${S.gpu}: ${src.gpu}`,
       ...(src.extra?.() ?? []),
     ];

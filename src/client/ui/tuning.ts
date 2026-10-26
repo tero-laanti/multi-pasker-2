@@ -1,7 +1,7 @@
 import { boxPlanes, brushFromPlanes } from '../../shared/collision/brush';
 import { CollisionWorld } from '../../shared/collision/world';
 import { SIM_DT, TUNING, type WeaponId } from '../../shared/config';
-import { FI } from '../../shared/fi';
+import { UI } from '../../shared/ui';
 import { Mover, emptyCmd, newMoveState } from '../../shared/movement';
 import { cloneTuning, flattenTuning, getTuning, mergeTuning, setTuning, type TuningNode } from '../../shared/tuningTree';
 import { recoilKick, timeToKill } from '../../shared/weapons';
@@ -77,27 +77,27 @@ export class TuningPanel {
     }
     this.root = h('div', 'tuning hidden', undefined, parent);
     const head = h('div', 'tuning-head', undefined, this.root);
-    h('div', 'tuning-title', FI.tuning.title, head);
+    h('div', 'tuning-title', UI.tuning.title, head);
     const filter = h('input', 'tuning-filter', undefined, head);
-    filter.placeholder = FI.tuning.filter;
+    filter.placeholder = UI.tuning.filter;
     filter.oninput = () => this.filter(filter.value.trim().toLowerCase());
-    h('div', 'tuning-hint', FI.tuning.hint, this.root);
+    h('div', 'tuning-hint', UI.tuning.hint, this.root);
     const actions = h('div', 'tuning-actions', undefined, this.root);
-    const save = h('button', 'btn small primary', FI.tuning.save, actions);
+    const save = h('button', 'btn small primary', UI.tuning.save, actions);
     save.onclick = () => void this.save();
-    const text = h('button', 'btn small', FI.tuning.exportText, actions);
+    const text = h('button', 'btn small', UI.tuning.exportText, actions);
     text.onclick = () => this.showText();
-    const reset = h('button', 'btn small', FI.tuning.resetAll, actions);
+    const reset = h('button', 'btn small', UI.tuning.resetAll, actions);
     reset.onclick = () => this.resetAll();
     this.status = h('div', 'tuning-status', '', this.root);
 
     const der = h('div', 'tuning-derived', undefined, this.root);
-    h('div', 'tuning-group-title', FI.tuning.derived, der);
+    h('div', 'tuning-group-title', UI.tuning.derived, der);
     this.derived = h('pre', '', '', der);
-    const plotHead = h('div', 'tuning-plot-head', FI.tuning.recoilPattern, der);
+    const plotHead = h('div', 'tuning-plot-head', UI.tuning.recoilPattern, der);
     const sel = h('select', '', undefined, plotHead);
     for (const w of ['pistol', 'rifle'] as WeaponId[]) {
-      const o = h('option', '', FI.hud.weapons[w], sel);
+      const o = h('option', '', UI.hud.weapons[w], sel);
       o.value = w;
     }
     sel.onchange = () => {
@@ -200,9 +200,9 @@ export class TuningPanel {
       if (!res.ok) throw new Error(body.error ?? String(res.status));
       this.defaults = cloneTuning(TUNING as unknown as TuningNode);
       for (const r of this.rows) this.markChanged(r.row, r.path);
-      this.status.textContent = `${FI.tuning.saved} (${body.changed?.length ?? 0})`;
+      this.status.textContent = `${UI.tuning.saved} (${body.changed?.length ?? 0})`;
     } catch (err) {
-      this.status.textContent = `${FI.tuning.saveFailed} ${(err as Error).message}`;
+      this.status.textContent = `${UI.tuning.saveFailed} ${(err as Error).message}`;
     }
   }
 
@@ -212,7 +212,7 @@ export class TuningPanel {
     const ta = h('textarea', '', undefined, modal);
     ta.value = text;
     ta.readOnly = true;
-    const close = h('button', 'btn', FI.menu.back, modal);
+    const close = h('button', 'btn', UI.menu.back, modal);
     close.onclick = () => modal.remove();
     ta.focus();
     ta.select();
@@ -228,14 +228,14 @@ export class TuningPanel {
       const sb = timeToKill(w, 'body', 10, 'scramble');
       const far = timeToKill(w, 'body', 60, 'cod');
       lines.push(
-        `${FI.hud.weapons[w]}: CoD ${cb.seconds.toFixed(2)} s (${cb.shots}) keho, ${ch.seconds.toFixed(2)} s (${ch.shots}) pää, 60 m ${far.seconds.toFixed(2)} s · Scramble ${sb.seconds.toFixed(2)} s`,
+        `${UI.hud.weapons[w]}: CoD ${cb.seconds.toFixed(2)} s (${cb.shots}) body, ${ch.seconds.toFixed(2)} s (${ch.shots}) head, 60 m ${far.seconds.toFixed(2)} s · Scramble ${sb.seconds.toFixed(2)} s`,
       );
       const T = TUNING[w];
-      lines.push(`  ADS ${Math.round(T.adsTime * 1000)} ms / ${Math.round(T.adsOutTime * 1000)} ms · juoksusta tuleen ${Math.round(T.sprintToFire * 1000)} ms · lataus ${T.reloadTime} / ${T.reloadEmptyTime} s`);
+      lines.push(`  ADS ${Math.round(T.adsTime * 1000)} ms / ${Math.round(T.adsOutTime * 1000)} ms · sprint-to-fire ${Math.round(T.sprintToFire * 1000)} ms · reload ${T.reloadTime} / ${T.reloadEmptyTime} s`);
     }
     const mv = movementMetrics();
-    lines.push(`Liike: 90 % huippunopeudesta ${mv.t90.toFixed(2)} s · pysähtyminen ${mv.stopTime.toFixed(2)} s / ${mv.stopDist.toFixed(2)} m`);
-    lines.push(`Hyppy ${mv.jumpHeight.toFixed(2)} m, ilmassa ${mv.airTime.toFixed(2)} s · juoksu ${TUNING.move.sprintSpeed} m/s`);
+    lines.push(`Movement: 90 % of top speed in ${mv.t90.toFixed(2)} s · stop in ${mv.stopTime.toFixed(2)} s / ${mv.stopDist.toFixed(2)} m`);
+    lines.push(`Jump ${mv.jumpHeight.toFixed(2)} m (+${TUNING.move.airStepHeight.toFixed(2)} m ledge assist), airborne ${mv.airTime.toFixed(2)} s · sprint ${TUNING.move.sprintSpeed} m/s`);
     this.derived.textContent = lines.join('\n');
     this.drawRecoil();
   }

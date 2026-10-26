@@ -168,6 +168,14 @@ canvas.view {
   text-transform: uppercase;
   color: var(--fg-dim);
 }
+.grenade-count {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+  text-transform: uppercase;
+  min-height: 20px;
+}
 .ammo-row {
   display: flex;
   align-items: baseline;

@@ -1,4 +1,4 @@
-import { FI } from '../../shared/fi';
+import { UI } from '../../shared/ui';
 import { DEFAULT_SETTINGS, type Quality, type Settings } from '../settings';
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
@@ -37,56 +37,56 @@ export class Menu {
   ) {
     this.root = h('div', 'menu-root', undefined, parent);
     this.loading = h('div', 'screen loading', undefined, this.root);
-    h('div', 'title', FI.appTitle, this.loading);
-    h('div', 'loading-text', FI.menu.loading, this.loading);
+    h('div', 'title', UI.appTitle, this.loading);
+    h('div', 'loading-text', UI.menu.loading, this.loading);
 
     this.main = h('div', 'screen main hidden', undefined, this.root);
     const brand = h('div', 'brand', undefined, this.main);
-    h('div', 'title', FI.appTitle, brand);
-    h('div', 'tagline', FI.menu.tagline, brand);
+    h('div', 'title', UI.appTitle, brand);
+    h('div', 'tagline', UI.menu.tagline, brand);
     const buttons = h('div', 'buttons', undefined, this.main);
-    const range = h('button', 'btn primary', FI.menu.range, buttons);
+    const range = h('button', 'btn primary', UI.menu.range, buttons);
     range.onclick = () => actions.startRange();
-    h('div', 'btn-desc', FI.menu.rangeDesc, buttons);
-    const join = h('button', 'btn', FI.menu.join, buttons);
+    h('div', 'btn-desc', UI.menu.rangeDesc, buttons);
+    const join = h('button', 'btn', UI.menu.join, buttons);
     join.disabled = true;
-    h('div', 'btn-desc', FI.menu.joinSoon, buttons);
-    const set = h('button', 'btn', FI.menu.settings, buttons);
+    h('div', 'btn-desc', UI.menu.joinSoon, buttons);
+    const set = h('button', 'btn', UI.menu.settings, buttons);
     set.onclick = () => this.showSettings('main');
     this.main.appendChild(this.controls());
-    h('div', 'footer', 'F2 kehitys · F3 suorituskyky · F4 säätö', this.main);
+    h('div', 'footer', UI.menu.footer, this.main);
 
     this.settingsScreen = h('div', 'screen settings hidden', undefined, this.root);
 
     this.overlay = h('div', 'screen overlay hidden', undefined, this.root);
-    this.overlayText = h('div', 'overlay-text', FI.menu.clickToPlay, this.overlay);
+    this.overlayText = h('div', 'overlay-text', UI.menu.clickToPlay, this.overlay);
     this.overlay.appendChild(this.controls());
 
     this.pause = h('div', 'screen pause hidden', undefined, this.root);
-    h('div', 'title small', FI.menu.paused, this.pause);
+    h('div', 'title small', UI.menu.paused, this.pause);
     const pb = h('div', 'buttons', undefined, this.pause);
-    const resume = h('button', 'btn primary', FI.menu.resume, pb);
+    const resume = h('button', 'btn primary', UI.menu.resume, pb);
     resume.onclick = () => actions.resume();
-    const ps = h('button', 'btn', FI.menu.settings, pb);
+    const ps = h('button', 'btn', UI.menu.settings, pb);
     ps.onclick = () => this.showSettings('pause');
     const dev = h('div', 'dev-row', undefined, pb);
     for (const [label, fn] of [
-      [FI.dev.title + ' (F2)', () => actions.toggleDev()],
-      [FI.dev.stats, () => actions.toggleStats()],
-      [FI.dev.tuning, () => actions.toggleTuning()],
+      [UI.dev.title + ' (F2)', () => actions.toggleDev()],
+      [UI.dev.stats, () => actions.toggleStats()],
+      [UI.dev.tuning, () => actions.toggleTuning()],
     ] as const) {
       const b = h('button', 'btn small', label, dev);
       b.onclick = fn;
     }
-    const quit = h('button', 'btn', FI.menu.quit, pb);
+    const quit = h('button', 'btn', UI.menu.quit, pb);
     quit.onclick = () => actions.quit();
   }
 
   private controls(): HTMLDivElement {
     const box = h('div', 'controls');
-    h('div', 'controls-title', FI.menu.controlsTitle, box);
+    h('div', 'controls-title', UI.menu.controlsTitle, box);
     const grid = h('div', 'controls-grid', undefined, box);
-    for (const [k, v] of FI.menu.controls) {
+    for (const [k, v] of UI.menu.controls) {
       h('div', 'key', k, grid);
       h('div', 'desc', v, grid);
     }
@@ -110,7 +110,7 @@ export class Menu {
 
   showOverlay(resume: boolean, error?: string): void {
     this.hideAll();
-    this.overlayText.textContent = error ?? (resume ? FI.menu.clickToResume : FI.menu.clickToPlay);
+    this.overlayText.textContent = error ?? (resume ? UI.menu.clickToResume : UI.menu.clickToPlay);
     this.overlay.classList.remove('hidden');
   }
 
@@ -141,7 +141,7 @@ export class Menu {
     const s = this.settings;
     const root = this.settingsScreen;
     root.innerHTML = '';
-    h('div', 'title small', FI.settings.title, root);
+    h('div', 'title small', UI.settings.title, root);
     const form = h('div', 'settings-form', undefined, root);
     const quality0 = s.quality;
     const slider = (label: string, key: keyof Settings, min: number, max: number, step: number, fmt: (v: number) => string) => {
@@ -171,21 +171,21 @@ export class Menu {
         this.actions.settingsChanged(s, false);
       };
     };
-    slider(FI.settings.sensitivity, 'sensitivity', 0.2, 8, 0.05, (v) => v.toFixed(2));
-    slider(FI.settings.adsSensitivity, 'adsSensitivity', 0.3, 1.5, 0.01, (v) => v.toFixed(2));
-    slider(FI.settings.fov, 'fov', 75, 115, 1, (v) => `${v}°`);
-    toggle(FI.settings.invertY, 'invertY');
-    toggle(FI.settings.crouchToggle, 'crouchToggle');
-    toggle(FI.settings.rawInput, 'rawInput');
-    slider(FI.settings.masterVolume, 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
-    slider(FI.settings.effectsVolume, 'effectsVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
+    slider(UI.settings.sensitivity, 'sensitivity', 0.2, 8, 0.05, (v) => v.toFixed(2));
+    slider(UI.settings.adsSensitivity, 'adsSensitivity', 0.3, 1.5, 0.01, (v) => v.toFixed(2));
+    slider(UI.settings.fov, 'fov', 75, 115, 1, (v) => `${v}°`);
+    toggle(UI.settings.invertY, 'invertY');
+    toggle(UI.settings.crouchToggle, 'crouchToggle');
+    toggle(UI.settings.rawInput, 'rawInput');
+    slider(UI.settings.masterVolume, 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
+    slider(UI.settings.effectsVolume, 'effectsVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
     const qrow = h('label', 'row', undefined, form);
-    h('span', 'label', FI.settings.quality, qrow);
+    h('span', 'label', UI.settings.quality, qrow);
     const sel = h('select', '', undefined, qrow);
     for (const [q, label] of [
-      ['low', FI.settings.qualityLow],
-      ['medium', FI.settings.qualityMedium],
-      ['high', FI.settings.qualityHigh],
+      ['low', UI.settings.qualityLow],
+      ['medium', UI.settings.qualityMedium],
+      ['high', UI.settings.qualityHigh],
     ] as [Quality, string][]) {
       const o = h('option', '', label, sel);
       o.value = q;
@@ -195,16 +195,16 @@ export class Menu {
     sel.onchange = () => {
       s.quality = sel.value as Quality;
     };
-    slider(FI.settings.renderScale, 'renderScale', 0.5, 1, 0.05, (v) => `${Math.round(v * 100)} %`);
-    h('div', 'note', FI.settings.qualityNote, form);
+    slider(UI.settings.renderScale, 'renderScale', 0.5, 1, 0.05, (v) => `${Math.round(v * 100)} %`);
+    h('div', 'note', UI.settings.qualityNote, form);
     const btns = h('div', 'buttons row-buttons', undefined, root);
-    const back = h('button', 'btn primary', FI.menu.back, btns);
+    const back = h('button', 'btn primary', UI.menu.back, btns);
     back.onclick = () => {
       this.actions.settingsChanged(s, s.quality !== quality0);
       if (this.settingsReturn === 'pause') this.showPause();
       else this.showMain();
     };
-    const reset = h('button', 'btn', FI.settings.reset, btns);
+    const reset = h('button', 'btn', UI.settings.reset, btns);
     reset.onclick = () => {
       Object.assign(s, DEFAULT_SETTINGS);
       this.actions.settingsChanged(s, s.quality !== quality0);

@@ -224,3 +224,48 @@ function randomWalk(w: CollisionWorld, seed: number) {
   }
   return { trace, stuck };
 }
+
+describe('ledge assist', () => {
+  function ledgeWorld(h: number) {
+    const m = new MapBuilder();
+    m.box(-20, -1, -20, 20, 0, 20, 'grass');
+    m.box(-3, 0, -14, 3, h, -4, 'concrete');
+    m.box(10, 0, -6, 14, 3, -4, 'concrete');
+    return new CollisionWorld(m.brushes);
+  }
+
+  function jumpAt(world: CollisionWorld, x: number, z: number, runUp: number) {
+    const mover = new Mover(world);
+    const st = newMoveState(x, 0, z);
+    for (let i = 0; i < 60; i++) mover.step(st, emptyCmd(), SIM_DT);
+    const cmd = { ...emptyCmd(), forward: 1 };
+    for (let i = 0; i < Math.round(runUp / SIM_DT); i++) mover.step(st, cmd, SIM_DT);
+    let maxY = 0;
+    for (let i = 0; i < 150; i++) {
+      mover.step(st, { ...cmd, jump: i < 3 }, SIM_DT);
+      maxY = Math.max(maxY, st.y);
+    }
+    return { st, maxY };
+  }
+
+  it('clears a ledge a little above the jump apex, from a run-up and from standing against it', () => {
+    const w = ledgeWorld(1.04);
+    const run = jumpAt(w, 0, -1.5, 0.15);
+    expect(run.st.y).toBeCloseTo(1.04, 1);
+    const pressed = jumpAt(w, 0, -3.62, 0.3);
+    expect(pressed.st.y).toBeCloseTo(1.04, 1);
+  });
+
+  it('does not clear a ledge well above the apex', () => {
+    const w = ledgeWorld(1.15);
+    const r = jumpAt(w, 0, -1.5, 0.15);
+    expect(r.st.y).toBeLessThan(0.1);
+  });
+
+  it('gains no extra height against a tall wall', () => {
+    const w = ledgeWorld(1.05);
+    const r = jumpAt(w, 12, -3.62, 0.3);
+    const apex = (TUNING.move.jumpVelocity * TUNING.move.jumpVelocity) / (2 * TUNING.move.gravity);
+    expect(r.maxY).toBeLessThan(apex + 0.03);
+  });
+});

@@ -88,7 +88,7 @@ export class AudioEngine {
           list.push(buf);
           this.buffers.set(base, list);
         } catch (err) {
-          console.warn('ääni puuttuu', file, err);
+          console.warn('sound failed to load', file, err);
         }
         onProgress?.(++done, names.length);
       }),

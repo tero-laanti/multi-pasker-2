@@ -2,7 +2,7 @@ import { TUNING, type WeaponId, type WeaponTuning } from '../../shared/config';
 import { DEG, clamp, damp, makeRng, viewDir, type Vec3 } from '../../shared/math';
 import { WEAPONS, fireInterval, recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
 
-export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing';
+export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'throwing';
 
 export interface WeaponInput {
   fireHeld: boolean;
@@ -35,7 +35,12 @@ interface Cue {
   sound?: string;
   volume?: number;
   refill?: boolean;
+  release?: boolean;
 }
+
+/** Fraction of the throw at which the grenade leaves the hand. */
+export const THROW_RELEASE = 0.45;
+const THROW_TIME = 0.6;
 
 function reloadCues(id: WeaponId, empty: boolean, refill: number): Cue[] {
   const p = id;
@@ -95,6 +100,10 @@ export class WeaponController {
   refilledAt = -1;
   /** Seconds since the last R press while it does nothing (for the HUD reminder). */
   reminder = 0;
+  grenades = 0;
+  maxGrenades = 1;
+  /** Set on the step the grenade leaves the hand; the game spawns it and clears this. */
+  releaseGrenade = false;
   private time = 0;
   private rng = makeRng(Date.now() >>> 0);
   private kick: RecoilKick = { pitch: 0, yaw: 0 };
@@ -120,6 +129,18 @@ export class WeaponController {
     this.reloadEmpty = this.ammo[this.current] === 0;
     this.enter('reloading', this.reloadEmpty ? this.t.reloadEmptyTime : this.t.reloadTime, reloadCues(this.current, this.reloadEmpty, this.t.reloadRefill));
     return 'ok';
+  }
+
+  /** Starts a throw if a grenade is carried and the hands are free. */
+  throwGrenade(): boolean {
+    if (this.grenades <= 0) return false;
+    if (this.state !== 'ready' && this.state !== 'inspecting') return false;
+    this.grenades--;
+    this.enter('throwing', THROW_TIME, [
+      { at: 0, sound: 'grenade_pin', volume: 0.8 },
+      { at: THROW_RELEASE, sound: 'grenade_throw', release: true },
+    ]);
+    return true;
   }
 
   inspect(): void {
@@ -176,6 +197,7 @@ export class WeaponController {
           this.ammo[this.current] = t.magazine;
           this.refilledAt = this.time;
         }
+        if (c.release) this.releaseGrenade = true;
       }
       if (this.stateTime >= this.stateDur) {
         if (this.state === 'holstering') {

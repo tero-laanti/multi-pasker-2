@@ -255,13 +255,13 @@ export class RangeSim {
     return { target: t, zone: 'body', t: tt, x: px, y: py, z: pz };
   }
 
-  /** Applies a hit. Returns true if the hit knocked the target down. */
-  applyHit(hit: TargetHit, damage: number): boolean {
+  /** Applies a hit. Returns true if the hit knocked the target down. Blasts never start drills. */
+  applyHit(hit: TargetHit, damage: number, blast = false): boolean {
     const t = hit.target;
     t.hitFlash = 1;
     if (t.def.kind !== 'silhouette') {
       t.swingVel += 6 + Math.random() * 2;
-      if (t.def.kind === 'start') this.startDrill();
+      if (t.def.kind === 'start' && !blast) this.startDrill();
       return false;
     }
     if (this.drillPhase === 'running' && t.def.popup) {

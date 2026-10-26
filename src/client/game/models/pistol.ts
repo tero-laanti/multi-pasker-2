@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { boxAt, cylZ, extrudeSide, markingTexture, roundedProfile, weaponMaterials } from './common';
-import { pistolHands, type HandsModel } from './hands';
+import { buildHand, type HandsModel } from './hands';
 
 export interface WeaponModel {
   root: THREE.Group;
@@ -23,6 +23,22 @@ export interface WeaponModel {
   hands: HandsModel;
   /** Where the support hand grabs the bolt when racking (model space, relative to its rest pose). */
   rackOffset: THREE.Vector3;
+  /** Magazine group origin (the point it rocks about). */
+  magPivot: THREE.Vector3;
+  /** How far the magazine rocks forward when removed (radians; AK-style magazines). */
+  magRock: number;
+  /** Where the support hand holds a fresh magazine, relative to its rest pose. */
+  magHandOffset: THREE.Vector3;
+  /** How far the bolt/charging handle travels back when racked. */
+  boltTravel: number;
+  /** Offsets at full inspect (camera-space metres and radians). */
+  inspectPose: { x: number; y: number; z: number; pitch: number; yaw: number; roll: number };
+  /** Ejected casing size relative to 9 mm brass (x, length, z). */
+  casingScale: [number, number, number];
+  /** True if the support hand holds the weapon at rest; otherwise it only appears for reloads. */
+  supportHandAtRest: boolean;
+  /** Extra pose during reloads (added on top of the shared reload curves). */
+  reloadLift: { x: number; y: number; z: number; roll: number; pitch: number; yaw: number };
 }
 
 const SIGHT_Y = 0.0195;
@@ -136,8 +152,8 @@ export function buildPistol(): WeaponModel {
   root.add(bolt);
   // Ejection port (dark recess) on the right side.
   dark.push(boxAt(0.0108, 0.0114, 0.003, 0.013, -0.07, -0.04));
-  // Takedown lever and safety on the left.
-  worn.push(cylZ(0.0035, 0.0035, -0.104, -0.096, -0.004, -0.0122, 14).rotateZ(0));
+  // Takedown lever and safety on the left (kept clear of the serial stamp).
+  worn.push(cylZ(0.0035, 0.0035, -0.124, -0.116, -0.004, -0.0122, 14));
   steel.push(boxAt(-0.0128, -0.0112, -0.012, -0.004, -0.02, 0.0));
   // Screws on the grip panels.
   for (const side of [-1, 1]) {
@@ -228,8 +244,8 @@ export function buildPistol(): WeaponModel {
   // Serial plate on the right side of the receiver.
   const plateMat = new THREE.MeshStandardMaterial({ map: markingTexture(['SA', '000000']), transparent: true, metalness: 0.6, roughness: 0.45 });
   const serialPlate = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.0125), plateMat);
-  serialPlate.rotation.y = Math.PI / 2;
-  serialPlate.position.set(0.01135, -0.006, -0.088);
+  serialPlate.rotation.y = -Math.PI / 2;
+  serialPlate.position.set(-0.01135, -0.004, -0.085);
   root.add(serialPlate);
 
   const muzzle = new THREE.Object3D();
@@ -239,10 +255,9 @@ export function buildPistol(): WeaponModel {
   eject.position.set(0.012, 0.009, -0.055);
   root.add(eject);
 
-  const hands = pistolHands(
-    { origin: [0, -0.03, -0.02], down: [0, -0.906, 0.423], fwd: [0, -0.423, -0.906] },
-    [0.002, -0.04, -0.07],
-  );
+  const hands = { right: buildHand('pistol.right'), left: buildHand('pistol.left') };
+  // One-handed hold: the left hand only appears to bring a fresh magazine.
+  hands.left.visible = false;
   root.add(hands.right, hands.left);
 
   for (const o of root.children) o.traverse((c) => ((c as THREE.Mesh).castShadow = false));
@@ -260,6 +275,15 @@ export function buildPistol(): WeaponModel {
     serialPlate,
     hands,
     rackOffset: new THREE.Vector3(0.03, 0.09, 0.035),
+    magPivot: new THREE.Vector3(0, 0, 0),
+    magRock: 0,
+    magHandOffset: new THREE.Vector3(0.024, -0.06, 0.03),
+    boltTravel: 0.026,
+    // Turned muzzle-left so the left side (stamp and serial) faces the eye, close to the face.
+    inspectPose: { x: -0.1, y: 0.085, z: 0.15, pitch: 0.1, yaw: 1.45, roll: 0.12 },
+    casingScale: [1, 1, 1],
+    supportHandAtRest: false,
+    reloadLift: { x: 0, y: 0, z: 0, roll: 0, pitch: 0, yaw: 0 },
     setSerial(serial: string) {
       const old = plateMat.map;
       plateMat.map = markingTexture(['SA', serial]);
