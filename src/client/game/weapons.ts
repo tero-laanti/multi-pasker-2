@@ -131,6 +131,32 @@ export class WeaponController {
     return 'ok';
   }
 
+  /** A new life in a match: the server's weapons with full magazines, best gun drawn. */
+  resetLife(owned: WeaponId[], ammo: Record<WeaponId, number>): void {
+    this.owned = [...owned];
+    for (const id of Object.keys(this.ammo) as WeaponId[]) this.ammo[id] = ammo[id] ?? TUNING[id].magazine;
+    this.current = owned.includes('rifle') ? 'rifle' : 'pistol';
+    this.next = null;
+    this.ads = this.adsPrev = 0;
+    this.sprintPose = this.sprintPosePrev = 0;
+    this.punchP = this.punchY = this.punchPrevP = this.punchPrevY = 0;
+    this.punchTP = this.punchTY = this.pendP = this.pendY = 0;
+    this.bloom = 0;
+    this.shotIndex = 0;
+    this.buffered = 0;
+    this.cooldown = 0;
+    this.releaseGrenade = false;
+    this.sounds.push({ name: `${this.current}_draw`, volume: 0.8 });
+    this.enter('drawing', TUNING[this.current].drawTime, []);
+  }
+
+  /** A reload the server started (the varusmestari's "Lataa", or the dev R key). */
+  serverReload(id: WeaponId, empty: boolean, dur: number): void {
+    if (id !== this.current || this.state === 'holstering' || this.state === 'drawing') return;
+    this.reloadEmpty = empty;
+    this.enter('reloading', dur, reloadCues(id, empty, TUNING[id].reloadRefill));
+  }
+
   /** Starts a throw if a grenade is carried and the hands are free. */
   throwGrenade(): boolean {
     if (this.grenades <= 0) return false;

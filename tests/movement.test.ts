@@ -269,3 +269,29 @@ describe('ledge assist', () => {
     expect(r.maxY).toBeLessThan(apex + 0.03);
   });
 });
+
+describe('ledge assist smoothing', () => {
+  it('reports the lift as a step and keeps forward speed over the ledge', () => {
+    const m = new MapBuilder();
+    m.box(-20, -1, -20, 20, 0, 20, 'grass');
+    m.box(-3, 0, -14, 3, 1.04, -4, 'concrete');
+    const w = new CollisionWorld(m.brushes);
+    const mover = new Mover(w);
+    const st = newMoveState(0, 0, -1.5);
+    for (let i = 0; i < 60; i++) mover.step(st, emptyCmd(), SIM_DT);
+    const cmd = { ...emptyCmd(), forward: 1 };
+    for (let i = 0; i < 18; i++) mover.step(st, cmd, SIM_DT);
+    let lift = 0;
+    let minSpeedAfter = Infinity;
+    let onLedge = false;
+    for (let i = 0; i < 120; i++) {
+      const ev = mover.step(st, { ...cmd, jump: i < 3 }, SIM_DT);
+      if (ev.stepped > 0) lift = Math.max(lift, ev.stepped);
+      if (onLedge) minSpeedAfter = Math.min(minSpeedAfter, Math.hypot(st.vx, st.vz));
+      if (st.y > 1.0) onLedge = true;
+    }
+    expect(onLedge).toBe(true);
+    expect(lift).toBeGreaterThan(0.01);
+    expect(minSpeedAfter).toBeGreaterThan(2);
+  });
+});

@@ -9,6 +9,8 @@ export interface StatsSource {
   simSteps: number;
   snapshotRate: number | null;
   interpDelay: number | null;
+  /** Main-thread time spent simulating and submitting this frame (ms). */
+  cpuMs: number;
   extra?: () => string[];
 }
 
@@ -20,6 +22,7 @@ export class StatsOverlay {
   private canvas: HTMLCanvasElement;
   private text: HTMLPreElement;
   private times = new Float32Array(N);
+  private cpu = new Float32Array(N);
   private head = 0;
   private filled = 0;
   private acc = 0;
@@ -44,6 +47,7 @@ export class StatsOverlay {
   /** Call every frame with the frame time in milliseconds. */
   frame(ms: number, src: StatsSource): void {
     this.times[this.head] = ms;
+    this.cpu[this.head] = src.cpuMs;
     this.head = (this.head + 1) % N;
     this.filled = Math.min(N, this.filled + 1);
     if (!this.visible) return;
@@ -55,14 +59,16 @@ export class StatsOverlay {
     const avg = arr.reduce((a, b) => a + b, 0) / Math.max(1, arr.length);
     const p99 = arr[Math.floor(arr.length * 0.99)] ?? 0;
     const max = arr[arr.length - 1] ?? 0;
+    const cpu = Array.from(this.cpu.slice(0, this.filled));
+    const cpuAvg = cpu.reduce((a, b) => a + b, 0) / Math.max(1, cpu.length);
     const f = (v: number, d = 1) => (Number.isFinite(v) ? v.toFixed(d) : UI.stats.na);
     const S = UI.stats;
     const lines = [
       `${S.fps} ${f(1000 / avg, 0)}   ${S.frame} ${f(avg, 2)} ms  p99 ${f(p99, 2)}  max ${f(max, 2)}`,
-      `${S.sim} ${src.simSteps}/frame (120 Hz)`,
+      `${S.cpu} ${f(cpuAvg, 2)} ms   ${S.sim} ${src.simSteps}/frame (120 Hz)`,
       `${S.rtt} ${f(src.net.rtt)} ms   ${S.jitter} ${f(src.net.jitter)} ms   ${src.net.connected ? '' : '(disconnected)'}`,
       `${S.snapshots} ${src.snapshotRate === null ? S.na : f(src.snapshotRate, 0) + ' Hz'}   ${S.interp} ${src.interpDelay === null ? S.na : f(src.interpDelay * 1000, 0) + ' ms'}`,
-      `${S.tick} ${f(src.net.serverTickMs, 3)} ms @ ${f(src.net.serverTickHz, 0)} Hz`,
+      `${S.tick} ${f(src.net.serverTickMs, 3)} ms (max ${f(src.net.serverTickMaxMs, 2)}) @ ${f(src.net.serverTickHz, 0)} Hz`,
       `${S.draws} ${src.draws}   ${S.tris} ${src.tris.toLocaleString('en-US')}`,
       `${S.gpu}: ${src.gpu}`,
       ...(src.extra?.() ?? []),

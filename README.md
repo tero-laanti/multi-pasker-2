@@ -6,9 +6,9 @@ The interface is in English; voice lines, range commands and the varusmestari's 
 Finnish. The full brief is in [docs/BRIEF.md](docs/BRIEF.md) and the technology choices are in
 [docs/STACK.md](docs/STACK.md).
 
-> **Status:** milestone 2 of 7: the shooting range with the pistol and the rifle, weapon
-> switching, inspecting serial numbers and grenades. LAN matches, the phone and the varusmestari
-> come in later milestones.
+> **Status:** milestone 3 of 7: the shooting range and LAN free-for-all matches on the garrison
+> map with bots. The phone and the varusmestari come in the next milestones; until then the
+> host can let R reload directly (see *Playing a match*).
 
 ## Requirements
 
@@ -30,7 +30,7 @@ npm start
 players should open, for example:
 
 ```
- Tietokoneet: avaa selaimessa  http://192.168.1.23:8088/
+ Players: open  http://192.168.1.23:8088/  in Chrome or Edge
 ```
 
 On the host machine itself you can also use `http://localhost:8088/`.
@@ -40,7 +40,7 @@ Other commands:
 | Command | What it does |
 |---|---|
 | `npm run dev` | Development server with hot reload (same port, same LAN address) |
-| `npm test` | Unit tests (collision, movement, weapons, range, server helpers) |
+| `npm test` | Unit tests (collision, movement, weapons, range, grenades, map, match server, bots) |
 | `npm run typecheck` | TypeScript type check |
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
 | `npm run gen:voice` | Re-make placeholder voice lines and `docs/RECORDING.md` |
@@ -55,6 +55,30 @@ npm start -- --host 192.168.1.23 --port 8088
 ```
 
 or set the environment variables `PASKER_HOST` and `PASKER_PORT`.
+
+## Playing a match
+
+1. Start the server on one machine (`npm start`) and have everyone open the printed address.
+2. **Join game**, type a name (letters including Å, Ä, Ö and digits, up to 12) and click the view.
+3. Free-for-all on the garrison (*varuskunta*): 4-minute rounds, respawn after ~2.5 s, a short
+   spawn protection that ends when you fire. Tab shows the scoreboard; it also appears between
+   rounds, and the next round starts by itself after 12 s.
+4. With more than 8 players the gate (*puomi*) opens the outer ring: the tent camp and the forest.
+
+Reloading the page puts you back into the same player (score kept). Leaving from the Esc menu
+shows you as *left* to the others; you can come back during the round.
+
+**Bots** fill empty slots for testing: F2 → *Add bot* / *Fill with bots (15)*, or start the server
+with `PASKER_BOTS=15 npm start` (`set PASKER_BOTS=15` first on Windows).
+
+**Reloading before the phone exists:** reloading is meant to happen by texting the varusmestari
+(next milestone). Until then, the host turns on F2 → *R reloads directly*, which applies to
+everyone. `npm run dev` servers start with it on.
+
+The dev panel's match controls (bots, round restart, gate, kill speed, giving weapons) work from
+the host machine, or from any machine on a `npm run dev` server. The *network conditioner*
+in the same panel adds latency and jitter to your own connection, for testing interpolation and
+hit registration.
 
 ## Troubleshooting
 
@@ -89,9 +113,9 @@ or set the environment variables `PASKER_HOST` and `PASKER_PORT`.
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
 | R | reminder that reloading happens on the phone (on the range, a dev toggle makes R reload directly) |
-| Esc | menu |
+| Esc | menu (the match keeps running) |
 | F2 | dev panel |
-| F3 | performance overlay (frame time, RTT, jitter, snapshots, interpolation, server tick) |
+| F3 | performance overlay (frame time, CPU time, RTT, jitter, snapshot rate, interpolation delay, server tick) |
 | F4 | live tuning panel |
 
 ## The shooting range (Ampumarata)
@@ -146,14 +170,41 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
   the fixed step. Grenades bounce off the same collision world and their blast is blocked by cover.
 - **Weapon models and hands** are built in code: the guns from extruded, bevelled profiles, the
   gloved hands as signed-distance shapes meshed with surface nets.
+- **Networking:** each client owns its movement (no reconciliation) and sends it 60 times a
+  second in a small binary message stamped with its clock-synced send time. The server sends
+  binary snapshots at 30 Hz; every player's state carries its age, so remote players are
+  interpolated on their own timeline, behind an interpolation delay that adapts to measured
+  jitter (about 50–70 ms on a LAN). Hits are claimed by the shooter against what they saw; the
+  server rewinds the target (at most 200 ms) and checks line of sight through the collision world,
+  so cover always blocks. The server owns health, damage, ammunition, grenades, score and rounds.
+- **Bots** run on the server with the same movement code, A* over a navigation graph built from
+  the map, a field of view, reaction time and aim error, and fire through the same validation
+  as players.
+- **Other players** are one skinned mesh each (one draw call), posed procedurally: walk, sprint,
+  crouch, jump, aim pitch, reload and a death fall. Plain dark uniforms against the greenery,
+  each player's accent colour on the beret, arm bands and chest band, and a name tag.
 
 ```
-src/shared/    config.ts, ui.ts, fi.ts, collision/, map/, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
-src/client/    app.ts, game/ (game loop, weapons, viewmodel, models, effects), render/, audio/, ui/
-src/server/    main.ts (HTTP + WebSocket), lan.ts, http.ts, tuningWriter.ts
+src/shared/    config.ts, ui.ts, fi.ts, protocol.ts, collision/, map/, nav.ts, history.ts, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
+src/client/    app.ts, net.ts, game/ (core loop, range and match modes, remote players, weapons, viewmodel, models, effects), render/, audio/, ui/
+src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots), lan.ts, http.ts, tuningWriter.ts
 tools/         sound import/synthesis, voice placeholders, e2e screenshot driver
 assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults
 ```
 
 Browser tests drive real Chrome through Playwright: `npx tsx tools/e2e/shot.ts <outDir> <scenario.js>`
 runs a scripted scenario against a running server and saves screenshots.
+
+### Measured performance (milestone 3)
+
+16 players (this client and 15 bots fighting on the garrison), production build, Chrome 156 on a
+MacBook Pro M1 Max (ANGLE Metal), 1920×1080, *High* preset, standing at the parade ground with
+all 15 bots in the world, over 20 seconds (2,400 frames):
+
+| | average | p95 | p99 | max |
+|---|---|---|---|---|
+| Frame interval (display is 120 Hz) | 8.33 ms | 9.2 ms | 9.3 ms | 9.4 ms |
+| Main-thread time per frame | 1.09 ms | 1.4 ms | 1.5 ms | 2.1 ms |
+| Server tick (60 Hz, 16 players) | 0.15–0.21 ms | | | 0.82 ms |
+
+About 120 draw calls and 0.4 M triangles per frame. Not yet measured on an integrated GPU.

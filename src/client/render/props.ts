@@ -95,7 +95,7 @@ function bushGeometry(): THREE.BufferGeometry {
 const FOLIAGE = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
 
 function instanced(geo: THREE.BufferGeometry, list: PropDef[], density: number): THREE.InstancedMesh | null {
-  const keep = list.filter((_, i) => (i * 0.618034) % 1 < density);
+  const keep = list.filter((d, i) => d.solid || (i * 0.618034) % 1 < density);
   if (keep.length === 0) return null;
   const mesh = new THREE.InstancedMesh(geo, FOLIAGE, keep.length);
   const m = new THREE.Matrix4();
@@ -153,9 +153,26 @@ function chainLink(): THREE.CanvasTexture {
   return t;
 }
 
+function boomStripes(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 16;
+  const g = c.getContext('2d')!;
+  for (let i = 0; i < 4; i++) {
+    g.fillStyle = i % 2 ? '#f2f2ee' : '#c8211c';
+    g.fillRect(i * 32, 0, 32, 16);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 export interface PropsView {
   group: THREE.Group;
   update(time: number): void;
+  /** Raises or lowers the gate boom (the outer ring is open while it is up). */
+  setGate?(open: boolean): void;
 }
 
 export function buildProps(props: PropDef[], density: number): PropsView {
@@ -237,8 +254,11 @@ export function buildProps(props: PropDef[], density: number): PropsView {
     group.add(flag);
   }
 
+  const postGeo = new THREE.CylinderGeometry(0.03, 0.03, 2, 6);
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x7c827c, metalness: 0.6, roughness: 0.4 });
   for (const w of byKind('wire')) {
     const len = w.size ?? 20;
+    const fence = new THREE.Group();
     const tex = chainLink();
     tex.repeat.set(len / 0.12, 1.8 / 0.12);
     const mesh = new THREE.Mesh(
@@ -246,21 +266,85 @@ export function buildProps(props: PropDef[], density: number): PropsView {
       new THREE.MeshStandardMaterial({ map: tex, alphaTest: 0.5, transparent: false, side: THREE.DoubleSide, metalness: 0.5, roughness: 0.5 }),
     );
     tex.format = THREE.RGBAFormat;
-    mesh.position.set(w.x, w.y + 0.9, w.z);
-    group.add(mesh);
-    const postGeo = new THREE.CylinderGeometry(0.03, 0.03, 2, 6);
-    const postMat = new THREE.MeshStandardMaterial({ color: 0x7c827c, metalness: 0.6, roughness: 0.4 });
-    for (let x = -len / 2; x <= len / 2 + 0.01; x += 3) {
-      const p = new THREE.Mesh(postGeo, postMat);
-      p.position.set(w.x + x, w.y + 1, w.z);
-      p.castShadow = true;
-      group.add(p);
-    }
+    mesh.position.y = 0.9;
+    fence.add(mesh);
+    const posts = Math.floor(len / 3) + 1;
+    const postMesh = new THREE.InstancedMesh(postGeo, postMat, posts);
+    const pm = new THREE.Matrix4();
+    for (let i = 0; i < posts; i++) postMesh.setMatrixAt(i, pm.makeTranslation(-len / 2 + i * 3, 1, 0));
+    postMesh.castShadow = true;
+    fence.add(postMesh);
+    fence.position.set(w.x, w.y, w.z);
+    fence.rotation.y = w.yaw ?? 0;
+    group.add(fence);
   }
 
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x1d1d1f, roughness: 0.92 });
+  const tireGeo = new THREE.TorusGeometry(0.33, 0.12, 8, 18).rotateX(Math.PI / 2);
+  const tires = byKind('tire');
+  if (tires.length) {
+    const mesh = new THREE.InstancedMesh(tireGeo, rubber, tires.length);
+    const m = new THREE.Matrix4();
+    tires.forEach((t, i) => mesh.setMatrixAt(i, m.makeTranslation(t.x, t.y + 0.12, t.z)));
+    mesh.castShadow = mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
+  const pipeMat = new THREE.MeshStandardMaterial({ color: 0x2c2c2a, metalness: 0.6, roughness: 0.5 });
+  for (const c of byKind('chimney')) {
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 1.7, 10), pipeMat);
+    pipe.position.set(c.x, c.y + 0.85, c.z);
+    pipe.castShadow = true;
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.12, 10), pipeMat);
+    cap.position.set(c.x, c.y + 1.78, c.z);
+    group.add(pipe, cap);
+  }
+
+  // Gate boom: a post with a counterweight and a striped arm that swings up when open.
+  const booms: { arm: THREE.Group; open: number; target: number }[] = [];
+  const stripe = boomStripes();
+  for (const b of byKind('boom')) {
+    const len = b.size ?? 6;
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.15, 0.3), new THREE.MeshStandardMaterial({ color: 0x5e6458, roughness: 0.7 }));
+    post.position.set(b.x, b.y + 0.575, b.z);
+    post.castShadow = true;
+    group.add(post);
+    const arm = new THREE.Group();
+    arm.position.set(b.x, b.y + 1.0, b.z);
+    const tex = stripe.clone();
+    tex.repeat.set(len / 1.6, 1);
+    tex.needsUpdate = true;
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, len), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55 }));
+    // Stripes run along the arm.
+    const uv = bar.geometry.getAttribute('uv') as THREE.BufferAttribute;
+    const pos = bar.geometry.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) uv.setX(i, (pos.getZ(i) / len + 0.5) * 1);
+    uv.needsUpdate = true;
+    bar.position.z = len / 2;
+    bar.castShadow = true;
+    const weight = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.5), new THREE.MeshStandardMaterial({ color: 0x3a3d38, roughness: 0.6 }));
+    weight.position.z = -0.35;
+    weight.castShadow = true;
+    arm.add(bar, weight);
+    group.add(arm);
+    booms.push({ arm, open: 0, target: 0 });
+  }
+
+  let lastTime = 0;
   return {
     group,
+    setGate(open: boolean) {
+      for (const b of booms) b.target = open ? 1 : 0;
+    },
     update(time: number) {
+      const dt = Math.min(0.1, Math.max(0, time - lastTime));
+      lastTime = time;
+      for (const b of booms) {
+        if (b.open === b.target) continue;
+        b.open = b.target > b.open ? Math.min(b.target, b.open + dt * 0.5) : Math.max(b.target, b.open - dt * 0.5);
+        const e = b.open * b.open * (3 - 2 * b.open);
+        b.arm.rotation.x = -1.35 * e;
+      }
       if (!flag || !flagBase) return;
       const pos = flag.geometry.getAttribute('position') as THREE.BufferAttribute;
       const arr = pos.array as Float32Array;

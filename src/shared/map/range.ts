@@ -76,7 +76,7 @@ export function buildRange(): MapData {
     [7.3, -12.6],
     [-16.4, -22.2],
   ] as const) {
-    m.cyl(x, z, 0.3, 0.02, 0.92, 'metal', 10);
+    m.propCollider(x, z, 0.3, 0.02, 0.92, 'metal', 12);
     m.prop({ kind: 'barrel', x, y: 0.02, z });
   }
   m.wall('x', -9.5, 0.02, -28.6, 4.5, 2.4, 0.15, 'plywood', [{ at: 1.2, width: 1.4, bottom: 1.0, top: 1.75 }]);
@@ -179,8 +179,8 @@ export function buildRange(): MapData {
     [26, 12],
     [-29, 30],
   ] as const) {
-    m.cyl(x, z, 0.16, 0.03, 4, 'wood', 6);
-    m.prop({ kind: 'birch', x, y: 0.03, z, scale: 1.1 });
+    m.propCollider(x, z, 0.149 * 1.1, 0.03, 4, 'wood', 8);
+    m.prop({ kind: 'birch', x, y: 0.03, z, scale: 1.1, solid: true });
   }
 
   // Perimeter: clips and the fence along the back.

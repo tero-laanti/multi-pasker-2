@@ -42,6 +42,11 @@ interface Live {
 /** Live grenades in the world: physics at the fixed step, interpolated meshes, bounce sounds. */
 export class Grenades {
   readonly group = new THREE.Group();
+  /**
+   * Matches: the server decides when a grenade explodes (see `remove`); local fuses never
+   * fire, and a grenade the server forgot (round restart) disappears a little after its fuse.
+   */
+  serverFuse = false;
   private live: Live[] = [];
   private nextId = 1;
 
@@ -50,11 +55,40 @@ export class Grenades {
     private audio: AudioEngine,
   ) {}
 
-  spawn(x: number, y: number, z: number, v: [number, number, number], fuse: number, owner: number): void {
-    const g: Grenade = { id: this.nextId++, owner, x, y, z, vx: v[0], vy: v[1], vz: v[2], fuse, resting: false };
+  /** Returns the grenade's id: the server's id when given, otherwise a negative local one. */
+  spawn(x: number, y: number, z: number, v: [number, number, number], fuse: number, owner: number, id?: number): number {
+    const gid = id ?? -this.nextId++;
+    const g: Grenade = { id: gid, owner, x, y, z, vx: v[0], vy: v[1], vz: v[2], fuse, resting: false };
     const mesh = grenadeMesh();
     this.group.add(mesh);
     this.live.push({ g, mesh, px: x, py: y, pz: z, spin: new THREE.Vector3(6 + Math.random() * 6, Math.random() * 4, Math.random() * 3) });
+    return gid;
+  }
+
+  /** Gives a grenade thrown ahead of the server's answer the server's id. */
+  adopt(localId: number, id: number): boolean {
+    const l = this.live.find((x) => x.g.id === localId);
+    if (!l) return false;
+    l.g.id = id;
+    return true;
+  }
+
+  has(id: number): boolean {
+    return this.live.some((x) => x.g.id === id);
+  }
+
+  /** Removes a grenade (the server's explosion) and returns where it was. */
+  remove(id: number): { x: number; y: number; z: number } | null {
+    const l = this.live.find((x) => x.g.id === id);
+    if (!l) return null;
+    this.group.remove(l.mesh);
+    this.live = this.live.filter((x) => x !== l);
+    return { x: l.g.x, y: l.g.y, z: l.g.z };
+  }
+
+  clear(): void {
+    for (const l of this.live) this.group.remove(l.mesh);
+    this.live = [];
   }
 
   step(dt: number): Explosion[] {
@@ -67,11 +101,12 @@ export class Grenades {
       if (impact > 1.2) {
         this.audio.playAt('grenade_bounce', l.g.x, l.g.y, l.g.z, { volume: Math.min(1, impact / 8), refDistance: 2 });
       }
-      if (l.g.fuse <= 0) out.push({ x: l.g.x, y: l.g.y, z: l.g.z, owner: l.g.owner });
+      if (!this.serverFuse && l.g.fuse <= 0) out.push({ x: l.g.x, y: l.g.y, z: l.g.z, owner: l.g.owner });
     }
-    if (out.length) {
-      for (const l of this.live.filter((x) => x.g.fuse <= 0)) this.group.remove(l.mesh);
-      this.live = this.live.filter((x) => x.g.fuse > 0);
+    const gone = (l: Live) => (this.serverFuse ? l.g.fuse < -1.5 : l.g.fuse <= 0);
+    if (this.live.some(gone)) {
+      for (const l of this.live.filter(gone)) this.group.remove(l.mesh);
+      this.live = this.live.filter((l) => !gone(l));
     }
     return out;
   }

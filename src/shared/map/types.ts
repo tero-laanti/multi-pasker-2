@@ -32,6 +32,7 @@ export const MATERIALS = {
   wood: 'wood',
   plywood: 'wood',
   planks: 'wood',
+  redwood: 'wood',
   logs: 'wood',
   metal: 'metal',
   metalYellow: 'metal',
@@ -54,11 +55,13 @@ export interface SpawnPoint {
   y: number;
   z: number;
   yaw: number;
+  /** In the outer ring: only used while the gate is open. */
+  outer?: boolean;
 }
 
 /** Render-only decoration; any collision it needs is a separate brush. */
 export interface PropDef {
-  kind: 'spruce' | 'birch' | 'pine' | 'bush' | 'rock' | 'flagpole' | 'sign' | 'lamp' | 'barrel' | 'wire' | 'tire';
+  kind: 'spruce' | 'birch' | 'pine' | 'bush' | 'rock' | 'flagpole' | 'sign' | 'lamp' | 'barrel' | 'wire' | 'tire' | 'boom' | 'chimney';
   x: number;
   y: number;
   z: number;
@@ -68,6 +71,8 @@ export interface PropDef {
   text?: string;
   /** Extra numeric parameter (e.g. wire length). */
   size?: number;
+  /** Has a collision brush: always drawn, whatever the quality preset's tree density. */
+  solid?: boolean;
 }
 
 export type TargetKind = 'silhouette' | 'plate' | 'gong' | 'start';
@@ -98,4 +103,8 @@ export interface MapData {
   bounds: { minX: number; minZ: number; maxX: number; maxZ: number };
   /** Direction towards the sun (normalised in the renderer). */
   sunDir: [number, number, number];
+  /** Bot navigation points (ground level); links are found automatically. */
+  nav?: { x: number; y: number; z: number }[];
+  /** Brushes that block the outer-ring gate while it is closed. */
+  gateBrushes?: number[];
 }

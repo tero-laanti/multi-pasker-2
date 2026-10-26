@@ -7,6 +7,10 @@ import { NET, TUNING } from '../shared/config';
 import { AudioFolder, isLoopback, readBody, safeJoin, sendFile, sendJson } from './http';
 import { lanCandidates, pickLanAddress } from './lan';
 import { applyTuning, type TuningTree } from './tuningWriter';
+import { buildGarrison } from '../shared/map/garrison';
+import { Room } from './game/room';
+import type { ServerPlayer } from './game/player';
+import type { ClientMsg } from '../shared/protocol';
 import { mergeTuning, type TuningNode } from '../shared/tuningTree';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -71,6 +75,9 @@ async function main(): Promise<void> {
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req));
   });
 
+  room = new Room(buildGarrison(), { dev: args.dev });
+  const bots = Number(process.env.PASKER_BOTS ?? 0);
+  for (let i = 0; i < bots; i++) room.addBot();
   startTickLoop();
 
   server.listen(args.port, '0.0.0.0', () => {
@@ -152,16 +159,29 @@ async function handleRequest(
   sendFile(req, res, file, hashed ? 'public, max-age=31536000, immutable' : 'no-cache');
 }
 
-let tickMs = 0;
+let room: Room;
 let tickCount = 0;
+/** Tick times over the last second, for the F3 overlay. */
+let tickWindow: number[] = [];
+let tickStats = { avg: 0, max: 0 };
 
+/** Fixed-rate game tick with drift compensation. */
 function startTickLoop(): void {
   const dt = 1000 / NET.tickHz;
   let next = performance.now();
   const loop = () => {
     const t0 = performance.now();
     tickCount++;
-    tickMs = performance.now() - t0;
+    try {
+      room.tick(dt / 1000);
+    } catch (err) {
+      console.error('[tick]', err);
+    }
+    tickWindow.push(performance.now() - t0);
+    if (tickWindow.length >= NET.tickHz) {
+      tickStats = { avg: tickWindow.reduce((a, b) => a + b, 0) / tickWindow.length, max: Math.max(...tickWindow) };
+      tickWindow = [];
+    }
     next += dt;
     const now = performance.now();
     if (next < now - dt * 5) next = now;
@@ -174,23 +194,41 @@ let nextClientId = 1;
 
 function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
   const id = nextClientId++;
-  const addr = req.socket.remoteAddress;
+  const addr = req.socket.remoteAddress ?? '';
+  const isHost = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
   console.log(`[ws] connection #${id} from ${addr}`);
+  let player: ServerPlayer | null = null;
   const stats = setInterval(() => {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs, tickHz: NET.tickHz, ticks: tickCount }));
+    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs: tickStats.avg, tickMaxMs: tickStats.max, tickHz: NET.tickHz, ticks: tickCount }));
   }, 1000);
   ws.on('message', (data, isBinary) => {
-    if (isBinary) return;
-    let msg: { t?: string; [k: string]: unknown };
+    if (isBinary) {
+      if (!player) return;
+      const buf = data as Buffer;
+      room.onBinary(player, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+      return;
+    }
+    let msg: ClientMsg;
     try {
-      msg = JSON.parse(String(data));
+      msg = JSON.parse(String(data)) as ClientMsg;
     } catch {
       return;
     }
-    if (msg.t === 'ping') ws.send(JSON.stringify({ t: 'pong', id: msg.id, st: Date.now() }));
+    if (msg.t === 'ping') {
+      ws.send(JSON.stringify({ t: 'pong', id: msg.id, st: room.now() }));
+      if (player && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) player.rtt = Math.max(0, Math.min(9999, msg.rtt));
+      return;
+    }
+    if (msg.t === 'hello') {
+      player = room.join(ws, msg, isHost);
+      if (player) console.log(`[room] ${player.name} (#${player.id}) joined`);
+      return;
+    }
+    if (player) room.onMessage(player, msg);
   });
   ws.on('close', () => {
     clearInterval(stats);
+    if (player && player.ws === ws) room.disconnect(player);
     console.log(`[ws] connection #${id} closed`);
   });
 }

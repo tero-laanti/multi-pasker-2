@@ -314,6 +314,7 @@ const SPECS: Record<Exclude<MaterialId, 'clip'>, MatSpec> = {
   wood: { tex: () => planks([128, 100, 70], 1, 100, false), tile: 1.2, roughness: 0.8 },
   plywood: { tex: plywood, tile: 2.4, roughness: 0.75 },
   planks: { tex: () => planks([142, 116, 84], 6, 110), tile: 1.2, roughness: 0.85 },
+  redwood: { tex: () => planks([148, 52, 38], 7, 112), tile: 1.4, roughness: 0.9 },
   logs: { tex: () => planks([96, 70, 46], 3, 120, false), tile: 1, roughness: 0.9 },
   metal: { tex: () => metal([88, 98, 90], 130), tile: 2, roughness: 0.55, metalness: 0.4 },
   metalYellow: { tex: hazard, tile: 1.2, roughness: 0.6, metalness: 0.2 },

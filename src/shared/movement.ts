@@ -191,7 +191,7 @@ export class Mover {
     }
 
     if (this.walking) this.walkMove(st, wx, wz, wishSpeed, dt, T, ev);
-    else this.airMove(st, wx, wz, wishSpeed, dt, T);
+    else this.airMove(st, wx, wz, wishSpeed, dt, T, ev);
 
     const vyBefore = st.vy;
     this.groundTrace(st, T);
@@ -324,8 +324,10 @@ export class Mover {
     this.snapToGround(st, T, ev);
   }
 
-  private airMove(st: MoveState, wx: number, wz: number, wishSpeed: number, dt: number, T: MoveTuning): void {
+  private airMove(st: MoveState, wx: number, wz: number, wishSpeed: number, dt: number, T: MoveTuning, ev: MoveEvents): void {
     this.accelerate(st, wx, wz, wishSpeed, T.airAccel, dt);
+    const hvx = st.vx;
+    const hvz = st.vz;
     if (this.groundPlane) {
       const v = this.vel;
       v.x = st.vx;
@@ -336,8 +338,17 @@ export class Mover {
       st.vy = v.y;
       st.vz = v.z;
     }
-    this.stepSlideMove(st, true, T, null, dt);
-    if (wishSpeed > 0) this.ledgeAssist(st, wx, wz, T);
+    this.stepSlideMove(st, true, T, ev, dt);
+    if (wishSpeed > 0) {
+      const y0 = st.y;
+      if (this.ledgeAssist(st, wx, wz, T)) {
+        // Report the lift so the camera glides over it, and keep most of the run-up speed
+        // that the wall just took away, so the hop flows instead of stopping dead.
+        ev.stepped += st.y - y0;
+        st.vx = hvx * 0.85;
+        st.vz = hvz * 0.85;
+      }
+    }
   }
 
   /**

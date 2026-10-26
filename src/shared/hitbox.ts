@@ -104,7 +104,7 @@ export interface PlayerHit {
   zone: HitZone;
 }
 
-/** Ray against a player standing with feet at (x, y, z). */
+/** Ray against a player standing with feet at (x, y, z); `inflate` grows the shapes (server tolerance). */
 export function rayPlayer(
   ox: number,
   oy: number,
@@ -117,12 +117,14 @@ export function rayPlayer(
   z: number,
   crouched: boolean,
   maxT: number,
+  inflate = 0,
 ): PlayerHit | null {
   const H = PLAYER_HITBOX;
   const headY = y + (crouched ? H.headCrouch : H.headStand);
-  const th = raySphere(ox, oy, oz, dx, dy, dz, x, headY, z, H.headRadius, maxT);
+  const th = raySphere(ox, oy, oz, dx, dy, dz, x, headY, z, H.headRadius + inflate, maxT);
   const top = y + (crouched ? H.bodyTopCrouch : H.bodyTopStand);
-  const tb = rayVerticalCapsule(ox, oy, oz, dx, dy, dz, x, y + H.bodyBottom + H.bodyRadius, top - H.bodyRadius, z, H.bodyRadius, maxT);
+  const r = H.bodyRadius + inflate;
+  const tb = rayVerticalCapsule(ox, oy, oz, dx, dy, dz, x, y + H.bodyBottom + H.bodyRadius, top - H.bodyRadius, z, r, maxT);
   if (th >= 0 && (tb < 0 || th <= tb + 0.02)) return { t: th, zone: 'head' };
   if (tb >= 0) return { t: tb, zone: 'body' };
   return null;

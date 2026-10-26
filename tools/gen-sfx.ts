@@ -212,4 +212,37 @@ console.log('Grenade');
     out(`grenade_far_${i}`, biquad(room(dry, 1.4, 0.9, 2), RATE, 'lowpass', 900, 0.7), -3);
   }
 }
+console.log('Bullets passing and taking hits');
+{
+  // Supersonic crack (sharp N-wave) followed by a short falling whizz.
+  for (let v = 1; v <= 3; v++) {
+    const r = rng(300 + v);
+    const len = 0.32;
+    const crack = zeros(N(len));
+    const w = N(0.0006 + r() * 0.0003);
+    for (let i = 0; i < w * 2; i++) crack[i + 20] = i < w ? 1 - i / w : -(1 - (i - w) / w) * 0.9;
+    const snap = biquad(crack, RATE, 'highpass', 900, 0.7);
+    const whizz = expEnv(biquad(noise(N(len), r), RATE, 'bandpass', (t) => 5200 - t * 9000 + r() * 400, 3.5), RATE, 0.004, 0.06, 0.003);
+    out(`bullet_by_${v}`, room(mix(N(len), [snap, 1], [whizz, 0.45]), 0.18, 0.25, 0.2), -4);
+  }
+  // Taking a hit: dull body thump with a muffled flesh layer.
+  for (let v = 1; v <= 3; v++) {
+    const r = rng(320 + v);
+    const len = 0.35;
+    const thump = expEnv(sine(N(len), RATE, 95 + r() * 20, 48, 0.08), RATE, 0.001, 0.09);
+    const flesh = expEnv(biquad(brown(N(len), r), RATE, 'lowpass', 900 + r() * 300, 0.8), RATE, 0.001, 0.05);
+    const tick = burst(r, len, 'bandpass', 1700, 1.4, 0.0003, 0.008);
+    out(`player_hurt_${v}`, mix(N(len), [thump, 1], [flesh, 0.8], [tick, 0.25]), -4);
+  }
+  // Death: heavy thump, a low muffled boom and a ringing that fades.
+  {
+    const r = rng(340);
+    const len = 1.6;
+    const thump = expEnv(sine(N(len), RATE, 80, 36, 0.2), RATE, 0.002, 0.22);
+    const boom = expEnv(biquad(brown(N(len), r), RATE, 'lowpass', 260, 0.7), RATE, 0.004, 0.35);
+    const ring = gain(expEnv(sine(N(len), RATE, 3150, 3100, 1), RATE, 0.25, 0.7, 0.05), 0.05);
+    out('player_death', mix(N(len), [thump, 1], [boom, 0.9], [ring, 1]), -4);
+  }
+}
+
 console.log('Done →', OUT);

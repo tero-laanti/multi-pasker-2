@@ -2,14 +2,12 @@ import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
 import { SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
-import { FI } from '../../shared/fi';
+import { throwVelocity } from '../../shared/grenade';
 import { UI } from '../../shared/ui';
 import type { MapData } from '../../shared/map/types';
 import { SURFACE_NAMES } from '../../shared/map/types';
-import { DEG, clamp, damp, lerp, viewDir } from '../../shared/math';
+import { DEG, clamp, damp, lerp, viewDir, type Vec3 } from '../../shared/math';
 import { Mover, newMoveState, type MoveCmd, type MoveState } from '../../shared/movement';
-import { RangeSim, type RangeEvent } from '../../shared/rangeSim';
-import { damageFor } from '../../shared/weapons';
 import type { AudioEngine } from '../audio/engine';
 import type { Input } from '../input';
 import type { Renderer } from '../render/renderer';
@@ -20,12 +18,10 @@ import type { Settings } from '../settings';
 import type { Hud } from '../ui/hud';
 import { Effects } from './effects';
 import { Grenades, type Explosion } from './grenades';
-import { blastReaches, explosionDamage, throwVelocity } from '../../shared/grenade';
-import { RangeView } from './rangeView';
-import { ViewModel } from './viewmodel';
+import type { ViewModel } from './viewmodel';
 import { WeaponController } from './weapons';
 
-const IMPACT_SOUND: Record<string, string> = {
+export const IMPACT_SOUND: Record<string, string> = {
   concrete: 'impact_concrete',
   dirt: 'impact_dirt',
   grass: 'impact_dirt',
@@ -38,7 +34,7 @@ const IMPACT_SOUND: Record<string, string> = {
   default: 'impact_concrete',
 };
 
-const STEP_SOUND: Record<string, string> = {
+export const STEP_SOUND: Record<string, string> = {
   concrete: 'step_concrete',
   dirt: 'step_dirt',
   grass: 'step_grass',
@@ -50,52 +46,83 @@ const STEP_SOUND: Record<string, string> = {
   default: 'step_concrete',
 };
 
-const BEST_KEY = 'pasker.rangeBest';
-
-function loadBest(): number {
-  try {
-    return Number(localStorage.getItem(BEST_KEY)) || 0;
-  } catch {
-    return 0;
-  }
-}
-
 export interface GameDeps {
   renderer: Renderer;
   audio: AudioEngine;
   input: Input;
   settings: Settings;
   hud: Hud;
+  viewmodel: ViewModel;
 }
 
-/** The shooting range: local player, weapons, targets and effects, at a fixed simulation step. */
+/** A camera that replaces the player's eye (menu backdrop, death camera). */
+export interface CamOverride {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  roll?: number;
+}
+
+/** What differs between the shooting range and a match. */
+export interface GameMode {
+  /** False while the local player is dead: no movement or weapons. */
+  readonly alive: boolean;
+  /** False when shooting is not allowed (between rounds). */
+  readonly firing?: boolean;
+  /** Fixed-step update after the local player and weapons have stepped. */
+  step(dt: number): void;
+  /**
+   * A hitscan shot left the eye; `tr` holds the world trace (fraction 1: nothing hit).
+   * Returns true when the shot hit a target or player (no wall impact is drawn then).
+   */
+  shot(weapon: WeaponId, eye: THREE.Vector3, dir: Vec3, tr: TraceResult): boolean;
+  /** The local grenade left the hand. */
+  grenadeReleased(o: [number, number, number], v: [number, number, number]): void;
+  /** A locally simulated grenade exploded (the range; match explosions come from the server). */
+  exploded?(e: Explosion): void;
+  /** R pressed while direct reload (dev) is on. */
+  reload(): void;
+  /** Render-rate update before the scene is drawn. */
+  render(dt: number, alpha: number): void;
+  dispose?(): void;
+}
+
+/**
+ * The first-person core shared by the range and matches: map, local player movement at a
+ * fixed simulation step, weapons, viewmodel, effects, grenades and the camera.
+ */
 export class Game {
   readonly world: CollisionWorld;
-  readonly range: RangeSim;
   readonly weapons = new WeaponController();
   readonly move: MoveState;
+  readonly map: MapData;
+  mode!: GameMode;
   yaw = 0;
   pitch = 0;
   killSpeed: KillSpeedPreset = 'cod';
-  /** Dev: R reloads directly on the range. */
+  /** Dev: R reloads directly. */
   devDirectReload = true;
+  /** No input while paused; the simulation keeps running when `keepRunning` (matches). */
   paused = true;
-  /** Fixed camera used behind the main menu instead of the player's eye. */
-  attractCam: { x: number; y: number; z: number; yaw: number; pitch: number } | null = null;
+  keepRunning = false;
+  /** Camera used instead of the player's eye. */
+  camOverride: CamOverride | null = null;
   simSteps = 0;
   lastFrameSteps = 0;
-  /** Time spent building weapon models and hands at start-up (ms). */
-  viewmodelBuildMs = 0;
+  readonly root = new THREE.Group();
+  readonly props: PropsView;
+  readonly effects = new Effects();
+  readonly grenades: Grenades;
+  readonly viewmodel: ViewModel;
+  readonly eye = new THREE.Vector3();
+  /** Seconds of simulation since the game started. */
+  time = 0;
 
   private mover: Mover;
-  private root = new THREE.Group();
-  private props: PropsView;
-  private rangeView: RangeView;
-  private effects = new Effects();
-  readonly viewmodel: ViewModel;
   private acc = 0;
   private prevEye = new THREE.Vector3();
-  private eye = new THREE.Vector3();
   private stepOffset = 0;
   private landDip = 0;
   private landVel = 0;
@@ -105,20 +132,20 @@ export class Game {
   private lookX = 0;
   private lookY = 0;
   private sunShade = 1;
+  private shadeTarget = 1;
   private shadeTimer = 0;
-  private tr = new TraceResult();
-  private time = 0;
-  private best = loadBest();
+  readonly tr = new TraceResult();
   private tailVoice: AudioBufferSourceNode | null = null;
-  private forward = new THREE.Vector3();
-  private grenades: Grenades;
+  readonly forward = new THREE.Vector3();
   private blast: { x: number; y: number; z: number; t: number } | null = null;
   private shake = 0;
+  private up = new THREE.Vector3();
 
   constructor(
-    private deps: GameDeps,
+    readonly deps: GameDeps,
     map: MapData,
   ) {
+    this.map = map;
     this.world = new CollisionWorld(map.brushes);
     this.mover = new Mover(this.world);
     const r = deps.renderer;
@@ -126,35 +153,40 @@ export class Game {
     this.root.add(buildMapMeshes(this.world, mats));
     this.props = buildProps(map.props, r.preset.treeDensity);
     this.root.add(this.props.group);
-    this.range = new RangeSim(map.targets);
-    this.rangeView = new RangeView(this.range);
-    this.root.add(this.rangeView.group);
     this.root.add(this.effects.group);
     this.grenades = new Grenades(this.world, deps.audio);
     this.root.add(this.grenades.group);
-    r.scene.add(this.root);
-    const t0 = performance.now();
-    this.viewmodel = new ViewModel(r.vmScene);
-    this.viewmodelBuildMs = performance.now() - t0;
-    this.viewmodel.onCasingLand = () => {
-      if (this.move.onGround) this.deps.audio.play('casing', { volume: 0.22, delay: Math.random() * 0.05 });
-    };
-    this.newSerials();
+    this.viewmodel = deps.viewmodel;
     const sp = map.spawns[0]!;
     this.move = newMoveState(sp.x, sp.y + 0.02, sp.z);
     this.yaw = sp.yaw;
     this.pitch = 0;
     this.updateEye(this.eye);
     this.prevEye.copy(this.eye);
-    this.weapons.sounds.length = 0;
+  }
+
+  /** Shows this game's world (only one game is in the scene at a time). */
+  activate(): void {
+    const r = this.deps.renderer;
+    if (this.root.parent !== r.scene) r.scene.add(this.root);
+    this.viewmodel.onCasingLand = () => {
+      if (this.move.onGround) this.deps.audio.play('casing', { volume: 0.22, delay: Math.random() * 0.05 });
+    };
+    this.applySerials();
+  }
+
+  deactivate(): void {
+    this.deps.renderer.scene.remove(this.root);
   }
 
   dispose(): void {
-    this.deps.renderer.scene.remove(this.root);
+    this.deactivate();
+    this.mode?.dispose?.();
   }
 
   /** Mouse look, applied immediately from the input event. */
   onLook(dx: number, dy: number): void {
+    if (this.paused || !this.mode.alive) return;
     const s = this.deps.settings;
     const zoom = this.deps.renderer.zoom;
     const ads = this.weapons.ads;
@@ -170,46 +202,52 @@ export class Game {
     return out.set(this.move.x, this.move.y + this.move.eye, this.move.z);
   }
 
-  /** Each weapon gets its own random 6-digit serial (per player per round in matches). */
+  /** Each weapon has its own 6-digit serial (per player per round in matches). */
   serials: Record<WeaponId, string> = { pistol: '000000', rifle: '000000' };
 
+  setSerials(s: Record<WeaponId, string>): void {
+    this.serials = { ...s };
+    this.applySerials();
+  }
+
   newSerials(): void {
-    for (const id of ['pistol', 'rifle'] as WeaponId[]) {
-      this.serials[id] = String(100000 + Math.floor(Math.random() * 900000));
-      this.viewmodel.model(id)?.setSerial(this.serials[id]);
-    }
+    for (const id of ['pistol', 'rifle'] as WeaponId[]) this.serials[id] = String(100000 + Math.floor(Math.random() * 900000));
+    this.applySerials();
   }
 
-  reload(): void {
-    const r = this.weapons.startReload();
-    if (r === 'full') this.deps.hud.note(UI.hud.magazineFull, 1.2);
+  private applySerials(): void {
+    for (const id of ['pistol', 'rifle'] as WeaponId[]) this.viewmodel.model(id)?.setSerial(this.serials[id]);
   }
 
-  giveGrenade(): void {
-    if (this.weapons.grenades < this.weapons.maxGrenades) this.weapons.grenades++;
-  }
-
-  give(id: WeaponId): void {
-    this.weapons.give(id);
-    this.weapons.switchTo(id);
+  /** Moves the local player (spawns), clearing smoothing so nothing interpolates across. */
+  teleport(x: number, y: number, z: number, yaw: number): void {
+    Object.assign(this.move, newMoveState(x, y, z));
+    this.yaw = yaw;
+    this.pitch = 0;
+    this.updateEye(this.eye);
+    this.prevEye.copy(this.eye);
+    this.stepOffset = 0;
+    this.landDip = 0;
+    this.landVel = 0;
+    this.crouchWanted = false;
+    this.acc = 0;
   }
 
   frame(dt: number): void {
     const { input, hud } = this.deps;
     this.time += dt;
     let steps = 0;
-    if (!this.paused) {
+    if (!this.paused || this.keepRunning) {
       this.acc += Math.min(dt, 0.25);
       while (this.acc >= SIM_DT && steps < 40) {
         this.step(SIM_DT);
         this.acc -= SIM_DT;
         steps++;
       }
-    } else {
-      input.clearPresses();
     }
+    if (this.paused) input.clearPresses();
     this.lastFrameSteps = steps;
-    const alpha = this.paused ? 1 : this.acc / SIM_DT;
+    const alpha = this.paused && !this.keepRunning ? 1 : this.acc / SIM_DT;
     this.renderFrame(dt, alpha);
     hud.update(dt);
   }
@@ -217,136 +255,135 @@ export class Game {
   private step(dt: number): void {
     const { input, audio, hud } = this.deps;
     this.simSteps++;
-    const k = input.keys;
+    const controls = !this.paused && this.mode.alive;
+    const k = controls ? input.keys : new Set<string>();
 
-    if (input.consumePress('KeyC')) this.crouchWanted = this.deps.settings.crouchToggle ? !this.crouchWanted : true;
-    if (!this.deps.settings.crouchToggle) this.crouchWanted = k.has('KeyC');
-    if (input.consumePress('Digit1')) this.weapons.switchTo('rifle');
-    if (input.consumePress('Digit2')) this.weapons.switchTo('pistol');
-    const wheel = input.consumeWheel();
-    if (wheel !== 0) this.weapons.cycleWeapon(wheel);
-    if (input.consumePress('KeyI')) this.weapons.inspect();
-    if (input.consumePress('KeyG') && !this.weapons.throwGrenade()) {
-      if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
-    }
-    if (input.consumePress('KeyR')) {
-      if (this.devDirectReload) this.reload();
-      else hud.note(UI.hud.reloadHint, 3);
+    if (controls) {
+      if (input.consumePress('KeyC')) this.crouchWanted = this.deps.settings.crouchToggle ? !this.crouchWanted : true;
+      if (!this.deps.settings.crouchToggle) this.crouchWanted = k.has('KeyC');
+      if (input.consumePress('Digit1')) this.weapons.switchTo('rifle');
+      if (input.consumePress('Digit2')) this.weapons.switchTo('pistol');
+      const wheel = input.consumeWheel();
+      if (wheel !== 0) this.weapons.cycleWeapon(wheel);
+      if (input.consumePress('KeyI')) this.weapons.inspect();
+      if (input.consumePress('KeyG') && !this.weapons.throwGrenade()) {
+        if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
+      }
+      if (input.consumePress('KeyR')) {
+        if (this.devDirectReload) this.mode.reload();
+        else {
+          hud.note(UI.hud.reloadHint, 3);
+          this.weapons.reminder = 3;
+        }
+      }
+    } else {
+      this.crouchWanted = false;
     }
 
-    const firePressed = input.consumeLeftPress();
-    input.consumeRightPress();
+    const canFire = controls && this.mode.firing !== false;
+    const firePressed = controls && input.consumeLeftPress() && canFire;
+    if (controls) input.consumeRightPress();
     const forward = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
     const right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
-    const adsHeld = input.mouseRight;
+    const adsHeld = controls && input.mouseRight;
+    const fireHeld = canFire && input.mouseLeft;
     const shift = k.has('ShiftLeft') || k.has('ShiftRight');
     // Firing while sprinting drops the sprint so the gun comes up and the shot goes out.
-    if ((firePressed || (input.mouseLeft && this.weapons.current === 'rifle')) && this.move.sprinting) this.sprintLock = 0.35;
+    if ((firePressed || (fireHeld && this.weapons.current === 'rifle')) && this.move.sprinting) this.sprintLock = 0.35;
     if (this.sprintLock > 0) this.sprintLock -= dt;
     const sprint = shift && forward > 0 && !adsHeld && this.sprintLock <= 0;
     if (sprint && this.crouchWanted) this.crouchWanted = false;
 
-    const cmd: MoveCmd = {
-      forward,
-      right,
-      yaw: this.yaw,
-      jump: k.has('Space'),
-      crouch: this.crouchWanted,
-      sprint,
-      ads: this.weapons.ads > 0.5,
-      speedMul: TUNING[this.weapons.current].moveSpeedMul,
-    };
-    const wasGround = this.move.onGround;
-    this.prevEye.copy(this.eye);
-    const ev = this.mover.step(this.move, cmd, dt);
-    this.updateEye(this.eye);
-    if (ev.stepped !== 0) {
-      // Smooth the step out over a few frames. Shift the interpolation start too, or the frame
-      // between the two sim positions would show the step twice (a one-frame jump).
-      this.stepOffset -= ev.stepped;
-      this.prevEye.y += ev.stepped;
-    }
-    if (ev.jumped) this.viewmodel.jumpImpulse();
-    if (ev.landed > 2.5 && !wasGround) {
-      this.landVel -= Math.min(2.2, ev.landed * 0.22);
-      this.viewmodel.landingImpulse(ev.landed);
-      audio.play('land', { volume: Math.min(0.9, 0.25 + ev.landed * 0.06) });
-      this.footstep(0.9);
-    }
-
-    // Footsteps by distance travelled on the ground.
-    const hs = Math.hypot(this.move.vx, this.move.vz);
-    if (this.move.onGround && hs > 0.5) {
-      this.stepDist += hs * dt;
-      const stride = this.move.sprinting ? 2.4 : this.move.crouched ? 1.4 : 1.9;
-      if (this.stepDist >= stride) {
-        this.stepDist = 0;
-        this.footstep(this.move.crouched ? 0.12 : this.move.sprinting ? 0.42 : 0.3);
+    if (this.mode.alive) {
+      const cmd: MoveCmd = {
+        forward,
+        right,
+        yaw: this.yaw,
+        jump: k.has('Space'),
+        crouch: this.crouchWanted,
+        sprint,
+        ads: this.weapons.ads > 0.5,
+        speedMul: TUNING[this.weapons.current].moveSpeedMul,
+      };
+      const wasGround = this.move.onGround;
+      this.prevEye.copy(this.eye);
+      const ev = this.mover.step(this.move, cmd, dt);
+      this.updateEye(this.eye);
+      if (ev.stepped !== 0) {
+        // Smooth the step out over a few frames. Shift the interpolation start too, or the frame
+        // between the two sim positions would show the step twice (a one-frame jump).
+        this.stepOffset -= ev.stepped;
+        this.prevEye.y += ev.stepped;
       }
+      if (ev.jumped) this.viewmodel.jumpImpulse();
+      if (ev.landed > 2.5 && !wasGround) {
+        this.landVel -= Math.min(2.2, ev.landed * 0.22);
+        this.viewmodel.landingImpulse(ev.landed);
+        audio.play('land', { volume: Math.min(0.9, 0.25 + ev.landed * 0.06) });
+        this.footstep(0.9);
+      }
+
+      // Footsteps by distance travelled on the ground.
+      const hs = Math.hypot(this.move.vx, this.move.vz);
+      if (this.move.onGround && hs > 0.5) {
+        this.stepDist += hs * dt;
+        const stride = this.move.sprinting ? 2.4 : this.move.crouched ? 1.4 : 1.9;
+        if (this.stepDist >= stride) {
+          this.stepDist = 0;
+          this.footstep(this.move.crouched ? 0.12 : this.move.sprinting ? 0.42 : 0.3);
+        }
+      }
+
+      const aim = { yaw: this.yaw, pitch: this.pitch };
+      this.weapons.step(
+        dt,
+        {
+          fireHeld,
+          firePressed,
+          adsHeld,
+          sprinting: this.move.sprinting,
+          speed: hs,
+          maxSpeed: TUNING.move.walkSpeed,
+          airborne: !this.move.onGround,
+          crouched: this.move.crouched,
+        },
+        aim,
+      );
+      this.yaw = aim.yaw;
+      this.pitch = aim.pitch;
+      for (const shot of this.weapons.shots) this.fireShot(shot.weapon, shot.dir);
+      this.weapons.shots.length = 0;
+      if (this.weapons.releaseGrenade) {
+        this.weapons.releaseGrenade = false;
+        const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
+        const rx = Math.cos(this.yaw);
+        const rz = -Math.sin(this.yaw);
+        const e = this.eye;
+        const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz);
+        // Start just in front of the eye, a little left and low, but never inside a wall.
+        this.world.trace(this.tr, e.x, e.y, e.z, e.x + fwd.x * 0.35 - rx * 0.12, e.y + fwd.y * 0.35 - 0.1, e.z + fwd.z * 0.35 - rz * 0.12, 0.045, 0.045, 0.045, MASK.GRENADE);
+        this.mode.grenadeReleased([this.tr.x, this.tr.y, this.tr.z], v);
+      }
+      for (const s of this.weapons.sounds) audio.play(s.name, { volume: s.volume ?? 1 });
+      this.weapons.sounds.length = 0;
+    } else {
+      this.prevEye.copy(this.eye);
     }
 
-    const maxSpeed = TUNING.move.walkSpeed;
-    const aim = { yaw: this.yaw, pitch: this.pitch };
-    this.weapons.step(
-      dt,
-      {
-        fireHeld: input.mouseLeft,
-        firePressed,
-        adsHeld,
-        sprinting: this.move.sprinting,
-        speed: hs,
-        maxSpeed,
-        airborne: !this.move.onGround,
-        crouched: this.move.crouched,
-      },
-      aim,
-    );
-    this.yaw = aim.yaw;
-    this.pitch = aim.pitch;
-    for (const shot of this.weapons.shots) this.resolveShot(shot.weapon, shot.dir);
-    this.weapons.shots.length = 0;
-    if (this.weapons.releaseGrenade) {
-      this.weapons.releaseGrenade = false;
-      const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
-      const rx = Math.cos(this.yaw);
-      const rz = -Math.sin(this.yaw);
-      const e = this.eye;
-      const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz);
-      // Start just in front of the eye, a little left and low, but never inside a wall.
-      this.world.trace(this.tr, e.x, e.y, e.z, e.x + fwd.x * 0.35 - rx * 0.12, e.y + fwd.y * 0.35 - 0.1, e.z + fwd.z * 0.35 - rz * 0.12, 0.045, 0.045, 0.045, MASK.GRENADE);
-      this.grenades.spawn(this.tr.x, this.tr.y, this.tr.z, v, TUNING.grenade.fuse, 0);
+    for (const ex of this.grenades.step(dt)) {
+      this.explosionFx(ex.x, ex.y, ex.z);
+      this.mode.exploded?.(ex);
     }
-    for (const ex of this.grenades.step(dt)) this.explode(ex);
-    for (const s of this.weapons.sounds) audio.play(s.name, { volume: s.volume ?? 1 });
-    this.weapons.sounds.length = 0;
-
-    this.range.update(dt);
-    for (const e of this.range.events) this.onRangeEvent(e);
-    this.range.events.length = 0;
+    this.mode.step(dt);
   }
 
-  private explode(e: Explosion): void {
-    const { audio, hud } = this.deps;
-    this.effects.explosion(e.x, e.y, e.z);
-    const dist = Math.hypot(e.x - this.eye.x, e.y - this.eye.y, e.z - this.eye.z);
-    audio.playAt(dist < 45 ? 'grenade_explode' : 'grenade_far', e.x, e.y + 0.3, e.z, { volume: 1, refDistance: 8, rolloff: 0.7, maxDistance: 600 });
-    this.blast = { x: e.x, y: e.y, z: e.z, t: 0 };
+  /** Flash, smoke, sound, light and screen shake of an explosion. */
+  explosionFx(x: number, y: number, z: number): void {
+    this.effects.explosion(x, y, z);
+    const dist = Math.hypot(x - this.eye.x, y - this.eye.y, z - this.eye.z);
+    this.deps.audio.playAt(dist < 45 ? 'grenade_explode' : 'grenade_far', x, y + 0.3, z, { volume: 1, refDistance: 8, rolloff: 0.7, maxDistance: 600 });
+    this.blast = { x, y, z, t: 0 };
     this.shake = Math.max(this.shake, clamp(1 - dist / 28, 0, 1));
-    let hits = 0;
-    let downs = 0;
-    for (const t of this.range.targets) {
-      if (t.up < 0.5) continue;
-      const cy = t.def.kind === 'silhouette' ? t.y + 1.1 : t.y;
-      const d = Math.hypot(t.x - e.x, cy - e.y, t.z - e.z);
-      const dmg = explosionDamage(d);
-      if (dmg <= 0 || !blastReaches(this.world, e.x, e.y, e.z, t.x, cy, t.z)) continue;
-      hits++;
-      if (this.range.applyHit({ target: t, zone: 'body', t: d, x: t.x, y: cy, z: t.z }, dmg, true)) downs++;
-    }
-    if (hits > 0) {
-      hud.hitMarker(downs > 0 ? 'kill' : 'body');
-      audio.play(downs > 0 ? 'hit_kill' : 'hit_body', { bus: 'ui', volume: 0.8, delay: dist / 343 });
-    }
   }
 
   private footstep(volume: number): void {
@@ -354,15 +391,19 @@ export class Game {
     this.deps.audio.play(STEP_SOUND[surf] ?? 'step_concrete', { volume });
   }
 
-  private resolveShot(weapon: WeaponId, dir: { x: number; y: number; z: number }): void {
-    const { audio, hud } = this.deps;
+  /** Bullet hole, impact particles and sound on a wall. */
+  wallImpact(x: number, y: number, z: number, nx: number, ny: number, nz: number, surface: number): void {
+    this.effects.decal(x, y, z, nx, ny, nz, 0.07, surface);
+    this.effects.impact(x, y, z, nx, ny, nz, surface);
+    const name = IMPACT_SOUND[SURFACE_NAMES[surface] ?? 'default'] ?? 'impact_concrete';
+    this.deps.audio.playAt(name, x, y, z, { volume: 0.9, refDistance: 3 });
+  }
+
+  private fireShot(weapon: WeaponId, dir: Vec3): void {
+    const { audio } = this.deps;
     const e = this.eye;
-    const T = TUNING[weapon];
-    const maxD = T.range;
+    const maxD = TUNING[weapon].range;
     this.world.trace(this.tr, e.x, e.y, e.z, e.x + dir.x * maxD, e.y + dir.y * maxD, e.z + dir.z * maxD, 0, 0, 0, MASK.SHOT);
-    const wallDist = this.tr.fraction * maxD;
-    const hit = this.range.raycast(e.x, e.y, e.z, dir.x, dir.y, dir.z, wallDist);
-    this.range.noteShot();
 
     // Own gunshot: close layer every shot, one tail voice that the next shot replaces.
     audio.play(`${weapon}_shot`, { volume: 0.95, gunshot: true });
@@ -378,68 +419,9 @@ export class Game {
     const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
     this.effects.muzzleSmoke(e.x + fwd.x * 0.45, e.y + fwd.y * 0.45 - 0.08, e.z + fwd.z * 0.45, fwd.x, fwd.y, fwd.z);
 
-    if (hit) {
-      const t = hit.target;
-      const zone = hit.zone;
-      if (t.def.kind === 'silhouette') {
-        const dmg = damageFor(weapon, zone, hit.t, this.killSpeed);
-        const down = this.range.applyHit(hit, dmg);
-        this.rangeView.mark(t, hit.x, hit.y, hit.z);
-        this.effects.hitPuff(hit.x, hit.y, hit.z, -dir.x, -dir.y, -dir.z, false);
-        audio.playAt('impact_wood', hit.x, hit.y, hit.z, { volume: 0.8 });
-        hud.hitMarker(down ? 'kill' : zone === 'head' ? 'head' : 'body');
-        audio.play(down ? 'hit_kill' : zone === 'head' ? 'hit_head' : 'hit_body', { bus: 'ui', volume: down ? 0.9 : 0.7, delay: 0.01 });
-      } else {
-        this.range.applyHit(hit, 0);
-        const gong = t.def.kind === 'gong';
-        audio.playAt(gong ? 'steel_gong' : 'steel_plate', hit.x, hit.y, hit.z, { volume: 1, refDistance: 6, rolloff: 0.6, maxDistance: 300 });
-        this.effects.impact(hit.x, hit.y, hit.z, -dir.x, -dir.y, -dir.z, 6);
-        hud.hitMarker('body');
-        audio.play('hit_body', { bus: 'ui', volume: 0.5 });
-      }
-      return;
-    }
-    if (this.tr.fraction < 1) {
-      const surf = this.tr.surface;
-      this.effects.decal(this.tr.x, this.tr.y, this.tr.z, this.tr.nx, this.tr.ny, this.tr.nz, 0.07, surf);
-      this.effects.impact(this.tr.x, this.tr.y, this.tr.z, this.tr.nx, this.tr.ny, this.tr.nz, surf);
-      const name = IMPACT_SOUND[SURFACE_NAMES[surf] ?? 'default'] ?? 'impact_concrete';
-      audio.playAt(name, this.tr.x, this.tr.y, this.tr.z, { volume: 0.9, refDistance: 3 });
-    }
-  }
-
-  private onRangeEvent(e: RangeEvent): void {
-    const { hud, audio } = this.deps;
-    switch (e.type) {
-      case 'command': {
-        hud.showBanner(FI.range.commands[e.key], e.key === 'positions' ? 2 : 1.6);
-        if (e.key === 'fire' || e.key === 'cease') audio.play('whistle', { bus: 'ui', volume: 0.55 });
-        audio.playVoice(`rata_${e.key}`);
-        break;
-      }
-      case 'targetDown':
-        audio.playAt('impact_wood', e.target.x, e.target.y + 0.2, e.target.z, { volume: 0.5, rate: 0.7 });
-        break;
-      case 'targetUp':
-        break;
-      case 'drillEnd': {
-        const isBest = e.result.score > this.best;
-        if (isBest) {
-          this.best = e.result.score;
-          try {
-            localStorage.setItem(BEST_KEY, String(this.best));
-          } catch {
-            // Not persisted.
-          }
-        }
-        hud.showResults(e.result, this.best, isBest);
-        window.setTimeout(() => {
-          hud.showBanner(FI.range.commands.ended, 2.2);
-          audio.playVoice('rata_ended');
-        }, 2200);
-        break;
-      }
-    }
+    const tr = this.tr;
+    const hitSomething = this.mode.shot(weapon, e, dir, tr);
+    if (!hitSomething && tr.fraction < 1) this.wallImpact(tr.x, tr.y, tr.z, tr.nx, tr.ny, tr.nz, tr.surface);
   }
 
   private renderFrame(dt: number, alpha: number): void {
@@ -453,10 +435,11 @@ export class Game {
     const cam = renderer.camera;
     const punchP = lerp(w.punchPrevP, w.punchP, alpha);
     const punchY = lerp(w.punchPrevY, w.punchY, alpha);
-    if (this.attractCam) {
-      const a = this.attractCam;
-      cam.position.set(a.x, a.y, a.z);
-      cam.rotation.set(a.pitch, a.yaw, 0, 'YXZ');
+    this.mode.render(dt, alpha);
+    const co = this.camOverride;
+    if (co) {
+      cam.position.set(co.x, co.y, co.z);
+      cam.rotation.set(co.pitch, co.yaw, co.roll ?? 0, 'YXZ');
     } else {
       cam.position.lerpVectors(this.prevEye, this.eye, alpha);
       cam.position.y += this.stepOffset + this.landDip * 0.05;
@@ -465,12 +448,12 @@ export class Game {
       cam.rotation.set(this.pitch + punchP * DEG + (Math.random() - 0.5) * sh, this.yaw - punchY * DEG + (Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh, 'YXZ');
     }
     this.shake = Math.max(0, this.shake - dt * 3);
-    this.viewmodel.holder.visible = !this.attractCam;
+    this.viewmodel.holder.visible = !co;
     cam.updateMatrixWorld();
 
     const ads = lerp(w.adsPrev, w.ads, alpha);
     const adsE = ads * ads * (3 - 2 * ads);
-    renderer.zoom = 1 + (TUNING[w.current].adsZoom - 1) * adsE;
+    renderer.zoom = co ? 1 : 1 + (TUNING[w.current].adsZoom - 1) * adsE;
     renderer.vmZoom = 1 + 0.04 * adsE;
 
     this.viewmodel.update(dt, alpha, w, {
@@ -514,34 +497,30 @@ export class Game {
     }
     this.sunShade = damp(this.sunShade, this.shadeTarget, 8, dt);
 
-    this.rangeView.update();
     this.effects.update(dt);
     this.effects.setViewportHeight(renderer.gl.domElement.height, cam.fov);
     this.props.update(this.time);
 
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
-    audio.setListener(cam.position.x, cam.position.y, cam.position.z, this.forward.x, this.forward.y, this.forward.z, up.x, up.y, up.z);
+    this.up.set(0, 1, 0).applyQuaternion(cam.quaternion);
+    audio.setListener(cam.position.x, cam.position.y, cam.position.z, this.forward.x, this.forward.y, this.forward.z, this.up.x, this.up.y, this.up.z);
 
     // HUD.
     const T = TUNING[w.current];
     const spreadDeg = this.currentSpread();
     const vfov = cam.fov * DEG;
     const gap = (Math.tan(spreadDeg * DEG) / Math.tan(vfov / 2)) * (renderer.gl.domElement.clientHeight / 2);
-    hud.crosshair(Math.max(4, gap), ads < 0.5 && this.weapons.sprintPose < 0.5 && w.state !== 'inspecting');
+    hud.crosshair(Math.max(4, gap), !co && ads < 0.5 && this.weapons.sprintPose < 0.5 && w.state !== 'inspecting');
     hud.weapon(UI.hud.weapons[w.current] ?? w.current, w.ammo[w.current], T.magazine, w.state === 'reloading' && w.progress < T.reloadRefill);
     if (w.refilledAt >= 0) {
       hud.refillFlash();
       w.refilledAt = -1;
     }
     const hint = w.ammo[w.current] === 0 && w.state !== 'reloading' ? (this.devDirectReload ? UI.hud.reloadHintDev : UI.hud.reloadHint) : w.reminder > 0 ? UI.hud.reloadHint : '';
-    hud.setHint(hint);
-    hud.drillStatus(this.range.drillPhase, this.range.drillTime, this.range.drill.score);
+    hud.setHint(co ? '' : hint);
     hud.grenades(w.grenades, w.maxGrenades);
 
     renderer.render(this.sunShade);
   }
-
-  private shadeTarget = 1;
 
   private currentSpread(): number {
     const w = this.weapons;

@@ -1,3 +1,4 @@
+import { cleanName } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { DEFAULT_SETTINGS, type Quality, type Settings } from '../settings';
 
@@ -9,8 +10,27 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: strin
   return e;
 }
 
+const NAME_KEY = 'pasker.name';
+
+export function loadName(): string {
+  try {
+    return cleanName(localStorage.getItem(NAME_KEY) ?? '');
+  } catch {
+    return '';
+  }
+}
+
+export function saveName(name: string): void {
+  try {
+    localStorage.setItem(NAME_KEY, name);
+  } catch {
+    // Not persisted.
+  }
+}
+
 export interface MenuActions {
   startRange(): void;
+  joinMatch(name: string): void;
   resume(): void;
   quit(): void;
   settingsChanged(s: Settings, reloadNeeded: boolean): void;
@@ -28,6 +48,11 @@ export class Menu {
   private overlayText: HTMLDivElement;
   private pause: HTMLDivElement;
   private loading: HTMLDivElement;
+  private join: HTMLDivElement;
+  private joinInput!: HTMLInputElement;
+  private joinError!: HTMLDivElement;
+  private joinButton!: HTMLButtonElement;
+  private quitButton: HTMLButtonElement;
   private settingsReturn: 'main' | 'pause' = 'main';
 
   constructor(
@@ -49,14 +74,16 @@ export class Menu {
     range.onclick = () => actions.startRange();
     h('div', 'btn-desc', UI.menu.rangeDesc, buttons);
     const join = h('button', 'btn', UI.menu.join, buttons);
-    join.disabled = true;
-    h('div', 'btn-desc', UI.menu.joinSoon, buttons);
+    join.onclick = () => this.showJoin();
+    h('div', 'btn-desc', UI.menu.joinDesc, buttons);
     const set = h('button', 'btn', UI.menu.settings, buttons);
     set.onclick = () => this.showSettings('main');
     this.main.appendChild(this.controls());
     h('div', 'footer', UI.menu.footer, this.main);
 
     this.settingsScreen = h('div', 'screen settings hidden', undefined, this.root);
+    this.join = h('div', 'screen join hidden', undefined, this.root);
+    this.buildJoin();
 
     this.overlay = h('div', 'screen overlay hidden', undefined, this.root);
     this.overlayText = h('div', 'overlay-text', UI.menu.clickToPlay, this.overlay);
@@ -78,8 +105,59 @@ export class Menu {
       const b = h('button', 'btn small', label, dev);
       b.onclick = fn;
     }
-    const quit = h('button', 'btn', UI.menu.quit, pb);
-    quit.onclick = () => actions.quit();
+    this.quitButton = h('button', 'btn', UI.menu.quit, pb);
+    this.quitButton.onclick = () => actions.quit();
+  }
+
+  private buildJoin(): void {
+    const root = this.join;
+    h('div', 'title small', UI.menu.joinTitle, root);
+    const form = h('div', 'join-form', undefined, root);
+    h('label', 'join-label', UI.menu.nameLabel, form);
+    this.joinInput = h('input', 'join-name', undefined, form);
+    this.joinInput.maxLength = 12;
+    this.joinInput.autocomplete = 'off';
+    this.joinInput.spellcheck = false;
+    this.joinInput.value = loadName();
+    this.joinInput.oninput = () => {
+      const clean = cleanName(this.joinInput.value);
+      if (clean !== this.joinInput.value) this.joinInput.value = clean;
+      this.joinButton.disabled = clean.length === 0;
+      this.joinError.textContent = '';
+    };
+    this.joinInput.onkeydown = (e) => {
+      if (e.key === 'Enter' && !this.joinButton.disabled) this.submitJoin();
+    };
+    h('div', 'join-hint', UI.menu.nameHint, form);
+    this.joinError = h('div', 'join-error', '', form);
+    const btns = h('div', 'buttons row-buttons', undefined, root);
+    this.joinButton = h('button', 'btn primary', UI.menu.joinButton, btns);
+    this.joinButton.onclick = () => this.submitJoin();
+    const back = h('button', 'btn', UI.menu.back, btns);
+    back.onclick = () => this.showMain();
+  }
+
+  private submitJoin(): void {
+    const name = cleanName(this.joinInput.value);
+    if (!name) return;
+    saveName(name);
+    this.joinButton.disabled = true;
+    this.joinError.textContent = UI.menu.joining;
+    this.actions.joinMatch(name);
+  }
+
+  showJoin(error?: string): void {
+    this.hideAll();
+    this.joinButton.disabled = cleanName(this.joinInput.value).length === 0;
+    this.joinError.textContent = error ?? '';
+    this.join.classList.remove('hidden');
+    this.joinInput.focus();
+    this.joinInput.select();
+  }
+
+  /** In a match the pause menu leaves the match instead of quitting the range. */
+  setInMatch(on: boolean): void {
+    this.quitButton.textContent = on ? UI.menu.leaveMatch : UI.menu.quit;
   }
 
   private controls(): HTMLDivElement {
@@ -94,7 +172,7 @@ export class Menu {
   }
 
   private hideAll(): void {
-    for (const s of [this.loading, this.main, this.settingsScreen, this.overlay, this.pause]) s.classList.add('hidden');
+    for (const s of [this.loading, this.main, this.settingsScreen, this.overlay, this.pause, this.join]) s.classList.add('hidden');
   }
 
   showLoading(text?: string): void {

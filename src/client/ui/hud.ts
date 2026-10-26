@@ -150,6 +150,11 @@ export class Hud {
     this.root.classList.toggle('hidden', !v);
   }
 
+  /** Match layout: hides the range's drill line and results. */
+  setMatch(on: boolean): void {
+    this.root.classList.toggle('in-match', on);
+  }
+
   update(dt: number): void {
     if (this.hitTimer > 0) {
       this.hitTimer -= dt;

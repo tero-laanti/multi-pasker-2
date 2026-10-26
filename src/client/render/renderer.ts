@@ -230,6 +230,25 @@ export class Renderer {
     this.info.triangles = gl.info.render.triangles;
   }
 
+  /**
+   * Compiles the shaders of everything in both scenes, including objects that are hidden until
+   * something happens (muzzle flashes, the second weapon), so nothing compiles mid-fight.
+   */
+  warmup(): void {
+    const hidden: THREE.Object3D[] = [];
+    for (const scene of [this.scene, this.vmScene]) {
+      scene.traverse((o) => {
+        if (!o.visible) {
+          hidden.push(o);
+          o.visible = true;
+        }
+      });
+    }
+    this.gl.compile(this.scene, this.camera);
+    this.gl.compile(this.vmScene, this.vmCamera);
+    for (const o of hidden) o.visible = false;
+  }
+
   /** Debug: renders only the viewmodel scene from an orbit camera around `target`. */
   renderViewmodelOrbit(target: THREE.Vector3, yaw: number, pitch: number, dist: number, fov = 30): void {
     const cam = new THREE.PerspectiveCamera(fov, this.camera.aspect, 0.005, 10);

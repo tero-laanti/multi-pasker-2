@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { EFFECTS } from '../../shared/config';
 import { SURFACE } from '../../shared/map/types';
 import { makeRng } from '../../shared/math';
@@ -160,9 +161,26 @@ const SURFACE_STYLE: Record<number, { dust: [number, number, number]; chips: num
   [SURFACE.canvas]: { dust: [0.5, 0.52, 0.4], chips: 2, sparks: 0, decal: [0.4, 0.4, 0.35] },
 };
 
-/** Pooled impact effects: decals, dust and debris, sparks. */
+interface Tracer {
+  ox: number;
+  oy: number;
+  oz: number;
+  dx: number;
+  dy: number;
+  dz: number;
+  dist: number;
+  t: number;
+}
+
+const TRACER_SPEED = 520;
+const TRACER_LENGTH = 2.6;
+const MAX_TRACERS = 48;
+
+/** Pooled impact effects: decals, dust and debris, sparks, tracers. */
 export class Effects {
   readonly group = new THREE.Group();
+  private tracerMesh: THREE.InstancedMesh;
+  private tracers: Tracer[] = [];
   private decals: THREE.InstancedMesh;
   private decalIndex = 0;
   private decalCount = 0;
@@ -190,7 +208,47 @@ export class Effects {
     this.decals.frustumCulled = false;
     this.decals.receiveShadow = true;
     this.decals.renderOrder = 2;
-    this.group.add(this.decals, this.dust.points, this.sparks.points);
+    // Tracers: two crossed quads along the bullet path, visible from any side.
+    const quad = new THREE.PlaneGeometry(0.028, 1);
+    quad.rotateX(Math.PI / 2);
+    const cross = quad.clone().rotateZ(Math.PI / 2);
+    const geo = mergeGeometries([quad, cross])!;
+    this.tracerMesh = new THREE.InstancedMesh(
+      geo,
+      new THREE.MeshBasicMaterial({ color: 0xffd7a0, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
+      MAX_TRACERS,
+    );
+    this.tracerMesh.count = 0;
+    this.tracerMesh.frustumCulled = false;
+    this.tracerMesh.renderOrder = 3;
+    this.group.add(this.decals, this.dust.points, this.sparks.points, this.tracerMesh);
+  }
+
+  /** A fast streak along a remote player's shot. */
+  tracer(ox: number, oy: number, oz: number, ex: number, ey: number, ez: number): void {
+    const dist = Math.hypot(ex - ox, ey - oy, ez - oz);
+    if (dist < 3) return;
+    if (this.tracers.length >= MAX_TRACERS) this.tracers.shift();
+    this.tracers.push({ ox, oy, oz, dx: (ex - ox) / dist, dy: (ey - oy) / dist, dz: (ez - oz) / dist, dist, t: 0 });
+  }
+
+  private updateTracers(dt: number): void {
+    let n = 0;
+    this.tracers = this.tracers.filter((tr) => {
+      tr.t += dt;
+      const head = Math.min(tr.dist, tr.t * TRACER_SPEED);
+      const tail = Math.max(0, tr.t * TRACER_SPEED - TRACER_LENGTH);
+      if (tail >= tr.dist) return false;
+      const mid = (head + tail) / 2;
+      this.v.set(tr.dx, tr.dy, tr.dz);
+      this.q.setFromUnitVectors(this.up, this.v);
+      this.s.set(1, 1, Math.max(0.01, head - tail));
+      this.m.compose(this.v.set(tr.ox + tr.dx * mid, tr.oy + tr.dy * mid, tr.oz + tr.dz * mid), this.q, this.s);
+      this.tracerMesh.setMatrixAt(n++, this.m);
+      return true;
+    });
+    this.tracerMesh.count = n;
+    if (n > 0) this.tracerMesh.instanceMatrix.needsUpdate = true;
   }
 
   setViewportHeight(px: number, fovDeg: number): void {
@@ -358,5 +416,6 @@ export class Effects {
   update(dt: number): void {
     this.dust.update(dt);
     this.sparks.update(dt);
+    this.updateTracers(dt);
   }
 }

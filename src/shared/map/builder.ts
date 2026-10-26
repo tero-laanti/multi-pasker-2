@@ -81,6 +81,11 @@ export class MapBuilder {
     return this.add(brushFromPlanes(cylinderPlanes(cx, cz, r, y0, y1, sides), { mat, surface: surfaceOf(mat), flags }));
   }
 
+  /** Collision for a drawn prop (tree trunk, barrel): invisible itself, but hit like `surface`. */
+  propCollider(cx: number, cz: number, r: number, y0: number, y1: number, surface: MaterialId, sides = 8): Brush {
+    return this.add(brushFromPlanes(cylinderPlanes(cx, cz, r, y0, y1, sides), { mat: 'clip', surface: surfaceOf(surface), flags: MASK.ALL }));
+  }
+
   /** Invisible wall that only stops players. */
   clip(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): Brush {
     return this.box(x0, y0, z0, x1, y1, z1, 'clip', MASK.MOVE);
@@ -167,8 +172,8 @@ export class MapBuilder {
     this.props.push(p);
   }
 
-  spawn(x: number, y: number, z: number, yaw: number): void {
-    this.spawns.push({ x, y, z, yaw });
+  spawn(x: number, y: number, z: number, yaw: number, outer = false): void {
+    this.spawns.push({ x, y, z, yaw, outer: outer || undefined });
   }
 
   target(t: Omit<TargetDef, 'id'>): TargetDef {
@@ -177,7 +182,13 @@ export class MapBuilder {
     return def;
   }
 
-  build(id: string, bounds: MapData['bounds'], sunDir: [number, number, number]): MapData {
-    return { id, brushes: this.brushes, props: this.props, spawns: this.spawns, targets: this.targets, bounds, sunDir };
+  nav: { x: number; y: number; z: number }[] = [];
+
+  navPoint(x: number, z: number, y = 0): void {
+    this.nav.push({ x, y, z });
+  }
+
+  build(id: string, bounds: MapData['bounds'], sunDir: [number, number, number], extra: Partial<MapData> = {}): MapData {
+    return { id, brushes: this.brushes, props: this.props, spawns: this.spawns, targets: this.targets, bounds, sunDir, nav: this.nav, ...extra };
   }
 }
