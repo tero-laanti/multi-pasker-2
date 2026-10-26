@@ -260,7 +260,9 @@ export type GameEvent =
   /** Our place on the TJ ladder, for the HUD. */
   | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number; choice: boolean }
   /** End of round: the awards. */
-  | { k: 'awards'; list: AwardInfo[] };
+  | { k: 'awards'; list: AwardInfo[] }
+  /** A message arrived on this player's phone: anyone close by hears it chirp. */
+  | { k: 'chirp'; p: number };
 
 export type AwardId = 'winner' | 'deathsTyping' | 'longestDraft' | 'typos' | 'phoneTime' | 'pushups' | 'swedish';
 

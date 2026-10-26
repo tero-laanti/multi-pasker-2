@@ -292,6 +292,13 @@ export class MatchMode implements GameMode {
       case 'awards':
         this.awards = e.list;
         break;
+      case 'chirp': {
+        // Someone's phone pings: audible a few metres away, not across the map.
+        if (e.p === this.myId) break;
+        const rp = this.remotes.players.get(e.p);
+        if (rp?.present && rp.alive) g.deps.audio.playAt('phone_in', rp.s.x, rp.s.y + 1.2, rp.s.z, { volume: 0.55, refDistance: 1.5, rolloff: 1.6, maxDistance: 16 });
+        break;
+      }
       case 'upgrades': {
         g.weapons.upgrades = { ...e.u };
         if (e.id) {
@@ -458,6 +465,7 @@ export class MatchMode implements GameMode {
     }
 
     this.hud.health(this.alive ? this.hp : 0);
+    this.hud.score(this.players.get(this.myId)?.kills ?? 0);
     this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut);
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);

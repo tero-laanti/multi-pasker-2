@@ -23,6 +23,7 @@ export class PhoneNet {
   private draftPending: { conv: string; text: string } | null = null;
   private lastDraft = 0;
   private pingTimer = 0;
+  private lastHeard = 0;
   /** Whether a chat is open (the phone is in the player's hand); resent after reconnects. */
   private outState = false;
 
@@ -50,9 +51,15 @@ export class PhoneNet {
       const h = this.hello();
       if (h) ws.send(JSON.stringify({ t: 'phoneHello', v: this.version, ...h }));
       window.clearInterval(this.pingTimer);
-      this.pingTimer = window.setInterval(() => this.raw({ t: 'ping', id: 0 }), 5000);
+      this.lastHeard = performance.now();
+      this.pingTimer = window.setInterval(() => {
+        // Nothing heard for a while: the connection is dead even if the socket says open.
+        if (performance.now() - this.lastHeard > 15000) ws.close();
+        else this.raw({ t: 'ping', id: 0 });
+      }, 5000);
     };
     ws.onmessage = (ev) => {
+      this.lastHeard = performance.now();
       let m: PhoneServerMsg;
       try {
         m = JSON.parse(String(ev.data)) as PhoneServerMsg;

@@ -165,6 +165,8 @@ function kasarmi(m: MapBuilder): void {
   m.wall('z', x0, 0, z0 + t, z1 - z0 - 2 * t, H, t, 'brick', [{ at: 6.3, width: 1.4, bottom: 0, top: 2.3 }]);
   m.wall('z', x1 - t, 0, z0 + t, z1 - z0 - 2 * t, H, t, 'brick', [{ at: 6.3, width: 1.4, bottom: 0, top: 2.3 }]);
   m.box(x0 + t, 3.2, z0 + t, x1 - t, 3.5, z1 - t, 'concrete');
+  // Painted ceiling under the upper floor.
+  m.box(x0 + t, 3.15, z0 + t, x1 - t, 3.2, z1 - t, 'plaster');
   m.box(x0 + t, 0, z0 + t, x1 - t, 0.05, z1 - t, 'concrete');
   m.prism(x0 - 0.4, H, z0 - 0.4, x1 + 0.4, 9.2, z1 + 0.4, 'x', 'roofTin');
   // Corridor and rooms on the ground floor.

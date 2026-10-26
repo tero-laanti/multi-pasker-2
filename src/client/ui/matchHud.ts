@@ -46,6 +46,15 @@ export class MatchHud {
   private timerText: HTMLDivElement;
   private ladderLine: HTMLDivElement;
   private taskLine: HTMLDivElement;
+  private kills = 0;
+  private lastLadder: [number, number, boolean, number, boolean] = [0, 6, false, 0, false];
+
+  /** Our kills this round (the score) next to rank and TJ. */
+  score(kills: number): void {
+    if (kills === this.kills) return;
+    const [r, tj, open, queued, choice] = this.lastLadder;
+    this.ladder(r, tj, open, queued, choice, kills);
+  }
   private board: HTMLDivElement;
   private death: HTMLDivElement;
   private deathTitle: HTMLDivElement;
@@ -160,9 +169,11 @@ export class MatchHud {
   }
 
   /** Rank and TJ under the round timer, and whether a task or an upgrade waits on the phone. */
-  ladder(rank: number, tj: number, open: boolean, queued: number, choice: boolean): void {
+  ladder(rank: number, tj: number, open: boolean, queued: number, choice: boolean, kills = this.kills): void {
+    this.lastLadder = [rank, tj, open, queued, choice];
+    this.kills = kills;
     const r = FI.ranks[rank] ?? FI.ranks[0]!;
-    const head = `${r[0]!.toUpperCase()}${r.slice(1)} · TJ ${tj}`;
+    const head = `${r[0]!.toUpperCase()}${r.slice(1)} · TJ ${tj} · ${fill(kills === 1 ? UI.hud.kill1 : UI.hud.kills, { n: kills })}`;
     const task = choice ? UI.hud.upgradeWaiting : open ? UI.hud.taskOpen + (queued > 0 ? ` · ${fill(UI.hud.taskQueued, { n: queued })}` : '') : '';
     if (this.changed('ladder', head + task)) {
       this.ladderLine.textContent = head;

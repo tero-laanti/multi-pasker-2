@@ -103,6 +103,8 @@ export const UI = {
     phoneOffline: 'Phone offline',
     phoneOnline: 'Phone',
     taskOpen: '📱 Task open on your phone',
+    kills: '{n} kills',
+    kill1: '1 kill',
     taskQueued: '{n} more queued',
     upgradeWaiting: '📱 Upgrade waiting on your phone',
     upgradeTaken: '{name} — {benefit}',

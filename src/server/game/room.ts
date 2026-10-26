@@ -130,6 +130,7 @@ export class Room {
       p.isHost = isHost;
       p.newSerials();
       p.phone.pairCode = this.freePairCode();
+      this.chirps(p);
       this.players.set(p.id, p);
       this.respawn(p);
       this.updateGate();
@@ -154,6 +155,14 @@ export class Room {
     p.outbox.push({ k: 'upgrades', u: { ...p.ladder.upgrades } });
     p.phone.sendStatus(p.phoneStatus(this.round.n));
     return p;
+  }
+
+  /** A message landing on someone's phone chirps where they stand (alive only). */
+  private chirps(p: ServerPlayer): void {
+    const owner = p;
+    p.phone.onIncoming = () => {
+      if (owner.alive) this.emit({ k: 'chirp', p: owner.id });
+    };
   }
 
   private freePairCode(): string {
@@ -359,6 +368,7 @@ export class Room {
     const name = BOT_NAMES.find((n) => !used.has(`${n}`)) ?? `Botti${this.bots.length + 1}`;
     const p = new ServerPlayer(this.freeId(), randomUUID(), name, this.freeColor(), true);
     p.newSerials();
+    this.chirps(p);
     this.players.set(p.id, p);
     const bot = new Bot(p, this);
     this.bots.push(bot);

@@ -391,6 +391,28 @@ export class Effects {
     this.decal(x, y + 0.002, z, 0, 1, 0, 2.2, 1);
   }
 
+  /** A slow puff of wood smoke (tent stoves). */
+  stoveSmoke(x: number, y: number, z: number): void {
+    const rnd = () => Math.random() * 2 - 1;
+    this.dust.emit({
+      x: x + rnd() * 0.04,
+      y,
+      z: z + rnd() * 0.04,
+      vx: 0.25 + rnd() * 0.1,
+      vy: 0.55 + Math.random() * 0.25,
+      vz: rnd() * 0.12,
+      max: 3.2 + Math.random() * 1.2,
+      size: 0.16,
+      grow: 1.1,
+      r: 0.48,
+      g: 0.47,
+      b: 0.46,
+      a: 0.34,
+      gravity: -0.05,
+      drag: 0.35,
+    });
+  }
+
   muzzleSmoke(x: number, y: number, z: number, dx: number, dy: number, dz: number): void {
     for (let i = 0; i < 2; i++) {
       this.dust.emit({

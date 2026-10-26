@@ -141,6 +141,8 @@ export class Game {
   private tailVoice: AudioBufferSourceNode | null = null;
   readonly forward = new THREE.Vector3();
   private blast: { x: number; y: number; z: number; t: number } | null = null;
+  /** Tent stove pipes that smoke, and when each puffs next. */
+  private chimneys: { x: number; y: number; z: number; next: number }[] = [];
   private shake = 0;
   private up = new THREE.Vector3();
 
@@ -160,6 +162,7 @@ export class Game {
     this.grenades = new Grenades(this.world, deps.audio);
     this.root.add(this.grenades.group);
     this.viewmodel = deps.viewmodel;
+    this.chimneys = map.props.filter((pr) => pr.kind === 'chimney').map((c) => ({ x: c.x, y: c.y + 1.8, z: c.z, next: Math.random() }));
     const sp = map.spawns[0]!;
     this.move = newMoveState(sp.x, sp.y + 0.02, sp.z);
     this.yaw = sp.yaw;
@@ -504,6 +507,12 @@ export class Game {
     }
     this.sunShade = damp(this.sunShade, this.shadeTarget, 8, dt);
 
+    for (const c of this.chimneys) {
+      c.next -= dt;
+      if (c.next > 0) continue;
+      c.next = 0.35 + Math.random() * 0.2;
+      if (Math.hypot(c.x - cam.position.x, c.z - cam.position.z) < 90) this.effects.stoveSmoke(c.x, c.y, c.z);
+    }
     this.effects.update(dt);
     this.effects.setViewportHeight(renderer.gl.domElement.height, cam.fov);
     this.props.update(this.time);

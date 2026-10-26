@@ -37,6 +37,8 @@ export class Phone {
   private queue: Scheduled[] = [];
   private nextId = 1;
   private lastStatus = '';
+  /** Called when a message arrives from the other side (the chirp others can hear). */
+  onIncoming: () => void = () => {};
 
   get paired(): boolean {
     return this.token !== '';
@@ -82,7 +84,10 @@ export class Phone {
     if (!c) return;
     c.messages.push(m);
     if (c.messages.length > 200) c.messages.splice(0, c.messages.length - 200);
-    if (m.from === 'them') c.unread++;
+    if (m.from === 'them') {
+      c.unread++;
+      this.onIncoming();
+    }
     this.send({ t: 'msg', conv: convId, m });
   }
 

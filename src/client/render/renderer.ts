@@ -105,7 +105,7 @@ export class Renderer {
     this.sky.frustumCulled = false;
     this.scene.add(this.sky);
 
-    this.hemi = new THREE.HemisphereLight(0xc4dcf2, 0x6b6a4c, 1.15);
+    this.hemi = new THREE.HemisphereLight(0xc4dcf2, 0x8a887c, 1.15);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff1dc, 3.1);
     this.sun.castShadow = true;
@@ -145,7 +145,7 @@ export class Renderer {
     const envScene = new THREE.Scene();
     const sky = new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), skyMaterial(this.sunDir));
     envScene.add(sky);
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(9, 24), new THREE.MeshBasicMaterial({ color: 0x5d6a45 }));
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(9, 24), new THREE.MeshBasicMaterial({ color: 0x7a776a }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -1.5;
     envScene.add(ground);

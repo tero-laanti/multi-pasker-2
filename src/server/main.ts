@@ -72,10 +72,30 @@ async function main(): Promise<void> {
   });
 
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false, maxPayload: 1 << 20 });
+  // Heartbeat: a phone that drops off the Wi-Fi without closing its socket would otherwise look
+  // connected for minutes. Browsers answer protocol pings by themselves.
+  const alive = new WeakMap<WebSocket, boolean>();
+  wss.on('connection', (ws) => {
+    alive.set(ws, true);
+    ws.on('pong', () => alive.set(ws, true));
+  });
+  setInterval(() => {
+    for (const ws of wss.clients) {
+      if (alive.get(ws) === false) {
+        ws.terminate();
+        continue;
+      }
+      alive.set(ws, false);
+      ws.ping();
+    }
+  }, 5000).unref();
   server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url ?? '/', 'http://x');
     if (url.pathname !== '/ws') return; // Vite's HMR socket handles its own upgrades in dev.
-    wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req));
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+      onConnection(ws, req);
+    });
   });
 
   // The evening scoreboard lives in data/ (not in git) and survives restarts. A server on another

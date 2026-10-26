@@ -33,6 +33,7 @@ export class Net {
   private offset = NaN;
   private pingTimer = 0;
   private retry = 0;
+  private lastHeard = 0;
   private snapTimes: number[] = [];
   private arrivalDev: number[] = [];
   /** Delivery time of the last delayed message per direction: delays never reorder (like TCP). */
@@ -46,7 +47,12 @@ export class Net {
     ws.onopen = () => {
       this.stats.connected = true;
       this.retry = 0;
-      this.pingTimer = window.setInterval(() => this.ping(), NET.pingInterval * 1000);
+      this.lastHeard = performance.now();
+      this.pingTimer = window.setInterval(() => {
+        // A server that went quiet (sleep, cable, Wi-Fi) is treated as gone: reconnect.
+        if (performance.now() - this.lastHeard > 6000) ws.close();
+        else this.ping();
+      }, NET.pingInterval * 1000);
       this.ping();
       this.onOpen();
     };
@@ -59,7 +65,10 @@ export class Net {
       const delay = Math.min(5000, 300 * 2 ** this.retry++);
       window.setTimeout(() => this.connect(), delay);
     };
-    ws.onmessage = (ev) => this.delayed('in', () => this.receive(ev.data));
+    ws.onmessage = (ev) => {
+      this.lastHeard = performance.now();
+      this.delayed('in', () => this.receive(ev.data));
+    };
   }
 
   /** Server clock estimate (ms), from the median of recent ping offsets. */
