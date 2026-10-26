@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { lanCandidates, pickLanAddress } from '../src/server/lan';
+import { isOwnAddress, lanCandidates, pickLanAddress } from '../src/server/lan';
 import { applyTuning } from '../src/server/tuningWriter';
 
 const iface = (address: string) => [{ address, family: 'IPv4', internal: false, netmask: '255.255.255.0', mac: '00:00:00:00:00:00', cidr: null }] as never;
@@ -33,6 +33,23 @@ describe('LAN address', () => {
   it('honours an override and never returns loopback', () => {
     expect(pickLanAddress('10.0.0.5', {} as never)).toBe('10.0.0.5');
     expect(pickLanAddress(undefined, { lo0: [{ address: '127.0.0.1', family: 'IPv4', internal: true }] } as never)).toBeNull();
+  });
+
+  it('knows a browser on the server machine by any of its own addresses', () => {
+    const ifaces = {
+      lo0: [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
+      en0: [
+        { address: '192.168.68.119', family: 'IPv4', internal: false },
+        { address: 'fe80::1c2b:3a4d%en0', family: 'IPv6', internal: false },
+      ],
+    } as never;
+    expect(isOwnAddress('127.0.0.1', ifaces)).toBe(true);
+    expect(isOwnAddress('::1', ifaces)).toBe(true);
+    expect(isOwnAddress('::ffff:192.168.68.119', ifaces)).toBe(true);
+    expect(isOwnAddress('192.168.68.119', ifaces)).toBe(true);
+    expect(isOwnAddress('fe80::1c2b:3a4d%en0', ifaces)).toBe(true);
+    expect(isOwnAddress('::ffff:192.168.68.120', ifaces)).toBe(false);
+    expect(isOwnAddress('', ifaces)).toBe(false);
   });
 });
 

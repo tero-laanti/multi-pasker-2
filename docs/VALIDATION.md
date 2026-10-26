@@ -1,20 +1,22 @@
 # Validation: what was tested, and what wasn't
 
-The state at milestone 7. Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
+The state after the Checkpoint B feedback (milestone 7 plus the training, spare magazines and
+held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 107 passing
+## Automated tests (`npm test`): 118 passing
 
 | Area | What the tests check |
 |---|---|
 | Collision and movement | Box traces against every brush kind, slide moves, steps, ground snap, crouch, jump, the ledge assist, identical results at any frame rate |
-| Weapons | Fire rates, magazines, damage presets, recoil pattern, spread, reload timing, time to kill; the phone-out penalty (no ADS, wider hip spread) |
-| Grenades | Bounces, fuse, blast blocked by cover |
+| Weapons | Fire rates, magazines, damage presets, recoil pattern, spread, reload timing, time to kill; the phone-out penalty (no ADS, wider hip spread); the spare magazine (R takes it once, an empty trigger reloads, nothing left clicks) |
+| Grenades | Bounces, fuse, blast blocked by cover; held while G is down and thrown when it is let go, a tap throws once the pin is out, a pause puts it back |
 | Range | Targets, drills, scoring |
 | Garrison | Spawns and navigation points are clear of solids, the nav graph is connected, the gate brush |
-| Match server | Rewind hits where the target was at the shooter's render time, cover blocks a claimed hit, fire rate and ammo caps, headshots, respawn, regeneration, reload refill timing, token rejoin, 15 bots fighting for a minute within the tick budget, rounds and intermission |
+| Match server | Rewind hits where the target was at the shooter's render time, cover blocks a claimed hit, fire rate and ammo caps, headshots, respawn, regeneration, reload refill timing, R taking only what the magazine needs from the spare, LATAA filling every magazine and spare (also during an R reload), token rejoin, 15 bots fighting for a minute within the tick budget, rounds and intermission; a browser on the server machine counts as the host by any of its addresses |
+| Training | A first-timer stays out of the match (no spawn, no snapshots, not counted, no awards or evening) until they deploy; the radio check sent when the phone is picked up (or right away if already paired), only YK answers it, then LATAA and KRANAATTI work for the range's guns |
 | Interpolation | Per-player timelines with state age, extrapolation cap, no blending across respawns, held states taking server-side changes, the adaptive delay and its render clock |
-| Phone and varusmestari | Pairing by QR token and code, replacement with a notice on both, token resume, the simulator refused outside development; LATAA reloads only the sender, refuses a full magazine and never stacks; KRANAATTI carry limit and cooldown; duplicate request ids act once; requests from the dead, a previous life or an old round do nothing; a round restart; the PUNNERRETTU lockout; the typo feed's one-line-per-1.5 s rate limit preferring longer messages and keeping valid commands private; kill-feed drafts; the phone-in-hand flag exactly while a chat is open; command matching (case, spacing, punctuation, near misses, swearing, languages, greetings, numbers) |
+| Phone and varusmestari | Pairing by QR token and code, replacement with a notice on both, token resume, the simulator refused outside development; LATAA refills only the sender, refuses when everything is full and never stacks; KRANAATTI carry limit and cooldown; duplicate request ids act once; requests from the dead, a previous life or an old round do nothing; a round restart; the PUNNERRETTU lockout; the typo feed's one-line-per-1.5 s rate limit preferring longer messages and keeping valid commands private; kill-feed drafts; the phone-in-hand flag exactly while a chat is open; command matching (case, spacing, punctuation, near misses, swearing, languages, greetings, numbers) |
 | TJ ladder | First offer on the first kill or death, every 3rd kill and every 3rd death on separate counters, self-kills don't count; codes unique between players; one open task with a queue; every stage 1–6 including the office number opened by hand, the 17-digit number and its voice note, the serial number, the Swedish stage and "svara på svenska"; TJ 0; munkkikahvit; upgrade choice applied once; round reset; upgrade weapon numbers |
 | Awards and evening | Each award to the right player, nothing for nothing, the evening scoreboard adding rounds, surviving a restart (file), leaving bots out |
 | First-person hands | No glove vertex inside either weapon, no crossing triangles, in every held and reload pose (exact mesh test) |
@@ -28,6 +30,13 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   chat is open and put away after sending, LATAA reloading the right player, a typo appearing in
   the desktop typo feed with the reply, a new chat to a number that doesn't exist, the phone page
   reloaded and resumed with its conversations.
+- `tools/e2e/tutorial-flow.ts`: the training with a first-time desktop and an emulated phone: the
+  walk (on the keyboard), the target knocked down, R finding no spare, E on the phone, the pairing
+  screen freeing the mouse without the pause menu, the QR pairing, the radio check on the phone,
+  YK typed on its keyboard filling magazine and spare (12 + 12), *Go to the match* spawning the
+  player; a second first-timer skipping the phone gets the no-phone texts in the match.
+- The dev panel from Esc and F2, in a browser on the server machine using its LAN address: *Add
+  bot* adds a bot (before the fix the server ignored it).
 - `tools/e2e/ladder-flow.ts`: all six ladder stages through the phone's own keyboard: codes read
   from the chat and typed, the upgrade screen, the office number opened by hand, the voice note
   fetched as a 9–10 s WAV with byte ranges and played, the serial number from the desktop, a
@@ -56,11 +65,12 @@ compiles mid-fight (earlier hitches came from the test tool's screenshots, not t
 
 ## Not verified
 
-- **Real phones.** No iPhone or Android device was available. The phone app was tested with
-  Chrome's mobile emulation and WebKit at common portrait sizes. Still unproven on real devices:
-  keeping the screen awake with the looping video, `<audio>` with the silent switch,
-  reconnecting after a screen lock, touch latency, and the custom keyboard under fast thumbs.
-  This is what Checkpoint B ([CHECKPOINT-B.md](CHECKPOINT-B.md)) is for.
+- **Real phones.** I had no phones myself; the app was tested with Chrome's mobile emulation and
+  WebKit. The host then ran Checkpoint B ([CHECKPOINT-B.md](CHECKPOINT-B.md)) with real players
+  and phones and reported that the game worked smoothly; what they reported (the dev panel, the
+  grenade, the ammo model) is changed above. The checklist's single items (screen-lock
+  reconnects, the silent switch) weren't reported one by one, and the training hasn't been
+  played on real phones yet.
 - **Integrated GPUs and Windows hosts.** Performance was measured only on the M1 Max; the *Low*
   preset exists but hasn't been measured on weak hardware. Windows Firewall and guest-network
   advice in the README comes from documentation, not a test.
@@ -76,10 +86,11 @@ compiles mid-fight (earlier hitches came from the test tool's screenshots, not t
 | Movement | walk 5.2 m/s, sprint 7.6 m/s, crouch 2.6 m/s, gravity 18.5 m/s² |
 | Pistol | 400 rpm cap, magazine 12, reload 1.2 s (empty 1.4 s), ADS 0.2 s |
 | Rifle | 600 rpm, magazine 30, reload 1.35 s (empty 1.5 s), ADS 0.24 s |
+| Ammo | one spare magazine per gun at spawn; LATAA fills magazines and spares |
 | Damage, CoD preset | pistol 25 body / 50 head; rifle 20 → 17 body with range, 30 head |
 | Damage, Scramble preset | pistol 17 / 34; rifle 13 → 11 / 20 |
 | Player | 100 health, regeneration after 4.5 s at 40/s, respawn 2.5 s, spawn protection 1 s |
-| Grenade | 2.5 s fuse, carry 1 (2 with Kranaattivyö), supply cooldown 15 s |
+| Grenade | 2.5 s fuse (starts when thrown, not while held), pin pull 0.28 s, carry 1 (2 with Kranaattivyö), supply cooldown 15 s |
 | Phone in hand | hip spread ×1.8 + 3.5°, recoil ×1.5, speed ×0.92, no ADS, raise 0.3 s |
 | Rounds | 4 minutes, 12 s intermission; outer-ring gate opens above 8 players |
 | Ladder | offer every 3 kills and every 3 deaths, +1 per 4 players above 6 |

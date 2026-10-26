@@ -42,6 +42,12 @@ export function buildRange(): MapData {
   });
   m.prop({ kind: 'sign', x: 0, y: 3.85, z: -1.2, text: S.title, size: 1.6 });
 
+  // The duty table against the back wall, where the training's phone waits.
+  m.box(4.8, 0.86, 6.2, 6.2, 0.94, 6.9, 'planks');
+  m.box(4.85, 0.12, 6.25, 4.99, 0.86, 6.85, 'planks');
+  m.box(6.01, 0.12, 6.25, 6.15, 0.86, 6.85, 'planks');
+  m.prop({ kind: 'sign', x: 5.5, y: 2.05, z: 7.18, yaw: Math.PI, text: S.duty, size: 0.6 });
+
   // Distance markers along the left side.
   for (const d of [10, 25, 50]) m.prop({ kind: 'sign', x: -19.5, y: 0.9, z: -d, yaw: Math.PI / 2, text: `${d} m`, size: 0.7 });
 

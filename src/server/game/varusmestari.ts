@@ -8,6 +8,12 @@ import type { Room } from './room';
 
 const V = FI.varusmestari;
 
+/** YK (yhteyskoe, the radio check), however it was typed. */
+export function isRadioCheckReply(text: string): boolean {
+  const t = normalize(text).replace(/\s+/g, '');
+  return t === 'YK' || t === 'YHTEYSKOE';
+}
+
 function pick(list: readonly string[]): string {
   return list[Math.floor(Math.random() * list.length)] ?? '';
 }
@@ -38,6 +44,14 @@ interface Decision {
  */
 export class Varusmestari {
   constructor(private room: Room) {}
+
+  /** The tutorial's radio check: the first text on the range, answered with YK. */
+  radioCheck(p: ServerPlayer): void {
+    if (p.radioCheck === 'waiting' || p.radioCheck === 'done') return;
+    p.radioCheck = 'waiting';
+    p.phone.conv(V.number, V.name);
+    this.post(p, V.number, pick(FI.training.radioCheck));
+  }
 
   /** Opens the asevarasto chat with the instructions (they stay in the history). */
   greet(p: ServerPlayer): void {
@@ -149,6 +163,20 @@ export class Varusmestari {
     const last = phone.recent.slice(-PHONE.spamRepeat);
     const spam = phone.recent.length >= PHONE.spamCount || (last.length === PHONE.spamRepeat && last.every((r) => r.text === last[0]!.text));
 
+    // On the range: the radio check first, then LATAA and KRANAATTI for the range's own guns.
+    if (p.training) {
+      if (p.radioCheck === 'waiting') {
+        if (!isRadioCheckReply(text)) return { reply: say(FI.training.radioCheckWrong), public: false, command: false };
+        p.radioCheck = 'done';
+        p.outbox.push({ k: 'training', what: 'radioCheck' });
+        return ok(say(FI.training.radioCheckOk));
+      }
+      if (c.kind === 'command' && !phone.locked && (c.cmd === 'LATAA' || c.cmd === 'KRANAATTI')) {
+        p.outbox.push({ k: 'training', what: c.cmd === 'LATAA' ? 'ammo' : 'grenade' });
+        return ok(say(c.cmd === 'LATAA' ? V.reloadOk : V.grenadeOk));
+      }
+    }
+
     if (phone.locked) {
       if (c.kind === 'command' && c.cmd === 'PUNNERRETTU') {
         phone.locked = false;
@@ -191,7 +219,7 @@ export class Varusmestari {
     if (req.round !== this.room.round.n) return ok(say(V.oldRound));
     if (!p.alive || req.life !== p.life) return answer(V.dead);
     if (c.cmd === 'LATAA') {
-      const r = this.room.startReload(p);
+      const r = this.room.startReload(p, 'armoury');
       if (r === 'full') return ok(say(V.reloadFull));
       if (r === 'busy') return ok(say(V.reloadBusy));
       if (r === 'dead') return answer(V.dead);

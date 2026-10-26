@@ -12,6 +12,8 @@ export interface Reload {
   refillAt: number;
   end: number;
   refilled: boolean;
+  /** From the armoury (LATAA): fills the magazine without touching the spare. */
+  full: boolean;
 }
 
 /** Everything the server knows about one player (human or bot). */
@@ -36,6 +38,8 @@ export class ServerPlayer {
   protectedUntil = 0;
   owned: WeaponId[] = ['pistol'];
   ammo: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
+  /** Spare rounds per gun (the spare magazine). */
+  reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
   lastShotAt: Record<WeaponId, number> = { pistol: -1e9, rifle: -1e9 };
   reload: Reload | null = null;
   grenades = 0;
@@ -53,6 +57,10 @@ export class ServerPlayer {
   leftAt = 0;
   /** Connected from the server machine itself: allowed to use dev commands. */
   isHost = false;
+  /** On the shooting range (the tutorial): connected, but not in the match. */
+  training = false;
+  /** The tutorial's radio check: armed when the phone is picked up, sent once one is paired. */
+  radioCheck: 'none' | 'armed' | 'waiting' | 'done' = 'none';
   /** Round-trip time reported by the client (ms). */
   rtt = 0;
   /** Sequence number of the last fire message received. */
@@ -99,6 +107,7 @@ export class ServerPlayer {
       phone: this.phone.status(),
       rank: this.rank,
       upgrades: { ...this.ladder.upgrades },
+      training: this.training,
     };
   }
 
@@ -111,7 +120,7 @@ export class ServerPlayer {
     const l = this.ladder;
     return {
       name: this.name,
-      alive: this.alive,
+      alive: this.alive || this.training,
       life: this.life,
       round,
       grenades: this.grenades,
@@ -136,10 +145,18 @@ export class ServerPlayer {
     for (const w of ['pistol', 'rifle'] as WeaponId[]) this.serials[w] = String(100000 + Math.floor(Math.random() * 900000));
   }
 
-  /** Fresh life: full magazines in every owned weapon, no grenades, no reload in progress. */
+  /** Spare rounds a gun carries when stocked up. */
+  spare(w: WeaponId): number {
+    return this.gun(w).magazine * TUNING.ammo.spareMagazines;
+  }
+
+  /** Fresh life: a full magazine and the spare in every gun, no grenades, no reload in progress. */
   resetLife(): void {
     this.hp = TUNING.player.health;
-    for (const w of this.owned) this.ammo[w] = this.gun(w).magazine;
+    for (const w of ['pistol', 'rifle'] as WeaponId[]) {
+      this.ammo[w] = this.gun(w).magazine;
+      this.reserve[w] = this.spare(w);
+    }
     this.maxGrenades = maxGrenades(this.ladder.upgrades);
     this.reload = null;
     this.grenades = 0;

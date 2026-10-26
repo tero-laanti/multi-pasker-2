@@ -4,8 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { NET, TUNING } from '../shared/config';
-import { AudioFolder, isLoopback, readBody, safeJoin, sendBuffer, sendFile, sendJson } from './http';
-import { lanCandidates, pickLanAddress } from './lan';
+import { AudioFolder, fromHostMachine, readBody, safeJoin, sendBuffer, sendFile, sendJson } from './http';
+import { isOwnAddress, lanCandidates, pickLanAddress } from './lan';
 import { applyTuning, type TuningTree } from './tuningWriter';
 import { buildGarrison } from '../shared/map/garrison';
 import { Room } from './game/room';
@@ -168,8 +168,8 @@ async function handleRequest(
     return;
   }
   if (p === '/dev/tuning' && req.method === 'POST') {
-    if (!isLoopback(req)) {
-      sendJson(res, 403, { error: 'Saving only works on the server machine (localhost).' });
+    if (!fromHostMachine(req)) {
+      sendJson(res, 403, { error: 'Saving only works on the server machine.' });
       return;
     }
     const body = JSON.parse(await readBody(req)) as TuningTree;
@@ -238,7 +238,7 @@ let nextClientId = 1;
 function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
   const id = nextClientId++;
   const addr = req.socket.remoteAddress ?? '';
-  const isHost = addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+  const isHost = isOwnAddress(addr);
   console.log(`[ws] connection #${id} from ${addr}`);
   let player: ServerPlayer | null = null;
   /** Set when this connection is a phone: the player it belongs to. */

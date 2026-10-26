@@ -364,14 +364,14 @@ export class ViewModel {
 
     this.updateCasings(dt);
 
-    // Grenade in view from the start of the throw until it leaves the hand.
-    const throwing = w.state === 'throwing' && w.progress < THROW_RELEASE;
-    this.heldGrenade.visible = throwing;
-    if (throwing) {
-      const k = w.progress / THROW_RELEASE;
-      const rise = Math.min(1, k / 0.55);
-      const fling = Math.max(0, (k - 0.55) / 0.45);
-      this.heldGrenade.position.set(-0.2 + 0.06 * rise + 0.08 * fling, -0.3 + 0.16 * rise + 0.08 * fling, -0.42 - 0.02 * rise - 0.25 * fling);
+    // The grenade in view: up as the pin comes out, held while G is down, flung when it is let go.
+    const held = w.state === 'priming' || w.state === 'holding' || (w.state === 'throwing' && w.progress < THROW_RELEASE);
+    this.heldGrenade.visible = held;
+    if (held) {
+      const rise = w.state === 'priming' ? smoothstep(0, 1, w.progress) : 1;
+      const fling = w.state === 'throwing' ? w.progress / THROW_RELEASE : 0;
+      const sway = w.state === 'holding' ? Math.sin(this.time * 2.1) * 0.004 : 0;
+      this.heldGrenade.position.set(-0.2 + 0.06 * rise + 0.08 * fling, -0.3 + 0.16 * rise + 0.08 * fling + sway, -0.42 - 0.02 * rise - 0.25 * fling);
       this.heldGrenade.rotation.set(-0.4 - 1.2 * fling, 0.3, 0.2);
     }
   }
@@ -434,7 +434,7 @@ export class ViewModel {
    * lower left of the view. While the left hand is needed (reloads, throws) the phone dips away.
    */
   private phonePose(p: Pose, w: WeaponController, dt: number, alpha: number): void {
-    const busy = w.state === 'reloading' || w.state === 'throwing';
+    const busy = w.state === 'reloading' || w.grenadeBusy;
     const goal = busy ? 0 : lerp(w.phonePrev, w.phone, alpha);
     this.phoneK = damp(this.phoneK, goal, busy ? 14 : 10, dt);
     if (Math.abs(this.phoneK - goal) < 0.002) this.phoneK = goal;
@@ -637,14 +637,11 @@ export class ViewModel {
         lh.visible = m.supportHandAtRest && show < 0.98;
         break;
       }
+      case 'priming':
+      case 'holding':
       case 'throwing': {
-        // The gun dips out of the way while the other hand throws.
-        const k = curve(t, [
-          [0, 0],
-          [0.3, 1],
-          [0.6, 1],
-          [1, 0],
-        ]);
+        // The gun dips out of the way while the other hand has the grenade.
+        const k = w.state === 'priming' ? smoothstep(0, 0.8, t) : w.state === 'holding' ? 1 : 1 - smoothstep(0.45, 1, t);
         p.y -= 0.1 * k;
         p.pitch -= 0.45 * k;
         p.roll += 0.3 * k;

@@ -42,6 +42,9 @@ interface Death {
   weapon: WeaponId | 'grenade';
 }
 
+/** What still matters while we are on the range rather than in the match. */
+const RANGE_EVENTS = new Set<GameEvent['k']>(['training', 'phoneOut', 'paired', 'round', 'upgrades', 'ladder', 'serials']);
+
 /** Distance beyond which remote gunshots use the distant layer. */
 const FAR_SHOT = 38;
 
@@ -65,7 +68,13 @@ export class MatchMode implements GameMode {
   /** How to pair a phone with us; null until the server says. */
   pairInfo: PairInfo | null = null;
   dev = false;
+  /** The server takes our dev commands. */
+  devAllowed = false;
+  /** Still on the range: the match's sounds and feeds stay quiet. */
+  training = false;
   onPairInfo: (info: PairInfo) => void = () => {};
+  /** Asevarasto's answers on the range (the radio check, LATAA, KRANAATTI). */
+  onTraining: (what: 'radioCheck' | 'ammo' | 'grenade') => void = () => {};
   readonly remotes: Remotes;
   private stateSeq = 0;
   private fireSeq = 0;
@@ -83,7 +92,7 @@ export class MatchMode implements GameMode {
     private game: Game,
     private net: Net,
     private hud: MatchHud,
-    private identity: { name: string; token?: string },
+    private identity: { name: string; token?: string; train?: boolean },
   ) {
     this.remotes = new Remotes(game.world, game.deps.audio, () => this.myId);
     game.root.add(this.remotes.group);
@@ -99,7 +108,7 @@ export class MatchMode implements GameMode {
 
   /** Joins (or rejoins with the token) over the current connection. */
   hello(): void {
-    this.net.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.identity.name, token: this.identity.token });
+    this.net.send({ t: 'hello', v: PROTOCOL_VERSION, name: this.identity.name, token: this.identity.token, train: this.identity.train });
   }
 
   /** The connection dropped: we are out until the server welcomes us again. */
@@ -110,6 +119,13 @@ export class MatchMode implements GameMode {
 
   leave(): void {
     this.net.send({ t: 'leave' });
+  }
+
+  /** Off the range and into the match (and so on reconnects too). */
+  deploy(): void {
+    this.identity.train = false;
+    this.training = false;
+    this.net.send({ t: 'deploy' });
   }
 
   send(msg: ClientMsg): void {
@@ -126,6 +142,8 @@ export class MatchMode implements GameMode {
         this.setRound(msg.round);
         this.game.devDirectReload = msg.dev;
         this.dev = msg.dev;
+        this.devAllowed = msg.host;
+        this.training = msg.training;
         break;
       case 'evening':
         this.evening = msg.rows;
@@ -190,7 +208,14 @@ export class MatchMode implements GameMode {
   private onEvent(e: GameEvent): void {
     const g = this.game;
     const { audio, hud } = g.deps;
+    if (this.training && !RANGE_EVENTS.has(e.k)) return;
     switch (e.k) {
+      case 'training':
+        this.onTraining(e.what);
+        break;
+      case 'phoneOut':
+        this.phoneOut = e.on;
+        break;
       case 'shot':
         if (e.p !== this.myId) this.remoteShot(e);
         break;
@@ -227,7 +252,7 @@ export class MatchMode implements GameMode {
       case 'spawn':
         if (e.p === this.myId) {
           g.teleport(e.x, e.y, e.z, e.yaw);
-          g.weapons.resetLife(e.weapons, e.ammo);
+          g.weapons.resetLife(e.weapons, e.ammo, e.reserve);
           this.alive = true;
           this.hp = TUNING.player.health;
           this.death = null;
@@ -240,10 +265,11 @@ export class MatchMode implements GameMode {
         // Shots we fired after the server's count still come off it.
         const after = e.seq === undefined ? 0 : this.pendingShots.filter((s) => s.w === e.w && s.seq > e.seq!).length;
         g.weapons.ammo[e.w] = Math.max(0, e.n - after);
+        g.weapons.reserve[e.w] = e.r;
         break;
       }
       case 'reload':
-        g.weapons.serverReload(e.w, e.empty, e.dur);
+        g.weapons.serverReload(e.w, e.empty, e.dur, e.full);
         break;
       case 'grenades':
         g.weapons.grenades = e.n;
@@ -387,7 +413,7 @@ export class MatchMode implements GameMode {
     if (w.ads > 0.5) flags |= PF.ADS;
     if (m.onGround) flags |= PF.GROUND;
     if (w.state === 'inspecting') flags |= PF.INSPECT;
-    if (w.state === 'throwing') flags |= PF.THROW;
+    if (w.grenadeBusy) flags |= PF.THROW;
     this.net.sendBinary(
       encodeState({
         seq: ++this.stateSeq,
@@ -430,6 +456,10 @@ export class MatchMode implements GameMode {
   grenadeReleased(o: [number, number, number], v: [number, number, number]): void {
     this.net.send({ t: 'grenade', o, v });
     this.ownGrenades.push(this.game.grenades.spawn(o[0], o[1], o[2], v, TUNING.grenade.fuse, this.myId));
+  }
+
+  outOfAmmo(): string {
+    return (this.pairInfo?.phone ?? 'none') === 'none' ? UI.hud.outOfAmmoNoPhone : UI.hud.outOfAmmo;
   }
 
   reload(): void {

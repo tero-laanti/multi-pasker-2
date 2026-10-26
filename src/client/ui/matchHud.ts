@@ -248,7 +248,7 @@ export class MatchHud {
     const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
     const ended = round?.state === 'ended';
     const key = JSON.stringify([
-      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank]),
+      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank, p.training]),
       ended,
       round?.n,
       ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0,
@@ -287,6 +287,7 @@ export class MatchHud {
       if (p.bot) el('span', 'sb-tag', n, UI.scoreboard.bot);
       if (p.id === myId) el('span', 'sb-tag you', n, UI.scoreboard.you);
       if (!p.connected && !p.bot) el('span', 'sb-tag', n, UI.scoreboard.away);
+      else if (p.training) el('span', 'sb-tag', n, UI.scoreboard.training);
       el('div', 'sb-num', r, String(p.kills));
       el('div', 'sb-num', r, String(p.deaths));
       el('div', 'sb-num dim', r, p.bot ? '–' : String(p.ping));

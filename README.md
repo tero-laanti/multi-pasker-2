@@ -62,8 +62,13 @@ or set the environment variables `PASKER_HOST` and `PASKER_PORT`.
 
 ## Playing a match
 
+One person hosts: `npm start` on their computer makes it the server (no internet or cloud
+service involved), and they can play on the same machine.
+
 1. Start the server on one machine (`npm start`) and have everyone open the printed address.
 2. **Join game**, type a name (letters including Å, Ä, Ö and digits, up to 12) and click the view.
+   The first time, you start on the shooting range for a short training (see below); after that,
+   joining goes straight to the match.
 3. Free-for-all on the garrison (*varuskunta*): 4-minute rounds, respawn after ~2.5 s, a short
    spawn protection that ends when you fire. Tab shows the scoreboard; it also appears between
    rounds, and the next round starts by itself after 12 s.
@@ -75,26 +80,50 @@ shows you as *left* to the others; you can come back during the round.
 **Bots** fill empty slots for testing: F2 → *Add bot* / *Fill with bots (15)*, or start the server
 with `PASKER_BOTS=15 npm start` (`set PASKER_BOTS=15` first on Windows).
 
+### The training
+
+Everyone's first join starts on the range, not in the match (the scoreboard shows them as *on
+the range*): walk to the marked table, knock down the marked target, press R and find there is
+no spare magazine, then pick up the phone from the duty table behind you (E). That opens the
+pairing screen, which explains that the phone app is only a web page from the host's computer
+(nothing to install, no permissions). Asevarasto's first text is a radio check (*yhteyskoe*):
+reply `YK` and the magazines are full. Train as long as you like, then Esc → **Go to the match**.
+The browser remembers that you've done it.
+
+**Without a phone:** the pairing screen has *Skip: play without a phone*, with heavy penalties:
+no LATAA refills (ammo only comes with a new life), no grenades and no promotions or upgrades.
+A phone can still be paired later from the Esc menu.
+
+## Ammo
+
+Each gun has its magazine and one spare. **R** (or pulling the trigger on an empty gun) puts in
+the spare; after that, text `LATAA` to the armourer for full magazines *and* a new spare. Every
+life starts with a full magazine and a spare.
+
 ## The phone
 
-Reloads and grenades come from the armourer, *varusmestari*, by text message from your own phone.
+Ammo and grenades come from the armourer, *varusmestari*, by text message from your own phone.
 
-1. After joining, the *Click to play* screen (and the Esc menu) shows a **QR code**. Scan it with
-   the phone's camera and open the link. Or open `http://<address>/phone` on the phone and type the
-   4-digit code shown below the QR code.
+1. The training pairs it. Later, the *Click to play* screen and the Esc menu show a **QR code**:
+   scan it with the phone's camera and open the link, or open `http://<address>/phone` on the
+   phone and type the 4-digit code shown below the QR code.
 2. The phone shows whose phone it is. Tap **Start** (keeps the screen on and enables sound) and
    check that you hear the chime.
-3. Open the **Asevarasto** chat and text `LATAA` to reload the gun in your hands, or `KRANAATTI`
-   for a grenade (throw it with G). Case, spaces and punctuation don't matter; anything else
-   gets a reply from the armourer, and typos, swearing and chatter are shown to everyone.
+3. Open the **Asevarasto** chat and text `LATAA` for full magazines and a new spare, or
+   `KRANAATTI` for a grenade (hold G to keep it in your hand, let go to throw). Case, spaces and
+   punctuation don't matter; anything else gets a reply from the armourer, and typos, swearing
+   and chatter are shown to everyone.
 
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
 away. Messages you type on the phone use the app's own keyboard (no autocorrect or paste).
 
 One phone per player: pairing another phone replaces the first. A phone that loses its connection
-(screen lock, reload) comes back to the same chats. On the desktop, R only reminds you to text;
-the host can turn on F2 → *R reloads directly* for everyone (`npm run dev` servers start with it on).
+(screen lock, reload) comes back to the same chats. For testing without phones, the host can turn
+on F2 → *R refills like LATAA* for everyone.
+
+The dev panel's match controls (bots, rounds, ladder) work in a browser on the host computer, by
+`localhost` or by its network address, or from any machine on an `npm run dev` server.
 
 For development, F2 → *Open phone simulator* opens the phone app in a window that you type into
 with the computer's keyboard (only on `npm run dev` servers or the host machine).
@@ -175,10 +204,11 @@ hit registration.
 | Space | jump (a small ledge assist lets you climb ledges just above jump height) |
 | C | crouch (toggle by default, hold in settings) |
 | 1 / 2 / wheel | rifle / pistol |
-| G | throw grenade |
+| G | grenade: hold to keep it in your hand, let go to throw |
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
-| R | reminder that reloading happens on the phone (on the range, a dev toggle makes R reload directly) |
+| R | reload with the spare magazine (more comes with LATAA) |
+| E | pick up (the training's phone) |
 | Esc | menu (the match keeps running) |
 | F2 | dev panel |
 | F3 | performance overlay (frame time, CPU time, RTT, jitter, snapshot rate, interpolation delay, server tick) |
@@ -191,8 +221,8 @@ target running on a rail; pop-up drill targets behind cover; and a training yard
 point (kill house, tower with stairs and a ramp, crates) for testing movement.
 Shoot the **yellow plate** in front of the firing point to start a 30-second drill
 ("Ampumapaikoille!" → "Tuli vapaa!" → … → "Tulitauko!"). Your best score is kept in the browser.
-On the range you start with the pistol; the dev panel (F2) gives the rifle and grenades, which
-later come from the varusmestari.
+On the range you start with the pistol and reloads never run out; the dev panel (F2) gives the
+rifle and grenades, which later come from the varusmestari. The training (above) happens here too.
 
 ## Tuning
 
@@ -207,7 +237,7 @@ ADS time, time to top speed, stopping distance, jump height) and plots the recoi
 browser session.
 
 The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's values) and
-*Scramble* (~0.75 s body kills), triggers a reload, gives the rifle and grenades, and starts a drill.
+*Scramble* (~0.75 s body kills), refills ammo, gives the rifle and grenades, and starts a drill.
 
 ## Sounds and voice
 
@@ -289,9 +319,10 @@ assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder
 Browser tests drive real Chrome through Playwright: `npx tsx tools/e2e/shot.ts <outDir> <scenario.js>`
 runs a scripted scenario against a running server and saves screenshots, and
 `npx tsx tools/e2e/phone-flow.ts <outDir> --url=http://localhost:8088/ --phone=390x844` joins a
-desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow, and
+desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow,
 `tools/e2e/ladder-flow.ts` climbs the TJ ladder through the phone (codes typed on its keyboard,
-the upgrade screen, the office number, the voice note).
+the upgrade screen, the office number, the voice note), and `tools/e2e/tutorial-flow.ts` runs the
+training from the first step to the match, once with a phone and once skipping it.
 
 ### Measured performance
 

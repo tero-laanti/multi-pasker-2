@@ -32,6 +32,8 @@ export interface MenuActions {
   startRange(): void;
   joinMatch(name: string): void;
   resume(): void;
+  /** Training done: from the range into the match. */
+  deploy(): void;
   quit(): void;
   settingsChanged(s: Settings, reloadNeeded: boolean): void;
   toggleTuning(): void;
@@ -53,6 +55,10 @@ export class Menu {
   private joinError!: HTMLDivElement;
   private joinButton!: HTMLButtonElement;
   private quitButton: HTMLButtonElement;
+  private deployButton: HTMLButtonElement;
+  private resumeButton: HTMLButtonElement;
+  private deployNote: HTMLDivElement;
+  private joinNote!: HTMLDivElement;
   private overlayRow: HTMLDivElement;
   private pauseRow: HTMLDivElement;
   private settingsReturn: 'main' | 'pause' = 'main';
@@ -96,8 +102,11 @@ export class Menu {
     h('div', 'title small', UI.menu.paused, this.pause);
     this.pauseRow = h('div', 'overlay-row', undefined, this.pause);
     const pb = h('div', 'buttons', undefined, this.pauseRow);
-    const resume = h('button', 'btn primary', UI.menu.resume, pb);
-    resume.onclick = () => actions.resume();
+    this.deployButton = h('button', 'btn primary hidden', UI.tutorial.toMatch, pb);
+    this.deployButton.onclick = () => actions.deploy();
+    this.deployNote = h('div', 'btn-desc hidden', UI.tutorial.finishFirst, pb);
+    this.resumeButton = h('button', 'btn primary', UI.menu.resume, pb);
+    this.resumeButton.onclick = () => actions.resume();
     const ps = h('button', 'btn', UI.menu.settings, pb);
     ps.onclick = () => this.showSettings('pause');
     const dev = h('div', 'dev-row', undefined, pb);
@@ -133,6 +142,7 @@ export class Menu {
       if (e.key === 'Enter' && !this.joinButton.disabled) this.submitJoin();
     };
     h('div', 'join-hint', UI.menu.nameHint, form);
+    this.joinNote = h('div', 'join-hint', UI.tutorial.joinNote, form);
     this.joinError = h('div', 'join-error', '', form);
     const btns = h('div', 'buttons row-buttons', undefined, root);
     this.joinButton = h('button', 'btn primary', UI.menu.joinButton, btns);
@@ -168,6 +178,19 @@ export class Menu {
   /** In a match the pause menu leaves the match instead of quitting the range. */
   setInMatch(on: boolean): void {
     this.quitButton.textContent = on ? UI.menu.leaveMatch : UI.menu.quit;
+  }
+
+  /** On the range before the match: "Go to the match", usable once the training is done. */
+  setTraining(on: boolean, complete: boolean): void {
+    this.deployButton.classList.toggle('hidden', !on);
+    this.deployButton.disabled = !complete;
+    this.deployNote.classList.toggle('hidden', !on || complete);
+    this.resumeButton.classList.toggle('primary', !on || !complete);
+  }
+
+  /** The join screen mentions the training only to those who haven't done it. */
+  setTrainingNote(show: boolean): void {
+    this.joinNote.classList.toggle('hidden', !show);
   }
 
   private controls(): HTMLDivElement {

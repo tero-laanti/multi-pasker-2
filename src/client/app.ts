@@ -9,6 +9,7 @@ import { Game, type GameDeps } from './game/game';
 import { MatchMode } from './game/match';
 import { prepareHands } from './game/models/hands';
 import { RangeMode } from './game/rangeMode';
+import { TutorialMode, markTutorialDone, tutorialDone } from './game/tutorial';
 import { ViewModel } from './game/viewmodel';
 import { Input } from './input';
 import { Net } from './net';
@@ -21,8 +22,9 @@ import { Menu, loadName, saveName } from './ui/menu';
 import { PairPanel, type PairInfo } from './ui/pair';
 import { StatsOverlay } from './ui/stats';
 import { TuningPanel } from './ui/tuning';
+import { TutorialHud } from './ui/tutorialHud';
 
-type Mode = 'loading' | 'menu' | 'range' | 'match';
+type Mode = 'loading' | 'menu' | 'range' | 'training' | 'match';
 
 const TOKEN_KEY = 'pasker.token';
 const IN_MATCH_KEY = 'pasker.inMatch';
@@ -55,6 +57,9 @@ export class App {
   private range: RangeMode | null = null;
   private matchGame: Game | null = null;
   private match: MatchMode | null = null;
+  /** The training on the range before a first match. */
+  private tutorial: TutorialMode | null = null;
+  private tutorialHud: TutorialHud;
   private mode: Mode = 'loading';
   private killSpeed: KillSpeedPreset = 'cod';
   /** Tests drive frames themselves (see exposeDebug). */
@@ -78,6 +83,7 @@ export class App {
       startRange: () => this.startRange(),
       joinMatch: (name) => this.joinMatch(name),
       resume: () => void this.lock(),
+      deploy: () => this.deploy(),
       quit: () => this.quitToMenu(),
       settingsChanged: (s, reload) => this.applySettings(s, reload),
       toggleTuning: () => this.tuning.toggle(),
@@ -86,6 +92,20 @@ export class App {
     });
     this.pairPanels = [new PairPanel(() => this.openSimulator()), new PairPanel(() => this.openSimulator())];
     this.menu.addPairPanels(this.pairPanels[0]!.root, this.pairPanels[1]!.root);
+    this.tutorialHud = new TutorialHud(this.hud.root, root, {
+      skip: () => {
+        this.tutorial?.skipPhone();
+        this.tutorialHud.hideModal();
+        void this.lock();
+      },
+      resume: () => {
+        this.tutorialHud.hideModal();
+        void this.lock();
+      },
+      openSimulator: () => this.openSimulator(),
+    });
+    this.pairPanels.push(this.tutorialHud.pair);
+    this.menu.setTrainingNote(!tutorialDone());
     this.input.onLook = (dx, dy) => this.game?.onLook(dx, dy);
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKeyDown = (code) => this.onKey(code);
@@ -136,6 +156,7 @@ export class App {
     this.renderer.warmup();
     this.dev = new DevPanel(this.root, {
       inMatch: () => this.mode === 'match',
+      devAllowed: () => this.match?.devAllowed ?? false,
       reload: () => (this.mode === 'match' ? this.devCommand('reload') : this.range?.reload()),
       giveRifle: (all) => (this.mode === 'match' ? this.devCommand('giveRifle', all ? 'all' : 'me') : this.range?.give('rifle')),
       giveGrenade: () => (this.mode === 'match' ? this.devCommand('giveGrenade') : this.range?.giveGrenade()),
@@ -258,8 +279,9 @@ export class App {
     }
     if (this.match) this.match.dispose();
     const token = storage('local')?.getItem(TOKEN_KEY) ?? undefined;
-    this.match = new MatchMode(this.matchGame, this.net, this.matchHud, { name, token });
+    this.match = new MatchMode(this.matchGame, this.net, this.matchHud, { name, token, train: !tutorialDone() });
     this.match.onPairInfo = (info) => this.showPairInfo(info);
+    this.match.onTraining = (what) => this.tutorial?.supply(what);
     this.matchGame.mode = this.match;
     this.match.hello();
     window.clearTimeout(this.joinTimer);
@@ -270,6 +292,11 @@ export class App {
 
   private showPairInfo(info: PairInfo | null): void {
     for (const p of this.pairPanels) p.update(info, this.match?.dev ?? false);
+    // On the range, a phone coming online moves the training on to the radio check.
+    if (this.mode === 'training' && this.tutorial && info?.phone === 'online') {
+      this.tutorial.paired();
+      if (this.tutorialHud.modalOpen) this.tutorialHud.showConnected();
+    }
   }
 
   /** Development: the phone app in a phone-sized window, typed on with the real keyboard. */
@@ -282,13 +309,86 @@ export class App {
   private onServerMessage(msg: ServerMsg): void {
     const m = this.match;
     if (!m) return;
-    const first = msg.t === 'welcome' && this.mode !== 'match';
+    const first = msg.t === 'welcome' && this.mode !== 'match' && this.mode !== 'training';
     m.onMessage(msg);
     if (msg.t === 'welcome') {
       storage('local')?.setItem(TOKEN_KEY, msg.token);
       storage('session')?.setItem(IN_MATCH_KEY, '1');
     }
-    if (first) this.enterMatch();
+    if (first && msg.t === 'welcome') {
+      if (msg.training) this.enterTraining();
+      else this.enterMatch();
+    }
+  }
+
+  /** Joined the server, but first the training on the range (the server keeps us out of the match). */
+  private enterTraining(): void {
+    window.clearTimeout(this.joinTimer);
+    const g = this.rangeGame!;
+    const range = this.range!;
+    this.mode = 'training';
+    this.menu.setInMatch(false);
+    this.menu.setTraining(true, false);
+    this.hud.setMatch(false);
+    this.hud.setVisible(true);
+    this.matchHud.setVisible(false);
+    g.camOverride = null;
+    g.paused = true;
+    range.showDrill = false;
+    const t = new TutorialMode(g, range, {
+      pickedUp: () => this.pickedUpPhone(),
+      phoneOut: () => this.match?.phoneOut ?? false,
+      phoneOnline: () => this.match?.pairInfo?.phone === 'online',
+    });
+    t.onStep = (step) => {
+      this.tutorialHud.show(step, t.noPhone);
+      this.menu.setTraining(true, step === 'done');
+    };
+    t.onNoSpare = () => this.tutorialHud.noSpare();
+    t.onSettled = () => {
+      this.tutorialHud.settle();
+      range.showDrill = true;
+    };
+    this.tutorial = t;
+    g.mode = t;
+    t.start();
+    this.tutorialHud.setVisible(true);
+    this.menu.showOverlay(false);
+    void this.lock();
+  }
+
+  /** The phone on the duty table was picked up: pair it (unless one is connected already). */
+  private pickedUpPhone(): void {
+    this.match?.send({ t: 'radioCheck' });
+    if (this.match?.pairInfo?.phone === 'online') return;
+    this.tutorialHud.showModal();
+    // The pairing screen needs the mouse; no pause menu over it.
+    this.input.unlock();
+  }
+
+  /** Training done: off the range and into the match. */
+  private deploy(): void {
+    if (this.mode !== 'training' || !this.tutorial?.complete || !this.match) return;
+    markTutorialDone();
+    this.menu.setTrainingNote(false);
+    this.match.deploy();
+    this.leaveTraining();
+    this.enterMatch();
+  }
+
+  /** The range goes back to plain practice. */
+  private leaveTraining(): void {
+    this.tutorial?.dispose();
+    this.tutorial = null;
+    this.tutorialHud.setVisible(false);
+    this.menu.setTraining(false, false);
+    const g = this.rangeGame;
+    if (g && this.range) {
+      g.mode = this.range;
+      this.range.showDrill = true;
+      g.weapons.endlessSpare = true;
+      g.weapons.give('pistol');
+    }
   }
 
   private enterMatch(): void {
@@ -317,7 +417,12 @@ export class App {
 
   private onLockChange(locked: boolean): void {
     const g = this.game;
-    if ((this.mode !== 'range' && this.mode !== 'match') || !g) return;
+    if ((this.mode !== 'range' && this.mode !== 'match' && this.mode !== 'training') || !g) return;
+    if (!locked && this.tutorialHud.modalOpen) {
+      g.paused = true;
+      return;
+    }
+    this.tutorialHud.setPanelVisible(locked);
     if (locked) {
       this.menu.hide();
       g.paused = false;
@@ -330,16 +435,25 @@ export class App {
 
   private onKey(code: string): void {
     if (code === 'F3') this.stats.toggle();
-    else if (code === 'F4') this.tuning.toggle();
-    else if (code === 'F2' || code === 'Backquote') this.dev?.toggle();
+    else if (code === 'F4') this.showPanel(this.tuning);
+    else if (code === 'F2' || code === 'Backquote') this.showPanel(this.dev);
+  }
+
+  /** Toggles a clickable panel; opening one mid-game frees the mouse (and pauses) so it can be used. */
+  private showPanel(panel: { toggle(): void; visible: boolean } | undefined): void {
+    if (!panel) return;
+    panel.toggle();
+    if (panel.visible && this.input.locked) this.input.unlock();
   }
 
   private quitToMenu(): void {
-    if (this.mode === 'match') {
+    if (this.mode === 'training') this.leaveTraining();
+    if (this.mode === 'match' || this.mode === 'training') {
+      const wasMatch = this.mode === 'match';
       this.match?.leave();
       this.match?.dispose();
       this.match = null;
-      this.matchGame?.deactivate();
+      if (wasMatch) this.matchGame?.deactivate();
       storage('session')?.removeItem(IN_MATCH_KEY);
       this.menu.setInMatch(false);
       this.showPairInfo(null);

@@ -3,7 +3,7 @@ import { DEG, clamp, damp, makeRng, viewDir, type Vec3 } from '../../shared/math
 import { WEAPONS, recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
 import { weaponStats, type Upgrades, type WeaponStats } from '../../shared/upgrades';
 
-export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'throwing';
+export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'priming' | 'holding' | 'throwing';
 
 export interface WeaponInput {
   fireHeld: boolean;
@@ -16,6 +16,8 @@ export interface WeaponInput {
   crouched: boolean;
   /** A chat is open on the player's phone: one-handed, no aiming down sights. */
   phone: boolean;
+  /** G is held down: a primed grenade stays in the hand. */
+  grenadeHeld?: boolean;
 }
 
 export interface Aim {
@@ -41,9 +43,11 @@ interface Cue {
   release?: boolean;
 }
 
-/** Fraction of the throw at which the grenade leaves the hand. */
-export const THROW_RELEASE = 0.45;
-const THROW_TIME = 0.6;
+/** Pulling the pin and bringing the grenade up (s); then it is held for as long as G is. */
+export const PRIME_TIME = 0.28;
+/** Fraction of the throw (after G is let go) at which the grenade leaves the hand. */
+export const THROW_RELEASE = 0.3;
+const THROW_TIME = 0.42;
 
 function reloadCues(id: WeaponId, empty: boolean, refill: number): Cue[] {
   const p = id;
@@ -66,10 +70,18 @@ export class WeaponController {
   current: WeaponId = 'pistol';
   private next: WeaponId | null = null;
   ammo: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
+  /** Spare rounds (the spare magazine) per gun. */
+  reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
+  /** The practice range: reloads never run out. */
+  endlessSpare = false;
   state: WeaponState = 'drawing';
   stateTime = 0;
   stateDur = TUNING.pistol.drawTime;
   reloadEmpty = false;
+  /** The reload under way is the armourer's: it fills the magazine without taking the spare. */
+  reloadFull = false;
+  /** An empty gun's trigger was pulled with a spare to put in: the game starts the reload. */
+  wantReload = false;
   private cues: Cue[] = [];
   private cueIndex = 0;
 
@@ -104,7 +116,7 @@ export class WeaponController {
   shots: ShotEvent[] = [];
   sounds: WeaponSound[] = [];
   refilledAt = -1;
-  /** Seconds since the last R press while it does nothing (for the HUD reminder). */
+  /** Seconds left on the out-of-ammo reminder (an R press or trigger pull with nothing to load). */
   reminder = 0;
   grenades = 0;
   maxGrenades = 1;
@@ -130,25 +142,71 @@ export class WeaponController {
     return this.state === 'ready' || this.state === 'drawing';
   }
 
+  /** Spare rounds a gun carries when stocked up. */
+  spare(id: WeaponId = this.current): number {
+    return this.stats(id).magazine * TUNING.ammo.spareMagazines;
+  }
+
   give(id: WeaponId): void {
     if (!this.owned.includes(id)) this.owned.push(id);
     this.ammo[id] = this.stats(id).magazine;
+    this.reserve[id] = this.spare(id);
   }
 
-  /** Start a reload of the weapon in hand. Returns a reason when refused. */
-  startReload(): 'ok' | 'full' | 'busy' {
-    if (this.state === 'holstering' || this.state === 'drawing') return 'busy';
+  /** Can R do anything right now: room in the magazine and a spare to put in. */
+  get canReload(): boolean {
+    return this.ammo[this.current] < this.stats().magazine && (this.endlessSpare || this.reserve[this.current] > 0);
+  }
+
+  /** The off hand has a grenade in it (pin out, or on its way). */
+  get grenadeBusy(): boolean {
+    return this.state === 'priming' || this.state === 'holding' || this.state === 'throwing';
+  }
+
+  /** Start a reload of the weapon in hand from the spare (R). Returns a reason when refused. */
+  startReload(): 'ok' | 'full' | 'busy' | 'noSpare' {
+    if (this.state === 'holstering' || this.state === 'drawing' || this.grenadeBusy) return 'busy';
     if (this.state === 'reloading') return 'busy';
     if (this.ammo[this.current] >= this.stats().magazine) return 'full';
-    this.reloadEmpty = this.ammo[this.current] === 0;
-    this.enter('reloading', this.reloadEmpty ? this.t.reloadEmptyTime : this.t.reloadTime, reloadCues(this.current, this.reloadEmpty, this.t.reloadRefill));
+    if (!this.endlessSpare && this.reserve[this.current] <= 0) return 'noSpare';
+    this.beginReload(this.current, false);
     return 'ok';
   }
 
-  /** A new life in a match: the server's weapons with full magazines, best gun drawn. */
-  resetLife(owned: WeaponId[], ammo: Record<WeaponId, number>): void {
+  /**
+   * The armourer's refill (LATAA) done locally (the range): every magazine and spare full, the
+   * gun in hand with a reload. Returns false when there was nothing to fill.
+   */
+  refillAll(): boolean {
+    const missing = this.owned.some((id) => this.ammo[id] < this.stats(id).magazine || this.reserve[id] < this.spare(id));
+    if (!missing) return false;
+    for (const id of this.owned) {
+      this.reserve[id] = this.spare(id);
+      if (id !== this.current) this.ammo[id] = this.stats(id).magazine;
+    }
+    if (this.state === 'reloading') this.reloadFull = true;
+    else if (this.ammo[this.current] < this.stats().magazine) {
+      if (this.state === 'holstering' || this.state === 'drawing' || this.grenadeBusy) this.ammo[this.current] = this.stats().magazine;
+      else this.beginReload(this.current, true);
+    }
+    this.refilledAt = this.time;
+    return true;
+  }
+
+  private beginReload(id: WeaponId, full: boolean): void {
+    this.reloadEmpty = this.ammo[id] === 0;
+    this.reloadFull = full;
+    const t = TUNING[id];
+    this.enter('reloading', this.reloadEmpty ? t.reloadEmptyTime : t.reloadTime, reloadCues(id, this.reloadEmpty, t.reloadRefill));
+  }
+
+  /** A new life in a match: the server's weapons with full magazines and spares, best gun drawn. */
+  resetLife(owned: WeaponId[], ammo: Record<WeaponId, number>, reserve: Record<WeaponId, number>): void {
     this.owned = [...owned];
-    for (const id of Object.keys(this.ammo) as WeaponId[]) this.ammo[id] = ammo[id] ?? this.stats(id).magazine;
+    for (const id of Object.keys(this.ammo) as WeaponId[]) {
+      this.ammo[id] = ammo[id] ?? this.stats(id).magazine;
+      this.reserve[id] = reserve[id] ?? this.spare(id);
+    }
     this.current = owned.includes('rifle') ? 'rifle' : 'pistol';
     this.next = null;
     this.ads = this.adsPrev = 0;
@@ -165,23 +223,32 @@ export class WeaponController {
     this.enter('drawing', TUNING[this.current].drawTime, []);
   }
 
-  /** A reload the server started (the varusmestari's "Lataa", or the dev R key). */
-  serverReload(id: WeaponId, empty: boolean, dur: number): void {
-    if (id !== this.current || this.state === 'holstering' || this.state === 'drawing') return;
+  /** A reload the server started: R with a spare, or the varusmestari's LATAA (`full`). */
+  serverReload(id: WeaponId, empty: boolean, dur: number, full: boolean): void {
+    if (id !== this.current || this.state === 'holstering' || this.state === 'drawing' || this.grenadeBusy) return;
     this.reloadEmpty = empty;
+    this.reloadFull = full;
     this.enter('reloading', dur, reloadCues(id, empty, TUNING[id].reloadRefill));
   }
 
-  /** Starts a throw if a grenade is carried and the hands are free. */
-  throwGrenade(): boolean {
+  /** G pressed: pin out and the grenade up, if one is carried and the hands are free. */
+  primeGrenade(): boolean {
     if (this.grenades <= 0) return false;
     if (this.state !== 'ready' && this.state !== 'inspecting') return false;
     this.grenades--;
-    this.enter('throwing', THROW_TIME, [
-      { at: 0, sound: 'grenade_pin', volume: 0.8 },
-      { at: THROW_RELEASE, sound: 'grenade_throw', release: true },
-    ]);
+    this.enter('priming', PRIME_TIME, [{ at: 0, sound: 'grenade_pin', volume: 0.8 }]);
     return true;
+  }
+
+  /** The grenade goes back on the belt unthrown (the game was paused while holding it). */
+  cancelGrenade(): void {
+    if (this.state !== 'priming' && this.state !== 'holding') return;
+    this.grenades++;
+    this.enter('drawing', this.t.drawTime * 0.6, []);
+  }
+
+  private throwHeld(): void {
+    this.enter('throwing', THROW_TIME, [{ at: THROW_RELEASE, sound: 'grenade_throw', release: true }]);
   }
 
   inspect(): void {
@@ -190,7 +257,7 @@ export class WeaponController {
   }
 
   switchTo(id: WeaponId): void {
-    if (!this.owned.includes(id)) return;
+    if (!this.owned.includes(id) || this.grenadeBusy) return;
     if (id === this.current && this.state !== 'holstering') return;
     if (this.state === 'holstering') {
       this.next = id;
@@ -235,13 +302,27 @@ export class WeaponController {
         const c = this.cues[this.cueIndex++]!;
         if (c.sound) this.sounds.push({ name: c.sound, volume: c.volume });
         if (c.refill) {
-          this.ammo[this.current] = this.stats().magazine;
+          const id = this.current;
+          const room = this.stats(id).magazine - this.ammo[id];
+          if (this.reloadFull || this.endlessSpare) this.ammo[id] += room;
+          else {
+            const take = Math.min(room, this.reserve[id]);
+            this.ammo[id] += take;
+            this.reserve[id] -= take;
+          }
           this.refilledAt = this.time;
         }
         if (c.release) this.releaseGrenade = true;
       }
-      if (this.stateTime >= this.stateDur) {
-        if (this.state === 'holstering') {
+      if (this.state === 'holding') {
+        // Held as long as G is down; the throw starts when it is let go.
+        this.stateTime = 0;
+        if (!inp.grenadeHeld) this.throwHeld();
+      } else if (this.stateTime >= this.stateDur) {
+        if (this.state === 'priming') {
+          if (inp.grenadeHeld) this.enter('holding', 1, []);
+          else this.throwHeld();
+        } else if (this.state === 'holstering') {
           this.current = this.next ?? this.current;
           this.next = null;
           this.sounds.push({ name: `${this.current}_draw`, volume: 0.8 });
@@ -296,10 +377,14 @@ export class WeaponController {
         this.fire(inp, aim);
         this.buffered = 0;
       } else if (this.dryArmed) {
-        this.sounds.push({ name: `${this.current}_dry` });
         this.dryArmed = false;
         this.buffered = 0;
-        this.reminder = 2.5;
+        // Empty with a spare: the trigger pull reloads. Without one: click, and the reminder.
+        if (this.canReload) this.wantReload = true;
+        else {
+          this.sounds.push({ name: `${this.current}_dry` });
+          this.reminder = 2.5;
+        }
       }
     }
     if (this.reminder > 0) this.reminder = Math.max(0, this.reminder - dt);

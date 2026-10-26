@@ -38,6 +38,8 @@ const result: Record<string, unknown> = {};
 
 await desktop.goto(base);
 await desktop.waitForFunction(() => (window as any).__pasker?.game, null, { timeout: 30000 });
+// Trained already: straight into the match (tutorial-flow.ts covers the training).
+await desktop.evaluate(() => localStorage.setItem('pasker.trained', '1'));
 await desktop.evaluate(() => (window as any).__pasker.join('Tero'));
 await desktop.waitForFunction(() => (window as any).__pasker.match?.pairInfo, null, { timeout: 10000 });
 await desktop.evaluate(() => (window as any).__pasker.play());

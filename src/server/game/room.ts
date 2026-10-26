@@ -121,7 +121,12 @@ export class Room {
       p.connected = true;
       p.name = name;
       p.isHost = isHost;
-      if (!p.alive && this.round.state === 'playing') this.respawn(p);
+      if (msg.train) {
+        p.training = true;
+        p.alive = false;
+        p.reload = null;
+      } else p.training = false;
+      if (!p.alive && !p.training && this.round.state === 'playing') this.respawn(p);
       this.emit({ k: 'join', p: p.id, name: p.name });
     } else {
       if (this.humanCount() + this.bots.length >= 16 && this.bots.length > 0) this.removeBot();
@@ -130,9 +135,10 @@ export class Room {
       p.isHost = isHost;
       p.newSerials();
       p.phone.pairCode = this.freePairCode();
+      p.training = !!msg.train;
       this.chirps(p);
       this.players.set(p.id, p);
-      this.respawn(p);
+      if (!p.training) this.respawn(p);
       this.updateGate();
       this.emit({ k: 'join', p: p.id, name: p.name });
     }
@@ -146,6 +152,8 @@ export class Room {
       serverTime: this.now(),
       snapshotHz: NET.snapshotHz,
       dev: this.opts.dev,
+      host: this.opts.dev || p.isHost,
+      training: p.training,
     });
     this.broadcastPlayers();
     this.sendSpawnState(p);
@@ -212,7 +220,7 @@ export class Room {
       } else if (phone.paired) replaced = true;
       const first = !phone.paired;
       phone.token = randomUUID();
-      if (first) this.varusmestari.greet(p);
+      if (first && p.radioCheck !== 'armed') this.varusmestari.greet(p);
     } else if (phone.ws && phone.ws !== ws) {
       phone.ws.close(4002, 'resumed elsewhere');
     }
@@ -231,6 +239,7 @@ export class Room {
       }),
     );
     phone.sendStatus(p.phoneStatus(this.round.n), true);
+    if (p.radioCheck === 'armed') this.varusmestari.radioCheck(p);
     if (pairing) p.outbox.push({ k: 'paired', replaced });
     this.sendPairInfo(p);
     this.broadcastPlayers();
@@ -281,6 +290,7 @@ export class Room {
         break;
       case 'out':
         phone.out = !!msg.on;
+        if (p.training) p.outbox.push({ k: 'phoneOut', on: phone.out });
         break;
       default:
         break;
@@ -309,7 +319,8 @@ export class Room {
     p.maxGrenades = maxGrenades(p.ladder.upgrades);
     if (id === 'lipas' || id === 'rumpu') {
       p.ammo.rifle = p.gun('rifle').magazine;
-      p.outbox.push({ k: 'ammo', w: 'rifle', n: p.ammo.rifle, seq: p.lastFireSeq });
+      p.reserve.rifle = p.spare('rifle');
+      this.sendAmmo(p, 'rifle');
     }
     p.outbox.push({ k: 'upgrades', u: { ...p.ladder.upgrades }, id });
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
@@ -349,10 +360,10 @@ export class Room {
     this.broadcastPlayers();
   }
 
-  /** Players taking part: bots and connected humans (not those who left). */
+  /** Players taking part: bots and connected humans in the match (not those who left or are on the range). */
   activeCount(): number {
     let n = 0;
-    for (const p of this.players.values()) if (p.bot || p.connected) n++;
+    for (const p of this.players.values()) if (p.bot || (p.connected && !p.training)) n++;
     return n;
   }
 
@@ -393,7 +404,7 @@ export class Room {
 
   /** Round over: awards for everyone, and the round goes into the evening scoreboard. */
   private endRound(): void {
-    const players = [...this.players.values()];
+    const players = [...this.players.values()].filter((p) => !p.training);
     const list = roundAwards(players);
     this.emit({ k: 'awards', list });
     this.evening.addRound(players, list);
@@ -469,12 +480,12 @@ export class Room {
     p.history.clear();
     p.stateTime = this.now();
     p.history.push(p.stateTime, p.x, p.y, p.z, false, true);
-    this.emit({ k: 'spawn', p: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, ammo: { ...p.ammo }, weapons: [...p.owned] });
+    this.emit({ k: 'spawn', p: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, ammo: { ...p.ammo }, reserve: { ...p.reserve }, weapons: [...p.owned] });
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
   }
 
   private sendSpawnState(p: ServerPlayer): void {
-    p.outbox.push({ k: 'spawn', p: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, ammo: { ...p.ammo }, weapons: [...p.owned] });
+    p.outbox.push({ k: 'spawn', p: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, ammo: { ...p.ammo }, reserve: { ...p.reserve }, weapons: [...p.owned] });
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
     p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle });
   }
@@ -521,8 +532,19 @@ export class Room {
       case 'leave':
         this.disconnect(p);
         break;
+      case 'deploy':
+        this.deploy(p);
+        break;
+      case 'radioCheck':
+        if (!p.training) break;
+        if (p.radioCheck === 'done') p.outbox.push({ k: 'training', what: 'radioCheck' });
+        else if (p.radioCheck !== 'waiting') {
+          p.radioCheck = 'armed';
+          if (p.phone.online) this.varusmestari.radioCheck(p);
+        }
+        break;
       case 'reload':
-        if (this.directReload) this.startReload(p);
+        this.startReload(p, this.directReload ? 'armoury' : 'spare');
         break;
       case 'switch':
         if (p.owned.includes(msg.w)) this.switchWeapon(p, msg.w);
@@ -586,7 +608,7 @@ export class Room {
         this.emit({ k: 'round', round: this.round });
         break;
       case 'reload':
-        this.startReload(p);
+        this.startReload(p, 'armoury');
         break;
       default:
         break;
@@ -596,9 +618,21 @@ export class Room {
   giveWeapon(p: ServerPlayer, w: WeaponId): void {
     if (!p.owned.includes(w)) p.owned.push(w);
     p.ammo[w] = p.gun(w).magazine;
+    p.reserve[w] = p.spare(w);
     p.outbox.push({ k: 'give', w });
-    p.outbox.push({ k: 'ammo', w, n: p.ammo[w], seq: p.lastFireSeq });
+    this.sendAmmo(p, w);
     if (p.bot) p.weapon = w;
+  }
+
+  /** Off the shooting range and into the match (a bot makes room if the server is full). */
+  deploy(p: ServerPlayer): void {
+    if (!p.training) return;
+    p.training = false;
+    if (this.activeCount() > 16 && this.bots.length > 0) this.removeBot();
+    if (this.round.state === 'playing') this.respawn(p);
+    this.updateGate();
+    this.broadcastPlayers();
+    p.phone.sendStatus(p.phoneStatus(this.round.n));
   }
 
   giveGrenade(p: ServerPlayer): boolean {
@@ -615,19 +649,55 @@ export class Room {
     if (p.reload && !p.reload.refilled) p.reload = null;
   }
 
-  /** Reload of the weapon in hand ("Lataa"). Returns a reason when refused. */
-  startReload(p: ServerPlayer): 'ok' | 'dead' | 'full' | 'busy' {
+  sendAmmo(p: ServerPlayer, w: WeaponId): void {
+    p.outbox.push({ k: 'ammo', w, n: p.ammo[w], r: p.reserve[w], seq: p.lastFireSeq });
+  }
+
+  /**
+   * Reload of the weapon in hand. R (`spare`) puts in the spare magazine; the armourer's LATAA
+   * (`armoury`) fills every magazine and the spares, the gun in hand with a proper reload.
+   * Returns a reason when refused.
+   */
+  startReload(p: ServerPlayer, from: 'spare' | 'armoury'): 'ok' | 'dead' | 'full' | 'busy' | 'noSpare' {
     if (!p.alive) return 'dead';
     const w = p.weapon;
-    if (p.reload && this.now() < p.reload.end) return 'busy';
-    if (p.ammo[w] >= p.gun(w).magazine) return 'full';
+    const now = this.now();
+    const mag = p.gun(w).magazine;
+    const r = p.reload && now < p.reload.end ? p.reload : null;
+    if (from === 'armoury') {
+      if (p.owned.every((o) => p.ammo[o] >= p.gun(o).magazine && p.reserve[o] >= p.spare(o))) return 'full';
+      if (r?.full) return 'busy';
+      for (const o of p.owned) {
+        p.reserve[o] = p.spare(o);
+        if (o !== w) p.ammo[o] = p.gun(o).magazine;
+        this.sendAmmo(p, o);
+      }
+      if (r) {
+        // A reload is under way: it now fills from the armoury (or already has, so top up).
+        r.full = true;
+        if (r.refilled) {
+          p.ammo[w] = mag;
+          this.sendAmmo(p, w);
+        }
+        return 'ok';
+      }
+      if (p.ammo[w] < mag) this.beginReload(p, w, true);
+      return 'ok';
+    }
+    if (r) return 'busy';
+    if (p.ammo[w] >= mag) return 'full';
+    if (p.reserve[w] <= 0) return 'noSpare';
+    this.beginReload(p, w, false);
+    return 'ok';
+  }
+
+  private beginReload(p: ServerPlayer, w: WeaponId, full: boolean): void {
     const T = TUNING[w];
     const empty = p.ammo[w] === 0;
     const dur = (empty ? T.reloadEmptyTime : T.reloadTime) * 1000;
     const now = this.now();
-    p.reload = { w, start: now, refillAt: now + dur * T.reloadRefill, end: now + dur, refilled: false };
-    p.outbox.push({ k: 'reload', w, empty, dur: dur / 1000 });
-    return 'ok';
+    p.reload = { w, start: now, refillAt: now + dur * T.reloadRefill, end: now + dur, refilled: false, full };
+    p.outbox.push({ k: 'reload', w, empty, dur: dur / 1000, full });
   }
 
   // ---- combat ----
@@ -641,7 +711,7 @@ export class Room {
     const interval = (60 / p.gun(w).rpm) * 1000;
     const reloading = p.reload && p.reload.w === w && now < p.reload.refillAt;
     if (now - p.lastShotAt[w] < interval * 0.7 || p.ammo[w] <= 0 || reloading) {
-      p.outbox.push({ k: 'ammo', w, n: p.ammo[w], seq: p.lastFireSeq });
+      this.sendAmmo(p, w);
       return;
     }
     p.ammo[w]--;
@@ -806,7 +876,7 @@ export class Room {
       }
       p.newSerials();
       p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle });
-      if (p.connected || p.bot) this.respawn(p);
+      if ((p.connected && !p.training) || p.bot) this.respawn(p);
     }
     this.emit({ k: 'round', round: this.round });
     this.broadcastPlayers();
@@ -835,7 +905,7 @@ export class Room {
 
     for (const p of this.players.values()) {
       if (!p.alive) {
-        if (this.round.state === 'playing' && now >= p.respawnAt && (p.connected || p.bot)) this.respawn(p);
+        if (this.round.state === 'playing' && now >= p.respawnAt && ((p.connected && !p.training) || p.bot)) this.respawn(p);
         continue;
       }
       if (p.phone.out) p.stats.phoneMs += dt * 1000;
@@ -847,8 +917,14 @@ export class Room {
       if (r) {
         if (!r.refilled && now >= r.refillAt) {
           r.refilled = true;
-          p.ammo[r.w] = p.gun(r.w).magazine;
-          p.outbox.push({ k: 'ammo', w: r.w, n: p.ammo[r.w], seq: p.lastFireSeq });
+          const mag = p.gun(r.w).magazine;
+          if (r.full) p.ammo[r.w] = mag;
+          else {
+            const take = Math.min(mag - p.ammo[r.w], p.reserve[r.w]);
+            p.ammo[r.w] += take;
+            p.reserve[r.w] -= take;
+          }
+          this.sendAmmo(p, r.w);
         }
         if (now >= r.end) p.reload = null;
       }
@@ -886,7 +962,7 @@ export class Room {
   sendSnapshot(now: number): void {
     const players: PlayerSnap[] = [];
     for (const p of this.players.values()) {
-      if (!p.connected && !p.bot) continue;
+      if ((!p.connected && !p.bot) || p.training) continue;
       players.push({
         id: p.id,
         flags: this.snapFlags(p, now),

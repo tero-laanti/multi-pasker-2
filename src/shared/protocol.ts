@@ -7,7 +7,7 @@ import type { UpgradeId, Upgrades } from './upgrades';
  * binary; everything else is JSON. Times are server milliseconds since the server started.
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const BIN = { STATE: 1, SNAPSHOT: 2 } as const;
 
@@ -193,6 +193,8 @@ export interface PlayerInfo {
   rank: number;
   /** Upgrade levels: everyone needs them (suppressors, drum magazines, dark mode). */
   upgrades: Upgrades;
+  /** Still on the shooting range (the tutorial), not in the match yet. */
+  training: boolean;
 }
 
 export interface ShotClaim {
@@ -204,9 +206,14 @@ export interface ShotClaim {
 }
 
 export type ClientMsg =
-  | { t: 'hello'; v: number; token?: string; name: string }
+  /** `train`: start on the shooting range (the tutorial) instead of in the match. */
+  | { t: 'hello'; v: number; token?: string; name: string; train?: boolean }
   | { t: 'ping'; id: number; rtt?: number }
   | { t: 'leave' }
+  /** Off the range and into the match. */
+  | { t: 'deploy' }
+  /** The tutorial's phone was picked up: Asevarasto sends the radio check once a phone is paired. */
+  | { t: 'radioCheck' }
   | { t: 'fire'; seq: number; w: WeaponId; rt: number; o: [number, number, number]; d: [number, number, number]; hit?: ShotClaim; wall?: [number, number, number, number, number, number, number] }
   | { t: 'reload' }
   | { t: 'switch'; w: WeaponId }
@@ -214,7 +221,8 @@ export type ClientMsg =
   | { t: 'dev'; cmd: string; arg?: unknown };
 
 export type ServerMsg =
-  | { t: 'welcome'; id: number; token: string; map: string; players: PlayerInfo[]; round: RoundInfo; serverTime: number; snapshotHz: number; dev: boolean }
+  /** `host`: this client may use dev commands (a dev server, or a browser on the server machine). */
+  | { t: 'welcome'; id: number; token: string; map: string; players: PlayerInfo[]; round: RoundInfo; serverTime: number; snapshotHz: number; dev: boolean; host: boolean; training: boolean }
   | { t: 'pong'; id: number; st: number }
   | { t: 'stats'; tickMs: number; tickMaxMs: number; tickHz: number }
   | { t: 'players'; players: PlayerInfo[] }
@@ -238,10 +246,12 @@ export type GameEvent =
   | { k: 'shot'; p: number; w: WeaponId; o: [number, number, number]; e: [number, number, number]; n?: [number, number, number]; s?: number; hp?: number }
   | { k: 'hit'; a: number; v: number; dmg: number; hp: number; z: HitZone; from: [number, number, number] }
   | { k: 'kill'; a: number; v: number; w: WeaponId | 'grenade'; head: boolean; draft?: string }
-  | { k: 'spawn'; p: number; x: number; y: number; z: number; yaw: number; ammo: Record<WeaponId, number>; weapons: WeaponId[] }
+  | { k: 'spawn'; p: number; x: number; y: number; z: number; yaw: number; ammo: Record<WeaponId, number>; reserve: Record<WeaponId, number>; weapons: WeaponId[] }
   /** Authoritative magazine count after the shooter's fire message `seq` (if any). */
-  | { k: 'ammo'; w: WeaponId; n: number; seq?: number }
-  | { k: 'reload'; w: WeaponId; empty: boolean; dur: number }
+  /** `n`: rounds in the magazine, `r`: spare rounds. */
+  | { k: 'ammo'; w: WeaponId; n: number; r: number; seq?: number }
+  /** `full`: the armourer's reload (magazine and spare filled), else one from the spare. */
+  | { k: 'reload'; w: WeaponId; empty: boolean; dur: number; full: boolean }
   | { k: 'grenades'; n: number; max: number }
   | { k: 'nade'; id: number; p: number; o: [number, number, number]; v: [number, number, number]; fuse: number }
   | { k: 'boom'; id: number; x: number; y: number; z: number }
@@ -262,7 +272,11 @@ export type GameEvent =
   /** End of round: the awards. */
   | { k: 'awards'; list: AwardInfo[] }
   /** A message arrived on this player's phone: anyone close by hears it chirp. */
-  | { k: 'chirp'; p: number };
+  | { k: 'chirp'; p: number }
+  /** On the range: the radio check answered (YK), or a LATAA / KRANAATTI for the range's guns. */
+  | { k: 'training'; what: 'radioCheck' | 'ammo' | 'grenade' }
+  /** On the range (no snapshots of ourselves there): a chat opened or closed on our phone. */
+  | { k: 'phoneOut'; on: boolean };
 
 export type AwardId = 'winner' | 'deathsTyping' | 'longestDraft' | 'typos' | 'phoneTime' | 'pushups' | 'swedish';
 

@@ -10,6 +10,7 @@ export const FI = {
     signs: {
       title: 'AMPUMARATA',
       office: 'RATATOIMISTO',
+      duty: 'PÄIVYSTÄJÄ',
     },
     /** Range commands shown with the voice lines (see docs/RECORDING.md). */
     commands: {
@@ -102,11 +103,11 @@ export const FI = {
     number: '7413',
     /** First message in the chat; it stays in the history as the instructions. */
     welcome: [
-      'Asevarasto. Palvelut:\nLATAA – lataan aseen joka sinulla on kädessä.\nKRANAATTI – yksi kranaatti, heitto G:llä.\nMuuta ei ole. Kiire odottamaan.',
+      'Asevarasto. Palvelut:\nLATAA – lippaat täyteen, varalipas myös.\nKRANAATTI – yksi kranaatti, heitto G:llä.\nMuuta ei ole. Kiire odottamaan.',
     ],
     /** Short acknowledgements after a reload; an empty string means no reply at all. */
     reloadOk: ['Kuitattu.', 'Ladattu. Seuraava.', 'Lipas vaihdettu.', 'Tässä. Älä tuhlaa.', 'Ota ja mene.', 'Patruunat eivät kasva puussa.', '', '', ''],
-    reloadFull: ['Lipas on täynnä. Ammu ensin, {rank}.', 'Täysi lipas. Mitä sinä oikein lataat?', 'Lippaassa on jo kaikki. Laske itse.'],
+    reloadFull: ['Lippaat ovat täynnä. Ammu ensin, {rank}.', 'Kaikki täynnä, varalipaskin. Mitä sinä oikein lataat?', 'Sinulla on jo kaikki. Laske itse.'],
     reloadBusy: ['Jo ladataan. Kiire odottamaan.', 'Yksi lataus kerrallaan.'],
     grenadeOk: ['Yksi kranaatti. Sokka pysyy paikallaan kunnes heität.', 'Kranaatti kuitattu. Älä pudota sitä jalkoihisi.', 'Tässä. Heitä kauas. Kauemmas kuin luulet.', 'Kuitattu. Heitto G:llä, ei hampailla.'],
     grenadeLimit1: ['Yksi per mies.', 'Sinulla on jo kranaatti. Käytä se ensin.'],
@@ -151,6 +152,12 @@ export const FI = {
    * The TJ ladder. Placeholders: {rank} {name} the player, {code} what to send, {office} and
    * {number} a contact to write to, {n} a count, {tj} days left, {upgrade} an upgrade's name.
    */
+  /** The tutorial on the range: Asevarasto's first text is a radio check, answered with YK. */
+  training: {
+    radioCheck: ['Asevarasto, yhteyskoe. Jos tämä viesti tuli perille, vastaa YK. Jos ei tullut, älä vastaa mitään.'],
+    radioCheckOk: ['Kuuluu. Lippaat tulossa.\nJatkossa: LATAA kun patruunat loppuvat, KRANAATTI kun tarvitset kranaatin. Muuta ei ole.'],
+    radioCheckWrong: ['Vastaa YK. Kaksi kirjainta, {rank}.', 'YK. Ei muuta. Yhteyskoe ei ole keskustelu.', 'Kirjoita YK. Isot tai pienet, kunhan kaksi kirjainta.'],
+  },
   ladder: {
     /** Why there is something new on offer: a kill streak or a death streak. */
     offerKill: ['Kunniamaininta, {rank} {name}. Varastossa olisi jotain sinulle.', 'Kunniamaininta. Joku on kerrankin tehnyt töitä.', 'Kunniamaininta tuli tänne asti. Katsotaan mitä löytyy.'],

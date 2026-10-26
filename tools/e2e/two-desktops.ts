@@ -15,6 +15,7 @@ async function join(name: string): Promise<Page> {
   page.on('pageerror', (e) => console.log(`[${name}] ${e.message}`));
   await page.goto(base);
   await page.waitForFunction(() => (window as any).__pasker?.game, null, { timeout: 30000 });
+  await page.evaluate(() => localStorage.setItem('pasker.trained', '1'));
   await page.evaluate((n) => (window as any).__pasker.join(n), name);
   await page.waitForFunction(() => (window as any).__pasker.match?.joined && (window as any).__pasker.match.alive, null, { timeout: 10000 });
   await page.evaluate(() => (window as any).__pasker.play());

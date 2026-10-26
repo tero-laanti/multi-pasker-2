@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { isOwnAddress } from './lan';
 
 export const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -177,7 +178,7 @@ export function readBody(req: IncomingMessage, limit = 256 * 1024): Promise<stri
   });
 }
 
-export function isLoopback(req: IncomingMessage): boolean {
-  const a = req.socket.remoteAddress ?? '';
-  return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
+/** True when the request comes from the server machine itself (see isOwnAddress). */
+export function fromHostMachine(req: IncomingMessage): boolean {
+  return isOwnAddress(req.socket.remoteAddress ?? '');
 }

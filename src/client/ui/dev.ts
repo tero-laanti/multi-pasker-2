@@ -4,6 +4,8 @@ import type { PlayerInfo } from '../../shared/protocol';
 
 export interface DevActions {
   inMatch(): boolean;
+  /** The match server takes our dev commands. */
+  devAllowed(): boolean;
   reload(): void;
   giveRifle(all: boolean): void;
   giveGrenade(): void;
@@ -39,6 +41,9 @@ export class DevPanel {
   private direct: HTMLInputElement;
   private gate: HTMLInputElement;
   private kill: HTMLSelectElement;
+  private hostNote: HTMLDivElement;
+  /** Controls that act on the server while in a match. */
+  private serverControls: (HTMLButtonElement | HTMLInputElement | HTMLSelectElement)[] = [];
   visible = false;
 
   constructor(
@@ -56,6 +61,7 @@ export class DevPanel {
       return e;
     };
     add('div', 'dev-title', this.root, UI.dev.title);
+    this.hostNote = add('div', 'dev-note hidden', this.root, UI.dev.hostOnly);
     const btn = (to: HTMLElement, label: string, fn: () => void) => {
       const b = add('button', 'btn small', to, label);
       b.onclick = fn;
@@ -71,9 +77,11 @@ export class DevPanel {
       return cb;
     };
 
-    btn(this.root, UI.dev.reload, () => a.reload());
-    btn(this.root, UI.dev.giveRifle, () => a.giveRifle(false));
-    btn(this.root, UI.dev.giveGrenade, () => a.giveGrenade());
+    this.serverControls.push(
+      btn(this.root, UI.dev.reload, () => a.reload()),
+      btn(this.root, UI.dev.giveRifle, () => a.giveRifle(false)),
+      btn(this.root, UI.dev.giveGrenade, () => a.giveGrenade()),
+    );
     this.rangeBox = add('div', 'dev-box', this.root);
     btn(this.rangeBox, UI.dev.restartDrill, () => a.startDrill());
     this.matchBox = add('div', 'dev-box', this.root);
@@ -92,6 +100,7 @@ export class DevPanel {
     btn(this.matchBox, UI.pair.simulator, () => a.openSimulator());
     this.gate = check(this.matchBox, UI.dev.gateOpen, () => a.gateOpen(), (on) => a.setGate(on));
     this.direct = check(this.root, UI.dev.rDirect, () => a.directReload(), (on) => a.setDirectReload(on));
+    this.serverControls.push(...this.matchBox.querySelectorAll('button'), this.gate, this.direct);
 
     const ks = add('div', 'dev-row', this.root, UI.dev.killSpeed + ': ');
     this.kill = add('select', '', ks);
@@ -104,6 +113,7 @@ export class DevPanel {
     }
     this.kill.value = a.killSpeed();
     this.kill.onchange = () => a.setKillSpeed(this.kill.value as KillSpeedPreset);
+    this.serverControls.push(this.kill);
 
     // Network conditioner: delay added to both directions, applied by this client.
     add('div', 'dev-sub', this.root, UI.dev.netTitle);
@@ -138,8 +148,11 @@ export class DevPanel {
 
   private refresh(): void {
     const match = this.a.inMatch();
+    const refused = match && !this.a.devAllowed();
     this.rangeBox.classList.toggle('hidden', match);
     this.matchBox.classList.toggle('hidden', !match);
+    this.hostNote.classList.toggle('hidden', !refused);
+    for (const c of this.serverControls) c.disabled = refused;
     this.direct.checked = this.a.directReload();
     this.gate.checked = this.a.gateOpen();
     this.kill.value = this.a.killSpeed();

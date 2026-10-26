@@ -102,13 +102,83 @@ describe('pistol', () => {
     expect(w.sounds.map((s) => s.name)).toEqual(['pistol_mag_out', 'pistol_mag_in', 'pistol_bolt_back', 'pistol_bolt_fwd']);
   });
 
+  it('takes the spare magazine, then has nothing left to put in', () => {
+    const w = ready();
+    expect(w.reserve.pistol).toBe(TUNING.pistol.magazine * TUNING.ammo.spareMagazines);
+    w.ammo.pistol = 4;
+    expect(w.startReload()).toBe('ok');
+    run(w, TUNING.pistol.reloadTime + 0.1, () => ({}));
+    expect(w.ammo.pistol).toBe(TUNING.pistol.magazine);
+    expect(w.reserve.pistol).toBe(TUNING.pistol.magazine * TUNING.ammo.spareMagazines - 8);
+    w.reserve.pistol = 0;
+    w.ammo.pistol = 0;
+    expect(w.startReload()).toBe('noSpare');
+    // The armourer's refill: magazine and spare full again.
+    expect(w.refillAll()).toBe(true);
+    run(w, TUNING.pistol.reloadEmptyTime + 0.1, () => ({}));
+    expect(w.ammo.pistol).toBe(TUNING.pistol.magazine);
+    expect(w.reserve.pistol).toBe(w.spare('pistol'));
+    expect(w.refillAll()).toBe(false);
+  });
+
+  it('a grenade stays in the hand while G is held and goes when it is let go', () => {
+    const w = ready();
+    w.grenades = 1;
+    expect(w.primeGrenade()).toBe(true);
+    run(w, 2, () => ({ grenadeHeld: true }));
+    expect(w.state).toBe('holding');
+    expect(w.releaseGrenade).toBe(false);
+    const aim = { yaw: 0, pitch: 0 };
+    let releasedAt = -1;
+    for (let i = 0; i < 120; i++) {
+      w.step(SIM_DT, idle, aim);
+      if (w.releaseGrenade && releasedAt < 0) releasedAt = (i + 1) * SIM_DT;
+    }
+    expect(releasedAt).toBeGreaterThan(0.05);
+    expect(releasedAt).toBeLessThan(0.2);
+    expect(w.state).toBe('ready');
+    expect(w.grenades).toBe(0);
+  });
+
+  it('a tap of G throws once the pin is out; a pause puts the grenade back', () => {
+    const w = ready();
+    w.grenades = 1;
+    w.primeGrenade();
+    let released = false;
+    const aim = { yaw: 0, pitch: 0 };
+    for (let i = 0; i < 120 && !released; i++) {
+      w.step(SIM_DT, idle, aim);
+      released = w.releaseGrenade;
+    }
+    expect(released).toBe(true);
+    const v = ready();
+    v.grenades = 1;
+    v.primeGrenade();
+    run(v, 0.5, () => ({ grenadeHeld: true }));
+    v.cancelGrenade();
+    expect(v.grenades).toBe(1);
+    run(v, 1, () => ({}));
+    expect(v.releaseGrenade).toBe(false);
+    expect(v.state).toBe('ready');
+  });
+
+  it('an empty gun with a spare reloads on the trigger instead of clicking', () => {
+    const w = ready();
+    w.ammo.pistol = 0;
+    run(w, 0.05, (i) => ({ firePressed: i === 0, fireHeld: true }));
+    expect(w.wantReload).toBe(true);
+    expect(w.sounds.some((s) => s.name === 'pistol_dry')).toBe(false);
+  });
+
   it('dry fires once per press when empty and cannot shoot during a reload', () => {
     const w = ready();
     w.ammo.pistol = 0;
+    w.reserve.pistol = 0;
     run(w, 0.3, (i) => ({ firePressed: i === 0, fireHeld: true }));
     expect(w.sounds.filter((s) => s.name === 'pistol_dry').length).toBe(1);
     w.ammo.pistol = 3;
-    w.startReload();
+    w.reserve.pistol = 12;
+    expect(w.startReload()).toBe('ok');
     const r = run(w, 0.3, () => ({ firePressed: true, fireHeld: true }));
     expect(r.shots).toBe(0);
   });

@@ -129,15 +129,16 @@ describe('life cycle', () => {
     expect(b.p.ammo.pistol).toBe(TUNING.pistol.magazine);
   });
 
-  it('reload refills at the refill moment and refuses a full magazine', () => {
+  it('R puts in the spare magazine at the refill moment, once', () => {
     const c = clock();
     const room = new Room(arena(), { dev: true, now: c.now });
     const a = join(room, 'A');
-    expect(room.startReload(a.p)).toBe('full');
-    a.p.ammo.pistol = 0;
-    expect(room.startReload(a.p)).toBe('ok');
-    expect(room.startReload(a.p)).toBe('busy');
     const T = TUNING.pistol;
+    expect(a.p.reserve.pistol).toBe(T.magazine * TUNING.ammo.spareMagazines);
+    expect(room.startReload(a.p, 'spare')).toBe('full');
+    a.p.ammo.pistol = 0;
+    expect(room.startReload(a.p, 'spare')).toBe('ok');
+    expect(room.startReload(a.p, 'spare')).toBe('busy');
     let refillAt = -1;
     for (let i = 0; i < 200; i++) {
       c.advance(10);
@@ -145,6 +146,51 @@ describe('life cycle', () => {
       if (refillAt < 0 && a.p.ammo.pistol === T.magazine) refillAt = (i + 1) * 10;
     }
     expect(Math.abs(refillAt - T.reloadEmptyTime * T.reloadRefill * 1000)).toBeLessThan(20);
+    expect(a.p.reserve.pistol).toBe(T.magazine * (TUNING.ammo.spareMagazines - 1));
+    // A part-used magazine takes only what it needs; with no spare left, R does nothing.
+    a.p.reserve.pistol = 5;
+    a.p.ammo.pistol = 10;
+    expect(room.startReload(a.p, 'spare')).toBe('ok');
+    c.advance(T.reloadTime * 1000 + 20);
+    room.tick(0.01);
+    expect(a.p.ammo.pistol).toBe(T.magazine);
+    expect(a.p.reserve.pistol).toBe(3);
+    a.p.reserve.pistol = 0;
+    a.p.ammo.pistol = 0;
+    expect(room.startReload(a.p, 'spare')).toBe('noSpare');
+  });
+
+  it("the armoury's reload fills every magazine and spare", () => {
+    const c = clock();
+    const room = new Room(arena(), { dev: true, now: c.now });
+    const a = join(room, 'A');
+    room.giveWeapon(a.p, 'rifle');
+    a.p.weapon = 'rifle';
+    expect(room.startReload(a.p, 'armoury')).toBe('full');
+    a.p.ammo.rifle = 3;
+    a.p.reserve.rifle = 0;
+    a.p.ammo.pistol = 1;
+    a.p.reserve.pistol = 0;
+    expect(room.startReload(a.p, 'armoury')).toBe('ok');
+    // The holstered pistol and both spares at once, the rifle in hand at its refill moment.
+    expect(a.p.ammo.pistol).toBe(TUNING.pistol.magazine);
+    expect(a.p.reserve.pistol).toBe(a.p.spare('pistol'));
+    expect(a.p.reserve.rifle).toBe(a.p.spare('rifle'));
+    expect(a.p.ammo.rifle).toBe(3);
+    expect(room.startReload(a.p, 'armoury')).toBe('busy');
+    c.advance(TUNING.rifle.reloadTime * 1000 + 20);
+    room.tick(0.01);
+    expect(a.p.ammo.rifle).toBe(TUNING.rifle.magazine);
+    expect(a.p.reserve.rifle).toBe(a.p.spare('rifle'));
+    // LATAA during an R reload makes it a full one: nothing comes off the spare.
+    a.p.ammo.rifle = 0;
+    a.p.reserve.rifle = 4;
+    expect(room.startReload(a.p, 'spare')).toBe('ok');
+    expect(room.startReload(a.p, 'armoury')).toBe('ok');
+    c.advance(TUNING.rifle.reloadEmptyTime * 1000 + 20);
+    room.tick(0.01);
+    expect(a.p.ammo.rifle).toBe(TUNING.rifle.magazine);
+    expect(a.p.reserve.rifle).toBe(a.p.spare('rifle'));
   });
 
   it('rejoins the same player with the token', () => {

@@ -24,6 +24,8 @@ function loadBest(): number {
 /** Ampumarata: targets, drills and range commands; everything is simulated locally. */
 export class RangeMode implements GameMode {
   readonly alive = true;
+  /** The drill line at the top of the screen (hidden while the training explains things). */
+  showDrill = true;
   readonly range: RangeSim;
   private view: RangeView;
   private best = loadBest();
@@ -33,11 +35,11 @@ export class RangeMode implements GameMode {
     this.view = new RangeView(this.range);
     game.root.add(this.view.group);
     game.newSerials();
+    game.weapons.endlessSpare = true;
   }
 
   reload(): void {
-    const r = this.game.weapons.startReload();
-    if (r === 'full') this.game.deps.hud.note(UI.hud.magazineFull, 1.2);
+    this.game.weapons.startReload();
   }
 
   giveGrenade(): void {
@@ -144,6 +146,7 @@ export class RangeMode implements GameMode {
 
   render(): void {
     this.view.update();
-    this.game.deps.hud.drillStatus(this.range.drillPhase, this.range.drillTime, this.range.drill.score);
+    if (this.showDrill) this.game.deps.hud.drillStatus(this.range.drillPhase, this.range.drillTime, this.range.drill.score);
+    else this.game.deps.hud.hideDrill();
   }
 }

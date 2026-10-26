@@ -14,7 +14,7 @@ import type { Room } from './room';
 export const BOT_SKILL = 0.5;
 
 const ASEVARASTO = FI.varusmestari.number;
-/** What bots type when they want a reload: mostly right, sometimes not. */
+/** What bots type when they want more ammo: mostly right, sometimes not. */
 const RELOAD_TEXTS = ['Lataa', 'lataa', 'LATAA', 'Lataa!', 'lataa', 'Lataa', 'lataaa', 'ltaa', 'lata', 'lataa nyt', 'laataa'];
 
 /** A thumb slip: one letter dropped or doubled. */
@@ -249,6 +249,11 @@ export class Bot {
     if (p.reload && now < p.reload.end) return;
     const w = p.weapon;
     if (p.ammo[w] > 0) return;
+    if (p.reserve[w] > 0) {
+      // R: in goes the spare magazine.
+      this.room.startReload(p, 'spare');
+      return;
+    }
     const other: WeaponId = w === 'rifle' ? 'pistol' : 'rifle';
     if (p.owned.includes(other) && p.ammo[other] > 0 && this.target) {
       // Running dry mid-fight: switch to the other gun.
@@ -259,7 +264,7 @@ export class Bot {
     }
   }
 
-  /** Reloads come from the varusmestari, for bots too: open the chat and type. */
+  /** More ammo comes from the varusmestari, for bots too: open the chat and type. */
   private textReload(now: number): void {
     if (this.typing || now < this.retypeAt || (this.p.reload && now < this.p.reload.end)) return;
     const text = RELOAD_TEXTS[Math.floor(Math.random() * RELOAD_TEXTS.length)]!;
@@ -295,8 +300,12 @@ export class Bot {
 
   private updatePhone(now: number): void {
     const p = this.p;
-    // Quiet moment and a part-empty magazine: top up.
-    if (!this.typing && !this.target && p.ammo[p.weapon] < p.gun(p.weapon).magazine * 0.4 && Math.random() < 0.01) this.textReload(now);
+    // Quiet moment: a part-empty magazine makes way for the spare, and a used spare gets refilled.
+    if (!this.typing && !this.target && !(p.reload && now < p.reload.end)) {
+      const w = p.weapon;
+      if (p.ammo[w] < p.gun(w).magazine * 0.4 && p.reserve[w] > 0 && Math.random() < 0.02) this.room.startReload(p, 'spare');
+      else if (p.reserve[w] < p.spare(w) && Math.random() < 0.01) this.textReload(now);
+    }
     this.ladder(now);
     const t = this.typing;
     if (!t) {

@@ -185,6 +185,10 @@ export const TUNING = {
       rifleHead: 20,
     },
   },
+  /** Spare magazines per gun at spawn; R takes one, the armourer's LATAA fills them again. */
+  ammo: {
+    spareMagazines: 1,
+  },
   player: {
     health: 100,
     regenDelay: 4.5,

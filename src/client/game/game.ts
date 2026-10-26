@@ -85,8 +85,12 @@ export interface GameMode {
   grenadeReleased(o: [number, number, number], v: [number, number, number]): void;
   /** A locally simulated grenade exploded (the range; match explosions come from the server). */
   exploded?(e: Explosion): void;
-  /** R pressed while direct reload (dev) is on. */
+  /** R (or the trigger on an empty gun) with a spare magazine to put in. */
   reload(): void;
+  /** What the HUD says when there is nothing left to load. */
+  outOfAmmo?(): string;
+  /** R was pressed with no spare magazine to put in. */
+  noSpare?(): void;
   /** Render-rate update before the scene is drawn. */
   render(dt: number, alpha: number): void;
   dispose?(): void;
@@ -105,8 +109,8 @@ export class Game {
   yaw = 0;
   pitch = 0;
   killSpeed: KillSpeedPreset = 'cod';
-  /** Dev: R reloads directly. */
-  devDirectReload = true;
+  /** Dev (matches): R refills everything like the armourer's LATAA. */
+  devDirectReload = false;
   /** No input while paused; the simulation keeps running when `keepRunning` (matches). */
   paused = true;
   keepRunning = false;
@@ -272,18 +276,14 @@ export class Game {
       const wheel = input.consumeWheel();
       if (wheel !== 0) this.weapons.cycleWeapon(wheel);
       if (input.consumePress('KeyI')) this.weapons.inspect();
-      if (input.consumePress('KeyG') && !this.weapons.throwGrenade()) {
+      if (input.consumePress('KeyG') && !this.weapons.primeGrenade()) {
         if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
       }
-      if (input.consumePress('KeyR')) {
-        if (this.devDirectReload) this.mode.reload();
-        else {
-          hud.note(UI.hud.reloadHint, 3);
-          this.weapons.reminder = 3;
-        }
-      }
+      if (input.consumePress('KeyR')) this.requestReload();
     } else {
       this.crouchWanted = false;
+      // A grenade still in the hand goes back on the belt rather than being thrown at random.
+      this.weapons.cancelGrenade();
     }
 
     const canFire = controls && this.mode.firing !== false;
@@ -354,11 +354,16 @@ export class Game {
           airborne: !this.move.onGround,
           crouched: this.move.crouched,
           phone,
+          grenadeHeld: k.has('KeyG'),
         },
         aim,
       );
       this.yaw = aim.yaw;
       this.pitch = aim.pitch;
+      if (this.weapons.wantReload) {
+        this.weapons.wantReload = false;
+        this.requestReload();
+      }
       for (const shot of this.weapons.shots) this.fireShot(shot.weapon, shot.dir);
       this.weapons.shots.length = 0;
       if (this.weapons.releaseGrenade) {
@@ -383,6 +388,24 @@ export class Game {
       this.mode.exploded?.(ex);
     }
     this.mode.step(dt);
+  }
+
+  /** R: in goes the spare magazine, or a reminder that there is none. */
+  private requestReload(): void {
+    const w = this.weapons;
+    if (w.state === 'reloading' || w.ammo[w.current] >= w.stats().magazine) return;
+    if (!w.canReload && !this.devDirectReload) {
+      const text = this.outOfAmmoText();
+      if (text) this.deps.hud.note(text, 3);
+      w.reminder = 3;
+      this.mode.noSpare?.();
+      return;
+    }
+    this.mode.reload();
+  }
+
+  private outOfAmmoText(): string {
+    return this.mode.outOfAmmo?.() ?? UI.hud.outOfAmmo;
   }
 
   /** Flash, smoke, sound, light and screen shake of an explosion. */
@@ -526,12 +549,13 @@ export class Game {
     const vfov = cam.fov * DEG;
     const gap = (Math.tan(spreadDeg * DEG) / Math.tan(vfov / 2)) * (renderer.gl.domElement.clientHeight / 2);
     hud.crosshair(Math.max(4, gap), !co && ads < 0.5 && this.weapons.sprintPose < 0.5 && w.state !== 'inspecting');
-    hud.weapon(UI.hud.weapons[w.current] ?? w.current, w.ammo[w.current], w.stats().magazine, w.state === 'reloading' && w.progress < T.reloadRefill);
+    hud.weapon(UI.hud.weapons[w.current] ?? w.current, w.ammo[w.current], w.stats().magazine, w.endlessSpare ? null : w.reserve[w.current], w.state === 'reloading' && w.progress < T.reloadRefill);
     if (w.refilledAt >= 0) {
       hud.refillFlash();
       w.refilledAt = -1;
     }
-    const hint = w.ammo[w.current] === 0 && w.state !== 'reloading' ? (this.devDirectReload ? UI.hud.reloadHintDev : UI.hud.reloadHint) : w.reminder > 0 ? UI.hud.reloadHint : '';
+    const empty = w.ammo[w.current] === 0 && w.state !== 'reloading';
+    const hint = empty && (w.canReload || this.devDirectReload) ? UI.hud.reloadKey : empty || w.reminder > 0 ? this.outOfAmmoText() : '';
     hud.setHint(co ? '' : hint);
     hud.grenades(w.grenades, w.maxGrenades);
 

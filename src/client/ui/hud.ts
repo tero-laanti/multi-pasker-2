@@ -23,6 +23,7 @@ export class Hud {
   private drill: HTMLDivElement;
   private results: HTMLDivElement;
   private centerNote: HTMLDivElement;
+  private prompt: HTMLDivElement;
   private grenadeEl: HTMLDivElement;
   private last = new Map<string, string | number | boolean>();
   private bannerTimer = 0;
@@ -47,6 +48,19 @@ export class Hud {
     this.drill = el('div', 'drill', this.root);
     this.results = el('div', 'results', this.root);
     this.centerNote = el('div', 'center-note', this.root);
+    this.prompt = el('div', 'prompt', this.root);
+  }
+
+  /** "[E] Pick up …" under the crosshair while something can be used. */
+  setPrompt(key: string, text: string): void {
+    if (this.changed('prompt', key + text)) {
+      this.prompt.textContent = '';
+      if (text) {
+        el('span', 'key', this.prompt, key);
+        this.prompt.append(text);
+      }
+      this.prompt.classList.toggle('show', text.length > 0);
+    }
   }
 
   private changed(key: string, v: string | number | boolean): boolean {
@@ -70,14 +84,19 @@ export class Hud {
     this.hitTimer = kind === 'kill' ? 0.45 : 0.25;
   }
 
-  weapon(name: string, ammo: number, max: number, reloading: boolean): void {
+  /** Rounds in the magazine and the spare rounds (`null`: endless, the practice range). */
+  weapon(name: string, ammo: number, max: number, spare: number | null, reloading: boolean): void {
     if (this.changed('wname', name)) this.weaponName.textContent = name;
     const a = reloading ? UI.hud.reloading : String(ammo);
     if (this.changed('ammo', a)) {
       this.ammo.textContent = a;
       this.ammo.classList.toggle('reloading', reloading);
     }
-    if (this.changed('ammoMax', max)) this.ammoMax.textContent = `/ ${max}`;
+    const s = spare === null ? '∞' : String(spare);
+    if (this.changed('ammoMax', s)) {
+      this.ammoMax.textContent = `/ ${s}`;
+      this.ammoMax.classList.toggle('none', spare === 0);
+    }
     const low = !reloading && ammo <= Math.ceil(max * 0.25);
     if (this.changed('low', low)) this.ammoBox.classList.toggle('low', low);
     const empty = !reloading && ammo === 0;
@@ -125,6 +144,11 @@ export class Hud {
           : `${UI.range.drill} · ${UI.range.time} ${Math.max(0, DRILL.duration - time).toFixed(1)} s · ${UI.range.score} ${score}`;
     if (this.changed('drill', text)) this.drill.textContent = text;
     if (this.changed('drillPhase', phase)) this.drill.classList.toggle('active', phase !== 'idle');
+  }
+
+  hideDrill(): void {
+    if (this.changed('drill', '')) this.drill.textContent = '';
+    if (this.changed('drillPhase', 'hidden')) this.drill.classList.remove('active');
   }
 
   showResults(r: DrillResult, best: number, isBest: boolean): void {

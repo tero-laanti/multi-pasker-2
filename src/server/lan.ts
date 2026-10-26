@@ -40,3 +40,15 @@ export function pickLanAddress(override?: string, ifaces?: NodeJS.Dict<os.Networ
   if (override && override.trim()) return override.trim();
   return lanCandidates(ifaces)[0]?.address ?? null;
 }
+
+/**
+ * True for a connection from this machine itself: loopback, or any address of its own network
+ * adapters (a browser on the server machine that opened the LAN address shows up as that).
+ */
+export function isOwnAddress(remote: string, ifaces: NodeJS.Dict<os.NetworkInterfaceInfo[]> = os.networkInterfaces()): boolean {
+  const a = remote.replace(/^::ffff:/i, '').replace(/%.*$/, '').toLowerCase();
+  if (!a) return false;
+  if (a === '::1' || a.startsWith('127.')) return true;
+  for (const list of Object.values(ifaces)) for (const info of list ?? []) if (info.address.replace(/%.*$/, '').toLowerCase() === a) return true;
+  return false;
+}
