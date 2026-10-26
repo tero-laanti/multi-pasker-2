@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { DEG, clamp, damp, lerp, smoothstep } from '../../shared/math';
+import { buildPhone, type PhoneModel } from './models/phone';
 import { buildPistol, type WeaponModel } from './models/pistol';
 import { buildRifle } from './models/rifle';
 import { THROW_RELEASE, type WeaponController } from './weapons';
@@ -141,6 +142,17 @@ export class ViewModel {
   onCasingLand: (() => void) | null = null;
   /** World-space muzzle flash strength for lighting (0..1). */
   flash = 0;
+  /** Suppressor fitted (Vaimennin): no muzzle flash. */
+  silenced = false;
+  private phone: PhoneModel = buildPhone();
+  /** How far the phone is up in view (0..1); it dips while the left hand is busy. */
+  private phoneK = 0;
+  private phoneAt = new THREE.Vector3();
+  private phoneRot = new THREE.Quaternion();
+  private phoneEuler = new THREE.Euler();
+  private phoneM = new THREE.Matrix4();
+  private phoneM2 = new THREE.Matrix4();
+  private one = new THREE.Vector3(1, 1, 1);
 
   constructor(private scene: THREE.Scene) {
     scene.add(this.holder);
@@ -271,6 +283,7 @@ export class ViewModel {
     p.roll += 0.55 * sprint;
 
     this.applyTimeline(p, m, w);
+    this.phonePose(p, w, dt, alpha);
 
     // Bob, breathing, sway, landing.
     const ph = this.bobPhase;
@@ -298,6 +311,7 @@ export class ViewModel {
     this.holder.rotation.set(p.pitch, p.yaw, p.roll, 'YXZ');
     // The rotation pivots at the rear sight so aiming stays aligned under small kicks.
     m.root.position.set(0, 0, 0);
+    this.phoneHand(m);
 
     // Flash fades over a couple of frames.
     this.flashTime += dt;
@@ -336,7 +350,7 @@ export class ViewModel {
     snap(this.kick.pitch, T.kickPitch * DEG * a);
     snap(this.kick.yaw, T.kickYaw * DEG * r() * a);
     snap(this.kick.roll, T.kickRoll * DEG * r() * a);
-    this.flashTime = 0;
+    if (!this.silenced) this.flashTime = 0;
     this.flashFront.rotation.z = Math.random() * Math.PI * 2;
     const s = 0.8 + Math.random() * 0.45;
     this.flashFront.scale.setScalar(s * (1 - ads * 0.35));
@@ -374,6 +388,50 @@ export class ViewModel {
         }
       }
     }
+  }
+
+  /**
+   * A chat open on the player's phone: the gun drops to one hand and the phone comes up into the
+   * lower left of the view. While the left hand is needed (reloads, throws) the phone dips away.
+   */
+  private phonePose(p: Pose, w: WeaponController, dt: number, alpha: number): void {
+    const busy = w.state === 'reloading' || w.state === 'throwing';
+    const goal = busy ? 0 : lerp(w.phonePrev, w.phone, alpha);
+    this.phoneK = damp(this.phoneK, goal, busy ? 14 : 10, dt);
+    if (Math.abs(this.phoneK - goal) < 0.002) this.phoneK = goal;
+    const k = smoothstep(0, 1, this.phoneK);
+    if (k <= 0.001) return;
+    // One-handed gun: a little lower, out to the right and canted.
+    p.x += 0.022 * k;
+    p.y -= 0.028 * k;
+    p.z += 0.012 * k;
+    p.roll -= 0.11 * k;
+    p.pitch -= 0.035 * k;
+  }
+
+  /** The phone hand, placed in view space once the gun is placed (it is the gun model's child). */
+  private phoneHand(m: WeaponModel): void {
+    const hand = m.hands.phone;
+    const k = smoothstep(0, 1, this.phoneK);
+    for (const id of ['pistol', 'rifle'] as WeaponId[]) {
+      const other = this.models[id];
+      if (other && other !== m) other.hands.phone.visible = false;
+    }
+    hand.visible = k > 0.01;
+    if (!hand.visible) return;
+    if (this.phone.root.parent !== m.hands.phoneAnchor) m.hands.phoneAnchor.add(this.phone.root);
+    this.phone.setGlow(k);
+    // The left hand has left the gun for the phone.
+    if (k > 0.5) m.hands.left.visible = false;
+    // Lower left, screen turned up and in towards the eye; it rises from below and bobs.
+    const bob = Math.sin(this.bobPhase) * 0.004 * this.bobAmt;
+    this.phoneAt.set(-0.165 + bob, lerp(-0.4, -0.142, k) + Math.abs(bob) * 0.5, -0.335);
+    this.phoneEuler.set(-0.55 + 0.3 * (1 - k), 0.3, -0.1, 'YXZ');
+    this.phoneRot.setFromEuler(this.phoneEuler);
+    this.phoneM.compose(this.phoneAt, this.phoneRot, this.one);
+    this.holder.updateMatrixWorld(true);
+    this.phoneM2.copy(hand.parent!.matrixWorld).invert().multiply(this.phoneM);
+    this.phoneM2.decompose(hand.position, hand.quaternion, hand.scale);
   }
 
   /** Reload, inspect and weapon-switch animation layered onto the pose. */
