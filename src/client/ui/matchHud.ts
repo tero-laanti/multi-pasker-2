@@ -1,6 +1,6 @@
 import { PHONE } from '../../shared/config';
 import { FI } from '../../shared/fi';
-import { ACCENTS, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
+import { ACCENTS, type AwardInfo, type EveningRow, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { wrapAngle } from '../../shared/math';
 
@@ -229,21 +229,30 @@ export class MatchHud {
     if (this.changed('death', false)) this.death.classList.add('hidden');
   }
 
-  /** Scoreboard (Tab, and automatically between rounds). */
-  scoreboard(show: boolean, players: PlayerInfo[], myId: number, round: RoundInfo | null, serverNow: number): void {
+  /** Scoreboard (Tab, and automatically between rounds with the awards and the evening). */
+  scoreboard(show: boolean, players: PlayerInfo[], myId: number, round: RoundInfo | null, serverNow: number, awards: AwardInfo[] = [], evening: EveningRow[] = []): void {
     this.boardVisible = show;
     this.board.classList.toggle('hidden', !show);
     if (!show) return;
     const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
     const ended = round?.state === 'ended';
-    const key = JSON.stringify([sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank]), ended, round?.n, ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0]);
+    const key = JSON.stringify([
+      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank]),
+      ended,
+      round?.n,
+      ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0,
+      ended ? awards : 0,
+      ended ? evening : 0,
+    ]);
     if (!this.changed('board', key)) return;
     this.board.innerHTML = '';
-    const head = el('div', 'sb-head', this.board);
+    this.board.classList.toggle('wide', ended);
+    const main = ended ? el('div', 'sb-col', this.board) : this.board;
+    const head = el('div', 'sb-head', main);
     el('div', 'sb-title', head, ended ? UI.hud.roundOver : UI.scoreboard.title);
     if (round) el('div', 'sb-round', head, ended ? fill(UI.hud.nextRound, { s: Math.max(0, Math.ceil((round.endsAt - serverNow) / 1000)) }) : fill(UI.hud.round, { n: round.n }));
-    if (ended && sorted[0]) el('div', 'sb-winner', this.board, fill(UI.hud.roundWinner, { name: sorted[0].name }));
-    const table = el('div', 'sb-table', this.board);
+    if (ended && sorted[0]) el('div', 'sb-winner', main, fill(UI.hud.roundWinner, { name: sorted[0].name }));
+    const table = el('div', 'sb-table', main);
     const row = (cls: string) => el('div', `sb-row ${cls}`, table);
     const h = row('sb-cols');
     el('div', 'sb-rank', h, '#');
@@ -271,6 +280,34 @@ export class MatchHud {
       el('div', 'sb-num', r, String(p.deaths));
       el('div', 'sb-num dim', r, p.bot ? '–' : String(p.ping));
     });
+    if (!ended) return;
+    const side = el('div', 'sb-col side', this.board);
+    if (awards.length) {
+      el('div', 'sb-sub', side, UI.awards.title);
+      const byId = new Map(players.map((p) => [p.id, p]));
+      for (const a of awards) {
+        const row = el('div', 'award', side);
+        el('div', 'award-name', row, a.name);
+        const who = el('div', 'award-who', row);
+        const chip = el('span', 'sb-chip', who);
+        chip.style.background = accentOf(byId.get(a.player));
+        el('span', '', who, a.playerName);
+        const text = (a.value === '1' && UI.awards[`${a.id}1`]) || UI.awards[a.id] || '';
+        el('div', 'award-what', row, fill(text, { v: a.value }));
+      }
+    }
+    if (evening.length) {
+      el('div', 'sb-sub', side, UI.evening.title);
+      const t = el('div', 'ev-table', side);
+      const E = UI.evening;
+      const h = el('div', 'ev-row ev-cols', t);
+      for (const c of ['', E.wins, E.kills, E.deaths, E.awards, E.tj0]) el('div', '', h, c);
+      for (const r of evening.slice(0, 10)) {
+        const row = el('div', 'ev-row', t);
+        el('div', 'ev-name', row, r.name);
+        for (const v of [r.wins, r.kills, r.deaths, r.awards, r.tj0]) el('div', 'sb-num', row, String(v));
+      }
+    }
   }
 
   /** Per frame: fades, and turns the damage indicators with the camera. */

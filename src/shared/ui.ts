@@ -119,6 +119,29 @@ export const UI = {
     simulator: 'Open phone simulator',
   },
 
+  awards: {
+    title: 'Awards',
+    winner: 'Most kills: {v}',
+    deathsTyping: 'Died mid-message {v} times',
+    deathsTyping1: 'Died mid-message once',
+    typos1: '1 message the armourer didn’t accept',
+    longestDraft: '“{v}”',
+    typos: '{v} messages the armourer didn’t accept',
+    phoneTime: '{v} s on the phone',
+    pushups: '{v} push-ups',
+    swedish: 'First through Nylands brigad',
+  } as Record<string, string>,
+
+  evening: {
+    title: 'This evening',
+    rounds: 'Rounds',
+    wins: 'Wins',
+    kills: 'Kills',
+    deaths: 'Deaths',
+    awards: 'Awards',
+    tj0: 'TJ 0',
+  },
+
   scoreboard: {
     title: 'Scoreboard',
     name: 'Name',
@@ -174,6 +197,8 @@ export const UI = {
     killMe: 'Kill me (test respawn)',
     offer: 'Trigger an offer',
     advance: 'Advance the ladder',
+    endRound: 'End the round now',
+    newEvening: 'New evening (clear totals)',
     tuning: 'Tuning (F4)',
     stats: 'Performance (F3)',
   },

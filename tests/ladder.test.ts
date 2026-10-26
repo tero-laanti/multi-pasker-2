@@ -187,11 +187,63 @@ describe('the TJ ladder', () => {
     expect(c.stage).toBe(4);
     expect(c.conv.replace('+', '').length).toBe(17);
     room.onPhoneMessage(p, { t: 'open', conv: c.conv });
-    run(8000);
+    run(15000);
     const voice = texts(a!.phone, c.conv).find((m) => m.voice);
     expect(voice?.voice?.url).toMatch(/^\/voicenote\/[0-9a-f]{16}\.wav$/);
     send(p, c.code, c.conv);
     expect(p.ladder.stage).toBe(4);
+  });
+
+  it('stage 5 asks for the serial number off the gun', () => {
+    const { all, kill, send, room } = setup();
+    const [a, b] = all;
+    const p = a!.p;
+    Object.assign(p.ladder, { stage: 4, started: true, kills: 2 });
+    p.rank = 4;
+    p.owned = ['pistol', 'rifle'];
+    kill(p, b!.p);
+    const c = p.ladder.open!;
+    expect(c.stage).toBe(5);
+    const s = p.serials;
+    expect([s.rifle, s.rifle.slice(-3), [...s.rifle].reverse().join(''), s.pistol]).toContain(c.code);
+    room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    send(p, `${c.code}.`, c.conv);
+    expect(p.ladder.stage).toBe(5);
+  });
+
+  it('stage 6 is in Swedish; Finnish answers get "svara på svenska"; then TJ 0', () => {
+    const { all, kill, send, room, run, texts } = setup();
+    const [a, b] = all;
+    const p = a!.p;
+    Object.assign(p.ladder, { stage: 5, started: true, kills: 2 });
+    p.rank = 5;
+    kill(p, b!.p);
+    const c = p.ladder.open!;
+    expect(c.stage).toBe(6);
+    room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    // Messages queue one after another with typing pauses.
+    run(15000);
+    const voice = texts(a!.phone, c.conv).find((m) => m.voice);
+    expect(voice?.voice?.url).toMatch(/^\/voice\/ruotsi_/);
+    send(p, FI.ladder.swedishInFinnish[c.code]!.toLowerCase(), c.conv);
+    run(8000);
+    expect(p.ladder.stage).toBe(5);
+    expect(texts(a!.phone, c.conv).some((m) => FI.ladder.nylandsFinnish.includes(m.text ?? ''))).toBe(true);
+    send(p, c.code, c.conv);
+    expect(p.ladder.stage).toBe(6);
+    expect(p.ladder.tj).toBe(0);
+    expect(p.rank).toBe(6);
+    run(8000);
+    expect(texts(a!.phone, V.number).some((m) => m.text === FI.ladder.tj0)).toBe(true);
+    // Done: no more offers, but the services keep working.
+    p.ladder.choice = null;
+    p.ladder.kills = 2;
+    kill(p, b!.p);
+    expect(p.ladder.open).toBeNull();
+    p.ammo.pistol = 1;
+    p.weapon = 'pistol';
+    send(p, 'Lataa');
+    expect(p.reload).not.toBeNull();
   });
 
   it('Sotkun munkkikahvit: KIITOS to the asevarasto completes the next challenge', () => {

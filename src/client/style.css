@@ -1211,3 +1211,79 @@ input[type='range'] {
   font-size: 14px;
   min-width: 38px;
 }
+
+/* ---------- Intermission: awards and the evening ---------- */
+.scoreboard.wide {
+  width: min(1180px, 96vw);
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 28px;
+  max-height: 92vh;
+  overflow-y: auto;
+}
+.sb-col.side {
+  border-left: 1px solid var(--line);
+  padding-left: 24px;
+}
+.sb-sub {
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  margin: 2px 0 8px;
+}
+.award {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'name who' 'what what';
+  gap: 0 12px;
+  padding: 6px 0;
+  border-top: 1px solid rgba(241, 238, 228, 0.07);
+}
+.award-name {
+  grid-area: name;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.award-who {
+  grid-area: who;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 19px;
+  font-weight: 600;
+}
+.award-what {
+  grid-area: what;
+  font-size: 15px;
+  color: var(--fg-dim);
+  overflow-wrap: anywhere;
+}
+.ev-table {
+  margin-bottom: 4px;
+}
+.ev-row {
+  display: grid;
+  grid-template-columns: 1fr repeat(5, 56px);
+  align-items: center;
+  height: 26px;
+  font-size: 17px;
+  border-top: 1px solid rgba(241, 238, 228, 0.07);
+}
+.ev-row.ev-cols {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+  border-top: none;
+}
+.ev-row.ev-cols > div:not(:first-child) {
+  text-align: right;
+  padding-right: 8px;
+}
+.ev-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

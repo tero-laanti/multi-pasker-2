@@ -327,6 +327,7 @@ export class Bot {
 
   private goTo(x: number, y: number, z: number): void {
     const nav = this.room.nav;
+    if (nav.length === 0) return;
     const from = nearestNode(nav, this.move.x, this.move.y, this.move.z, this.room.world);
     const to = nearestNode(nav, x, y, z);
     const path = findPath(nav, from, to);
@@ -336,6 +337,8 @@ export class Bot {
 
   private followPath(now: number, cmd: ReturnType<typeof emptyCmd>): void {
     const nav = this.room.nav;
+    // A map without a navigation graph: stand and look around.
+    if (nav.length === 0) return;
     if (this.pathIdx >= this.path.length) {
       const goal = Math.floor(Math.random() * nav.length);
       this.goTo(nav[goal]!.x, nav[goal]!.y, nav[goal]!.z);

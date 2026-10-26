@@ -163,6 +163,8 @@ export class App {
       killMe: () => this.devCommand('killMe'),
       offer: () => this.devCommand('offer'),
       advance: () => this.devCommand('advance'),
+      endRound: () => this.devCommand('endRound'),
+      newEvening: () => this.devCommand('newEvening'),
       openSimulator: () => this.openSimulator(),
       setGate: (open) => this.devCommand('gate', open),
       gateOpen: () => this.match?.round?.gateOpen ?? false,

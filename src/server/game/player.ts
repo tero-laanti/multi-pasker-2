@@ -64,7 +64,11 @@ export class ServerPlayer {
   /** Index into FI.ranks: alokas (0) to vääpeli (6). */
   rank = 0;
   /** Counters for the end-of-round awards. */
-  stats = { pushups: 0, reloads: 0, typos: 0, deathsTyping: 0, longestDraft: '', phoneMs: 0 };
+  stats = ServerPlayer.freshStats();
+
+  static freshStats() {
+    return { pushups: 0, reloads: 0, typos: 0, deathsTyping: 0, longestDraft: '', deathDraft: '', phoneMs: 0, swedishAt: 0 };
+  }
 
   constructor(
     readonly id: number,

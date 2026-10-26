@@ -28,6 +28,7 @@ import { ServerPlayer } from './player';
 import { Varusmestari } from './varusmestari';
 import { LadderService } from './ladder';
 import { VoiceNotes } from '../voicenotes';
+import { Evening, roundAwards } from './awards';
 import { UPGRADES, maxGrenades, type UpgradeId } from '../../shared/upgrades';
 import type { UpgradeOffer } from '../../shared/protocol';
 import { FI } from '../../shared/fi';
@@ -47,6 +48,8 @@ export interface RoomOptions {
   publicUrl?: string;
   /** Spliced phonetic-alphabet voice notes (tests run without). */
   voiceNotes?: VoiceNotes;
+  /** The evening scoreboard (saved to a file by the server). */
+  evening?: Evening;
 }
 
 interface TypoCandidate {
@@ -71,6 +74,7 @@ export class Room {
   readonly varusmestari = new Varusmestari(this);
   readonly ladder = new LadderService(this);
   readonly voiceNotes: VoiceNotes;
+  readonly evening: Evening;
   private typos: TypoCandidate[] = [];
   private lastTypoAt = -1e9;
   private events: GameEvent[] = [];
@@ -87,6 +91,7 @@ export class Room {
     this.now = opts.now ?? (() => performance.now());
     this.directReload = opts.dev;
     this.voiceNotes = opts.voiceNotes ?? new VoiceNotes(null);
+    this.evening = opts.evening ?? new Evening(null);
     this.world = new CollisionWorld(map.brushes);
     this.nav = buildNavGraph(this.world, map.nav ?? []);
     this.round = { n: 1, state: 'playing', endsAt: this.now() + ROUND_TIME, gateOpen: false };
@@ -144,6 +149,7 @@ export class Room {
     this.broadcastPlayers();
     this.sendSpawnState(p);
     this.sendPairInfo(p);
+    p.send({ t: 'evening', rows: this.evening.list() });
     this.ladder.notify(p);
     p.outbox.push({ k: 'upgrades', u: { ...p.ladder.upgrades } });
     p.phone.sendStatus(p.phoneStatus(this.round.n));
@@ -375,6 +381,19 @@ export class Room {
     return [...this.players.values()].map((p) => p.info());
   }
 
+  /** Round over: awards for everyone, and the round goes into the evening scoreboard. */
+  private endRound(): void {
+    const players = [...this.players.values()];
+    const list = roundAwards(players);
+    this.emit({ k: 'awards', list });
+    this.evening.addRound(players, list);
+    this.broadcast({ t: 'evening', rows: this.evening.list() });
+  }
+
+  broadcast(msg: object): void {
+    for (const p of this.players.values()) p.send(msg);
+  }
+
   broadcastPlayers(): void {
     const msg = { t: 'players', players: this.playerList() };
     for (const p of this.players.values()) p.send(msg);
@@ -523,6 +542,13 @@ export class Room {
         break;
       case 'advance':
         this.ladder.advance(p);
+        break;
+      case 'newEvening':
+        this.evening.reset();
+        this.broadcast({ t: 'evening', rows: this.evening.list() });
+        break;
+      case 'endRound':
+        this.round = { ...this.round, endsAt: this.now() };
         break;
       case 'killMe':
         if (p.alive) this.kill(p, p, 'grenade', false);
@@ -699,7 +725,10 @@ export class Room {
     // Killed mid-message: the unfinished draft goes into the kill feed.
     const d = v.phone.draft;
     const typing = d && d.text.trim() && (v.phone.out || now - d.at < PHONE.draftRecent * 1000) ? d.text.trim().slice(0, 60) : undefined;
-    if (typing) v.stats.deathsTyping++;
+    if (typing) {
+      v.stats.deathsTyping++;
+      if (typing.length > v.stats.deathDraft.length) v.stats.deathDraft = typing;
+    }
     const ev: GameEvent = { k: 'kill', a: a?.id ?? 0, v: v.id, w, head };
     if (typing) ev.draft = typing;
     this.emit(ev);
@@ -757,6 +786,7 @@ export class Room {
       p.maxGrenades = 1;
       p.ladder.reset();
       p.rank = 0;
+      p.stats = ServerPlayer.freshStats();
       this.ladder.notify(p);
       p.outbox.push({ k: 'upgrades', u: {} });
       p.phone.resetRound();
@@ -781,6 +811,7 @@ export class Room {
     if (this.round.state === 'playing' && now >= this.round.endsAt) {
       this.round = { ...this.round, state: 'ended', endsAt: now + INTERMISSION };
       this.emit({ k: 'round', round: this.round });
+      this.endRound();
     } else if (this.round.state === 'ended' && now >= this.round.endsAt) {
       this.startRound();
     }

@@ -20,6 +20,8 @@ export interface DevActions {
   killMe(): void;
   offer(): void;
   advance(): void;
+  endRound(): void;
+  newEvening(): void;
   openSimulator(): void;
   setGate(open: boolean): void;
   gateOpen(): boolean;
@@ -83,6 +85,10 @@ export class DevPanel {
     btn(this.matchBox, UI.dev.killMe, () => a.killMe());
     btn(this.matchBox, UI.dev.offer, () => a.offer());
     btn(this.matchBox, UI.dev.advance, () => a.advance());
+    btn(this.matchBox, UI.dev.endRound, () => a.endRound());
+    btn(this.matchBox, UI.dev.newEvening, () => {
+      if (window.confirm(UI.dev.newEvening + '?')) a.newEvening();
+    });
     btn(this.matchBox, UI.pair.simulator, () => a.openSimulator());
     this.gate = check(this.matchBox, UI.dev.gateOpen, () => a.gateOpen(), (on) => a.setGate(on));
     this.direct = check(this.root, UI.dev.rDirect, () => a.directReload(), (on) => a.setDirectReload(on));

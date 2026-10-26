@@ -13,6 +13,7 @@ import type { ServerPlayer } from './game/player';
 import type { ClientMsg, PhoneClientMsg } from '../shared/protocol';
 import { mergeTuning, type TuningNode } from '../shared/tuningTree';
 import { VoiceNotes } from './voicenotes';
+import { Evening } from './game/awards';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIST = path.join(ROOT, 'dist');
@@ -77,7 +78,10 @@ async function main(): Promise<void> {
     wss.handleUpgrade(req, socket, head, (ws) => onConnection(ws, req));
   });
 
-  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined, voiceNotes });
+  // The evening scoreboard lives in data/ (not in git) and survives restarts. A server on another
+  // port (a second instance for testing) keeps its own.
+  const evening = new Evening(path.join(ROOT, 'data', args.port === NET.defaultPort ? 'evening.json' : `evening-${args.port}.json`));
+  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined, voiceNotes, evening });
   const bots = Number(process.env.PASKER_BOTS ?? 0);
   for (let i = 0; i < bots; i++) room.addBot();
   startTickLoop();

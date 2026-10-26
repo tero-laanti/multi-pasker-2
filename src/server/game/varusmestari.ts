@@ -93,7 +93,7 @@ export class Varusmestari {
     }
     const contact = this.room.ladder.contact(p, conv.id);
     if (ladder === 'wrongChat' || (contact && conv.id !== V.number)) {
-      const reply = pick(ladder === 'wrongChat' ? FI.ladder.wrongChat : FI.ladder.officeOther);
+      const reply = contact?.kind === 'nylands' ? this.swedishReply(text) : pick(ladder === 'wrongChat' ? FI.ladder.wrongChat : FI.ladder.officeOther);
       phone.schedule(now + (r0 + Math.random() * (r1 - r0)) * 1000, () => phone.setState(conv.id, out.id, 'read'));
       this.post(p, conv.id, reply);
       this.room.offerTypo(p, conv.name, text, reply);
@@ -126,6 +126,14 @@ export class Varusmestari {
     }
     if (d.public) this.room.offerTypo(p, V.name, text, d.reply);
     return c.kind;
+  }
+
+  /** Nylands brigad: anything that isn't Swedish gets told to answer in Swedish. */
+  private swedishReply(text: string): string {
+    const t = normalize(text);
+    const swedishCodes = Object.keys(FI.ladder.swedishInFinnish);
+    if (swedishCodes.includes(t) || classify(text).kind === 'swedish') return pick(FI.ladder.nylandsWrong);
+    return pick(FI.ladder.nylandsFinnish);
   }
 
   private decide(p: ServerPlayer, req: SendRequest, c: Classified, text: string, now: number): Decision {

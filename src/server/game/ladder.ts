@@ -35,8 +35,8 @@ export interface Challenge {
   code: string;
   /** The contact posted its task in its chat (stages handled outside the asevarasto). */
   posted: boolean;
-  /** How the contact presents the task. */
-  task?: { text: string; voice?: string[] };
+  /** How the contact presents the task: text, then a spelled voice note or a recorded line. */
+  task?: { text: string; voice?: string[]; line?: string };
 }
 
 /** One player's progress up the TJ ladder this round. */
@@ -208,18 +208,45 @@ export class LadderService {
       return;
     }
     if (stage === 4) {
-      let number = [...l.contacts].find(([, c]) => c.kind === 'huolto')?.[0];
-      if (!number) {
-        number = longNumber();
-        l.contacts.set(number, { name: L.huolto, kind: 'huolto' });
-      }
+      const number = this.huolto(p);
       const code = this.code(4, L.stage4Codes);
       l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.huoltoNote), voice: [...code] } };
       this.say(p, pick(L.stage4).replace('{number}', number));
       this.postTask(p);
       return;
     }
-    // Stages 5 and 6 come with the next milestone; until then the ladder waits here.
+    if (stage === 5) {
+      // The serial number off the gun: inspect (I) to read it.
+      const number = this.huolto(p);
+      const s = p.serials;
+      const kind = pick(['full', 'last3', 'reversed', 'pistol'] as const);
+      const code = kind === 'full' ? s.rifle : kind === 'last3' ? s.rifle.slice(-3) : kind === 'reversed' ? [...s.rifle].reverse().join('') : s.pistol;
+      l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.stage5[kind]) } };
+      this.say(p, pick(L.stage5Intro));
+      this.postTask(p);
+      return;
+    }
+    if (stage === 6) {
+      const taken = new Set([V.number, ...l.contacts.keys()]);
+      const number = shortNumber(taken);
+      l.contacts.set(number, { name: L.nylands, kind: 'nylands' });
+      const code = this.code(6, FI.voice.swedish.map(([, c]) => c));
+      const file = FI.voice.swedish.find(([, c]) => c === code)![0];
+      l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.nylandsNote), line: file } };
+      this.say(p, pick(L.stage6).replace('{number}', number));
+      this.postTask(p);
+    }
+  }
+
+  /** The huoltopäällikkö's long number (made up if stage 4 was skipped). */
+  private huolto(p: ServerPlayer): string {
+    const l = p.ladder;
+    let number = [...l.contacts].find(([, c]) => c.kind === 'huolto')?.[0];
+    if (!number) {
+      number = longNumber();
+      l.contacts.set(number, { name: L.huolto, kind: 'huolto' });
+    }
+    return number;
   }
 
   /**
@@ -230,7 +257,7 @@ export class LadderService {
     const c = p.ladder.open;
     if (!c || c.posted || !c.task || !p.phone.convs.has(c.conv)) return;
     c.posted = true;
-    const voice = c.task.voice ? this.room.voiceNotes.spell(c.task.voice) : undefined;
+    const voice = c.task.voice ? this.room.voiceNotes.spell(c.task.voice) : c.task.line ? this.room.voiceNotes.line(c.task.line) : undefined;
     this.say(p, c.task.text, c.conv);
     if (voice) this.say(p, '', c.conv, voice);
   }
@@ -290,8 +317,15 @@ export class LadderService {
       this.say(p, pick(L.stage1Done), from);
       this.room.giveWeapon(p, 'rifle');
     }
-    if (l.done) this.say(p, L.tj0);
-    else this.say(p, this.fill(p, pick(L.promoted)), from);
+    if (c.stage === 6) {
+      // Nylands brigad answers in Swedish; the promotion comes from the asevarasto.
+      this.say(p, pick(L.nylandsDone), from);
+      p.stats.swedishAt = this.room.now();
+    }
+    if (l.done) {
+      this.say(p, this.fill(p, pick(L.promoted)));
+      this.say(p, L.tj0);
+    } else this.say(p, this.fill(p, pick(L.promoted)), from);
     this.room.broadcastPlayers();
     if (c.stage >= 2) {
       const options = upgradeChoices(l.upgrades, c.stage);

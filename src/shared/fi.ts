@@ -197,7 +197,49 @@ export const FI = {
     wrongChat: ['Väärä luukku. Lähetä se sinne, minne käskettiin.', 'Se ei kuulu tänne. Lue ohje uudestaan.'],
     /** Sotkun munkkikahvit: KIITOS completes the next challenge. */
     munkkiDone: ['Munkkikahvit tekivät tehtävänsä. Hoidettu.', 'Kiitos itsellesi. Tehtävä kuitattu munkin voimalla.'],
+    /** Stage 5: the huoltopäällikkö wants the weapon's serial number (inspect: I). */
+    stage5Intro: ['Huoltopäällikkö haluaa vielä jotain. Sama numero kuin viimeksi.', 'Huoltopäällikkö soittaa vielä. Tai siis kirjoittaa. Sama numero.'],
+    stage5: {
+      full: ['Ennen luovutusta: ilmoita kiväärisi numero.', 'Ennen luovutusta tarkistetaan. Kiväärisi numero, kiitos.'],
+      last3: ['Ennen luovutusta: kiväärisi numeron kolme viimeistä numeroa.', 'Ennen luovutusta: kolme viimeistä numeroa kiväärisi kyljestä.'],
+      reversed: ['Ennen luovutusta: kiväärisi numero takaperin. Kyllä, takaperin.', 'Ennen luovutusta: lue kiväärisi numero lopusta alkuun.'],
+      pistol: ['Ennen luovutusta: ilmoita pistoolisi numero.', 'Ennen luovutusta: sivuaseen numero, kiitos.'],
+    },
+    /** Stage 6: Nylands brigad, in Swedish. */
+    stage6: ['Nyt mennään ruotsiksi. Nylands brigad, numero {number}. Onnea.', 'Viimeinen luukku on Dragsvikissä. Nylands brigad, {number}. Svenska, tack.'],
+    nylands: 'Nylands brigad',
+    nylandsNote: ['Nylands brigad, jourhavande. Lyssna på röstmeddelandet och svara med koden.', 'Hej från Dragsvik. Koden kommer som röstmeddelande.'],
+    /** Answering in Finnish, or anything that isn't the code. */
+    nylandsFinnish: ['Svara på svenska, tack.', 'På svenska, tack. Vi är tvåspråkiga här.'],
+    nylandsWrong: ['Fel kod. Lyssna igen.', 'Det stämmer inte. Lyssna en gång till.'],
+    nylandsDone: ['Rätt. Bra jobbat. Hälsa till Asevarasto.', 'Korrekt. Tack och adjö.'],
+    /** The Swedish code words in Finnish, to catch answers in the wrong language. */
+    swedishInFinnish: {
+      ÄLG: 'HIRVI',
+      RÄV: 'KETTU',
+      BJÖRN: 'KARHU',
+      VARG: 'SUSI',
+      HARE: 'JÄNIS',
+      LO: 'ILVES',
+      UGGLA: 'PÖLLÖ',
+      KORP: 'KORPPI',
+      GÄDDA: 'HAUKI',
+      ABBORRE: 'AHVEN',
+      SILL: 'SILAKKA',
+      MÅS: 'LOKKI',
+    } as Record<string, string>,
     /** The ladder is done. */
     tj0: 'TJ 0. Kotiutettu. Asevarasto on suljettu. LATAA ja KRANAATTI toimivat vielä, koska olen hyvä ihminen.',
+  },
+
+  /** End-of-round awards (names; the English explanations are in ui.ts). */
+  awards: {
+    winner: 'Lomille ensimmäisenä',
+    deathsTyping: 'Kaatui kesken viestin',
+    longestDraft: 'Pisin keskeneräinen viesti',
+    typos: 'Kirjoitusvirheiden kuningas',
+    phoneTime: 'Kiire odottamaan',
+    pushups: 'Punnerruskuningas',
+    swedish: 'Pakkoruotsin sankari',
   },
 };

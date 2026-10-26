@@ -174,7 +174,60 @@ if (voiceUrl) {
 await dev('advance');
 await wait(1500);
 result.afterStage4 = await desk();
+// The stage 4 upgrade.
+await phone.waitForSelector('.upgrade-card', { timeout: 8000 });
+await phone.tap('.upgrade-card >> nth=0');
+await phone.tap('.upgrade .btn.primary');
+await phone.waitForSelector('.upgrade-wrap', { state: 'detached', timeout: 5000 });
 
+// Stage 5: the serial number off the gun (the desktop knows its serials).
+await dev('offer');
+await openChat('Huoltopäällikkö');
+const s5 = await waitIncoming((t) => /Ennen luovutusta/.test(t));
+result.stage5Message = s5;
+const serials = await desktop.evaluate(() => (window as any).__pasker.game.serials as { rifle: string; pistol: string });
+const answer = /kolme viimeistä/.test(s5)
+  ? serials.rifle.slice(-3)
+  : /takaperin|lopusta alkuun/.test(s5)
+    ? [...serials.rifle].reverse().join('')
+    : /pistoolisi|sivuaseen/.test(s5)
+      ? serials.pistol
+      : serials.rifle;
+await phone.tap('.kb-key[data-k="SYM"]');
+for (const d of answer) await phone.tap(`.kb-key[data-k="${d}"]`);
+await phone.tap('.send');
+await phone.waitForSelector('.v-list', { timeout: 5000 });
+await phone.waitForSelector('.upgrade-card', { timeout: 10000 });
+result.upgrade5 = await phone.evaluate(() => [...document.querySelectorAll('.upgrade-name')].map((n) => n.textContent));
+await phone.tap('.upgrade-card >> nth=0');
+await phone.tap('.upgrade .btn.primary');
+await phone.waitForSelector('.upgrade-wrap', { state: 'detached', timeout: 5000 });
+await wait(600);
+result.afterStage5 = await desk();
+
+// Stage 6: Nylands brigad in Swedish. A Finnish answer is told off; then the code.
+await dev('offer');
+await openChat('Asevarasto');
+const s6 = await waitIncoming((t) => /Nylands/.test(t));
+result.stage6Message = s6;
+const nylands = /\b(\d{4})\b/.exec(s6)?.[1] ?? '';
+await phone.tap('.bar-add');
+for (const d of nylands) await phone.tap(`.sheet .kb-key[data-k="${d}"]`);
+await phone.tap('.sheet .link.strong');
+await phone.waitForSelector('.v-chat');
+await phone.waitForSelector('.bubble.voice', { timeout: 20000 });
+result.swedishVoice = await phone.evaluate(() => {
+  const app = (window as any).__phone;
+  for (const c of app.convs.values()) for (const m of c.messages) if (m.voice?.url?.startsWith('/voice/')) return m.voice.url as string;
+  return '';
+});
+await sendInChat('hirvi');
+await openChat('Nylands brigad');
+result.finnishReply = await waitIncoming((t) => /svenska/i.test(t), 15000);
+await shot(phone, 'ladder_6_nylands');
+await dev('advance');
+await wait(2000);
+result.afterStage6 = await desk();
 }
 
 try {

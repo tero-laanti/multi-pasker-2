@@ -8,7 +8,9 @@ import {
   PROTOCOL_VERSION,
   WEAPON_IDS,
   encodeState,
+  type AwardInfo,
   type ClientMsg,
+  type EveningRow,
   type GameEvent,
   type PlayerInfo,
   type RoundInfo,
@@ -57,6 +59,9 @@ export class MatchMode implements GameMode {
   joined = false;
   players = new Map<number, PlayerInfo>();
   round: RoundInfo | null = null;
+  /** This round's awards (between rounds) and the evening scoreboard. */
+  awards: AwardInfo[] = [];
+  evening: EveningRow[] = [];
   /** How to pair a phone with us; null until the server says. */
   pairInfo: PairInfo | null = null;
   dev = false;
@@ -121,6 +126,9 @@ export class MatchMode implements GameMode {
         this.setRound(msg.round);
         this.game.devDirectReload = msg.dev;
         this.dev = msg.dev;
+        break;
+      case 'evening':
+        this.evening = msg.rows;
         break;
       case 'pairInfo':
         this.pairInfo = { url: msg.url, token: msg.token, code: msg.code, phone: msg.phone };
@@ -280,6 +288,9 @@ export class MatchMode implements GameMode {
         break;
       case 'ladder':
         this.hud.ladder(e.rank, e.tj, e.open, e.queued, e.choice);
+        break;
+      case 'awards':
+        this.awards = e.list;
         break;
       case 'upgrades': {
         g.weapons.upgrades = { ...e.u };
@@ -451,7 +462,7 @@ export class MatchMode implements GameMode {
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);
     const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';
-    this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow);
+    this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);
     this.hud.netStatus(this.net.stats.connected ? '' : UI.menu.reconnecting);
   }

@@ -136,6 +136,21 @@ export class VoiceNotes {
     return data;
   }
 
+  /** A whole recorded line (served from /voice/<name>) and its length. */
+  line(name: string): { url: string; duration: number } {
+    const file = this.voice?.resolveWav(name);
+    let duration = 3;
+    if (file) {
+      try {
+        const c = readWav(fs.readFileSync(file));
+        if (c) duration = c.data.length / c.rate;
+      } catch {
+        // Keep the estimate.
+      }
+    }
+    return { url: `/voice/${name}`, duration };
+  }
+
   /** Forget cached clips (recordings were added while the server runs). */
   reload(): void {
     this.clips.clear();

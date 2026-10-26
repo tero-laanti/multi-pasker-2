@@ -6,10 +6,10 @@ The interface is in English; voice lines, range commands and the varusmestari's 
 Finnish. The full brief is in [docs/BRIEF.md](docs/BRIEF.md) and the technology choices are in
 [docs/STACK.md](docs/STACK.md).
 
-> **Status:** milestone 5 of 7: the shooting range, LAN free-for-all matches on the garrison map
+> **Status:** milestone 6 of 7: the shooting range, LAN free-for-all matches on the garrison map
 > with bots, the phone (pairing, the messaging app with its own keyboard, the varusmestari's
-> LATAA and KRANAATTI), and the TJ ladder's stages 1–4 with ranks and upgrades. Stages 5–6,
-> the end-of-round awards and the evening scoreboard come next.
+> LATAA and KRANAATTI), the whole TJ ladder with ranks and upgrades, end-of-round awards and the
+> evening scoreboard. Final polish and validation come next.
 > Real-device test script: [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md).
 
 ## Requirements
@@ -112,6 +112,9 @@ down from 6. One task is open at a time; later offers wait in the queue.
 | 2 | Asevarasto | send a phrase exactly (tongue twisters included) |
 | 3 | an office at a new number | open a chat with that number yourself, then send its phrase or the code word hidden in a wall of regulations |
 | 4 | the huoltopäällikkö at a 17-digit +358 number | a voice note spells the code in the phonetic alphabet |
+| 5 | the huoltopäällikkö again | your gun's serial number: inspect it (I). Sometimes the last three digits, reversed, or the pistol's |
+| 6 | Nylands brigad at a new number | a Swedish voice note gives the code; answer in Swedish (*Svara på svenska, tack.*) |
+| TJ 0 | — | *Kotiutettu.* LATAA and KRANAATTI still work |
 
 Stages 2 and up open an upgrade screen on the phone (*Kokoa ei ole, ota mikä on.*): three choices
 with their exact effect. Upgrades last until the round ends: a longer magazine, a muzzle brake, a
@@ -121,6 +124,17 @@ and a drum magazine on the later stages. The desktop shows your rank and TJ unde
 note when a task or an upgrade waits on the phone.
 
 F2 → *Trigger an offer* and *Advance the ladder* skip the waiting while testing.
+
+## Awards and the evening scoreboard
+
+When a round ends, the scoreboard shows the awards: *Lomille ensimmäisenä* (most kills),
+*Kaatui kesken viestin* (died mid-message most often), *Pisin keskeneräinen viesti* (the longest
+unsent message, quoted), *Kirjoitusvirheiden kuningas* (most messages the armourer didn't
+accept), *Kiire odottamaan* (most time on the phone), *Punnerruskuningas* (most push-ups) and
+*Pakkoruotsin sankari* (first through Nylands brigad); and the evening scoreboard: wins, kills,
+deaths, awards and TJ 0s over every round tonight, by player name. It is saved to
+`data/evening.json` after each round, so restarting the server keeps it. Start a new evening with
+F2 → *New evening* on the host (or delete the file). Bots don't count.
 
 The dev panel's match controls (bots, round restart, gate, kill speed, giving weapons) work from
 the host machine, or from any machine on a `npm run dev` server. The *network conditioner*

@@ -220,6 +220,8 @@ export type ServerMsg =
   | { t: 'players'; players: PlayerInfo[] }
   /** `st`: server time the events happened. */
   | { t: 'events'; e: GameEvent[]; st: number }
+  /** The evening scoreboard (after each round, and on joining). */
+  | { t: 'evening'; rows: EveningRow[] }
   /** How to pair a phone to this player: QR link and the short code for typing in. */
   | { t: 'pairInfo'; url: string; token: string; code: string; phone: 'none' | 'online' | 'offline' };
 
@@ -256,7 +258,33 @@ export type GameEvent =
   /** Our upgrades changed (`id`: the one just taken, for the HUD). */
   | { k: 'upgrades'; u: Upgrades; id?: UpgradeId }
   /** Our place on the TJ ladder, for the HUD. */
-  | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number; choice: boolean };
+  | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number; choice: boolean }
+  /** End of round: the awards. */
+  | { k: 'awards'; list: AwardInfo[] };
+
+export type AwardId = 'winner' | 'deathsTyping' | 'longestDraft' | 'typos' | 'phoneTime' | 'pushups' | 'swedish';
+
+export interface AwardInfo {
+  id: AwardId;
+  /** Finnish name of the award. */
+  name: string;
+  player: number;
+  playerName: string;
+  /** What won it: a count, seconds, or the unsent draft. */
+  value: string;
+}
+
+/** One line of the evening scoreboard: totals over tonight's rounds. */
+export interface EveningRow {
+  name: string;
+  rounds: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  awards: number;
+  /** Rounds in which they reached TJ 0. */
+  tj0: number;
+}
 
 /** Accent colours for name tags and caps: 8 strong hues, also told apart by the name tag. */
 export const ACCENTS = [0xe8b21c, 0xd8453a, 0x3b8fe0, 0x2fb36a, 0xb259d6, 0xf08a2c, 0x29b8b8, 0xe05a9a];
