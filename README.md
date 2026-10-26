@@ -6,11 +6,11 @@ The interface is in English; voice lines, range commands and the varusmestari's 
 Finnish. The full brief is in [docs/BRIEF.md](docs/BRIEF.md) and the technology choices are in
 [docs/STACK.md](docs/STACK.md).
 
-> **Status:** milestone 6 of 7: the shooting range, LAN free-for-all matches on the garrison map
-> with bots, the phone (pairing, the messaging app with its own keyboard, the varusmestari's
-> LATAA and KRANAATTI), the whole TJ ladder with ranks and upgrades, end-of-round awards and the
-> evening scoreboard. Final polish and validation come next.
-> Real-device test script: [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md).
+> **Status:** all seven milestones are in: the shooting range, LAN free-for-all matches on the
+> garrison map with bots, the phone (pairing, the messaging app with its own keyboard, the
+> varusmestari), the whole TJ ladder with ranks and upgrades, end-of-round awards and the evening
+> scoreboard. Not yet tried on real phones: see [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md) for
+> the real-device test and [docs/VALIDATION.md](docs/VALIDATION.md) for what was tested.
 
 ## Requirements
 
@@ -293,16 +293,18 @@ desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / re
 `tools/e2e/ladder-flow.ts` climbs the TJ ladder through the phone (codes typed on its keyboard,
 the upgrade screen, the office number, the voice note).
 
-### Measured performance (milestone 3)
+### Measured performance
 
-16 players (this client and 15 bots fighting on the garrison), production build, Chrome 156 on a
-MacBook Pro M1 Max (ANGLE Metal), 1920×1080, *High* preset, standing at the parade ground with
-all 15 bots in the world, over 20 seconds (2,400 frames):
+16 players (this client and 15 bots fighting on the garrison, texting the armourer), production
+build, Chrome 156 on a MacBook Pro M1 Max (ANGLE Metal), 1920×1080, *High* preset, over 20 seconds
+(2,400 frames):
 
 | | average | p95 | p99 | max |
 |---|---|---|---|---|
-| Frame interval (display is 120 Hz) | 8.33 ms | 9.2 ms | 9.3 ms | 9.4 ms |
-| Main-thread time per frame | 1.09 ms | 1.4 ms | 1.5 ms | 2.1 ms |
-| Server tick (60 Hz, 16 players) | 0.15–0.21 ms | | | 0.82 ms |
+| Frame interval (display is 120 Hz) | 8.33 ms | 9.6 ms | 10.2 ms | 10.4 ms |
+| Main-thread time per frame | 1.55 ms | 1.9 ms | 2.2 ms | 7.4 ms |
+| Server tick (60 Hz, 16 players) | 0.20–0.38 ms | | | 1.34 ms |
 
-About 120 draw calls and 0.4 M triangles per frame. Not yet measured on an integrated GPU.
+About 130 draw calls and 0.4 M triangles per frame. Not measured on an integrated GPU.
+The full account of tests, what remains unverified and the default values is in
+[docs/VALIDATION.md](docs/VALIDATION.md).
