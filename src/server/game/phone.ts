@@ -41,6 +41,22 @@ export class Phone {
   private lastStatus = '';
   /** Called when a message arrives from the other side (the chirp others can hear). */
   onIncoming: () => void = () => {};
+  /** Called whenever which chats have unread messages changes (the desktop's message bar). */
+  onUnread: () => void = () => {};
+  /** Unasked-for messages per chat that wait until the one before has been read. */
+  readonly deferred = new Map<string, { text: string; voice?: { url: string; duration: number } }[]>();
+  /** Unasked-for messages per chat on their way (typing). */
+  readonly inFlight = new Map<string, number>();
+
+  /** The chat still has an unread or arriving message, so something new would pile up. */
+  busy(conv: string): boolean {
+    return (this.convs.get(conv)?.unread ?? 0) > 0 || (this.inFlight.get(conv) ?? 0) > 0 || (this.deferred.get(conv)?.length ?? 0) > 0;
+  }
+
+  /** Names of the chats with unread messages. */
+  unreadFrom(): string[] {
+    return [...this.convs.values()].filter((c) => c.unread > 0).map((c) => c.name);
+  }
 
   get paired(): boolean {
     return this.token !== '';
@@ -89,6 +105,7 @@ export class Phone {
     if (m.from === 'them') {
       c.unread++;
       this.onIncoming();
+      this.onUnread();
     }
     this.send({ t: 'msg', conv: convId, m });
   }
@@ -118,6 +135,7 @@ export class Phone {
 
   /** New round: requests and locks from the old round no longer apply. */
   resetRound(): void {
+    this.deferred.clear();
     this.rids.clear();
     this.locked = false;
     this.recent = [];

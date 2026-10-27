@@ -8,6 +8,9 @@ import { THROW_RELEASE, type WeaponController } from './weapons';
 import type { Upgrades } from '../../shared/upgrades';
 import { grenadeMesh } from './grenades';
 
+/** The trigger finger's tap: seconds to pull and to let go, how far it curls (rad) and the trigger moves (m). */
+const TRIGGER = { pull: 0.03, release: 0.07, angle: 0.2, travel: 0.0025 };
+
 /** Piecewise curve through [time, value] keys with smoothstep easing between them. */
 function curve(t: number, keys: [number, number][]): number {
   if (t <= keys[0]![0]) return keys[0]![1];
@@ -278,6 +281,7 @@ export class ViewModel {
       this.lastShot = w.shotCounter;
       for (let i = 0; i < Math.min(n, 2); i++) this.onShot(m, T, w.lastShotAds);
     }
+    this.triggerTap(m, dt);
     const k = T.kickStiffness;
     const c = T.kickDamping;
     for (const s of Object.values(this.kick)) s.step(dt, k, c);
@@ -376,7 +380,20 @@ export class ViewModel {
     }
   }
 
+  /** Seconds since the last shot, for the trigger finger's tap. */
+  private triggerTime = 9;
+
+  /** The trigger finger curls in and lets go after each shot; the trigger moves back with it. */
+  private triggerTap(m: WeaponModel, dt: number): void {
+    this.triggerTime += dt;
+    const t = this.triggerTime;
+    const pull = t < TRIGGER.pull ? t / TRIGGER.pull : t < TRIGGER.pull + TRIGGER.release ? 1 - (t - TRIGGER.pull) / TRIGGER.release : 0;
+    if (m.hands.trigger) m.hands.trigger.rotation.x = -pull * TRIGGER.angle;
+    m.trigger.position.z = pull * TRIGGER.travel;
+  }
+
   private onShot(m: WeaponModel, T: (typeof TUNING)['pistol'], ads: number): void {
+    this.triggerTime = 0;
     const a = 1 + (T.kickAdsMul - 1) * ads;
     const r = () => Math.random() * 2 - 1;
     // Mostly an instant displacement (sharp), a little velocity (follow-through).
@@ -476,7 +493,9 @@ export class ViewModel {
   /** Reload, inspect and weapon-switch animation layered onto the pose. */
   private applyTimeline(p: Pose, m: WeaponModel, w: WeaponController): void {
     const t = w.progress;
-    m.mag.position.set(0, 0, 0);
+    // At rest the magazine is seated: its group sits at the pivot (only the pistol's is at 0).
+    m.mag.position.copy(m.magPivot);
+    m.mag.rotation.set(0, 0, 0);
     m.mag.visible = true;
     m.bolt.position.set(0, 0, 0);
     const lh = m.hands.left;

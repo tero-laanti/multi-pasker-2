@@ -7,6 +7,7 @@ import type { InventoryKind, ServerPlayer } from './player';
 import type { Room } from './room';
 
 const V = FI.varusmestari;
+const VA = FI.inventory;
 
 /** YK (yhteyskoe, the radio check), however it was typed. */
 export function isRadioCheckReply(text: string): boolean {
@@ -64,10 +65,20 @@ export class Varusmestari {
    * A message from the asevarasto (or a contact's number) into the player's chat, after a
    * typing pause; messages queue so they arrive one at a time. Returns when it arrives.
    */
-  post(p: ServerPlayer, from: string, text: string, voice?: { url: string; duration: number }): number {
+  post(p: ServerPlayer, from: string, text: string, voice?: { url: string; duration: number }, prompted = false, dequeued = false): number {
     const phone = p.phone;
     if (from === V.number && !phone.convs.has(V.number)) this.greet(p);
     if (!phone.convs.has(from)) return this.room.now();
+    // One new message per chat: an unasked-for one waits until the last has been read.
+    if (!prompted) {
+      if (!dequeued && phone.busy(from)) {
+        const q = phone.deferred.get(from) ?? [];
+        q.push({ text, voice });
+        phone.deferred.set(from, q);
+        return Infinity;
+      }
+      phone.inFlight.set(from, (phone.inFlight.get(from) ?? 0) + 1);
+    }
     const now = this.room.now();
     const typing = voice ? 1400 : Math.min(PHONE.typingMax, Math.max(PHONE.typingMin, text.length / PHONE.typingCps)) * 1000;
     const start = Math.max(now + 300, phone.busyUntil);
@@ -75,9 +86,20 @@ export class Varusmestari {
     phone.schedule(start, () => phone.send({ t: 'typing', conv: from, on: true }));
     phone.schedule(start + typing, () => {
       phone.send({ t: 'typing', conv: from, on: false });
+      if (!prompted) phone.inFlight.set(from, Math.max(0, (phone.inFlight.get(from) ?? 1) - 1));
       phone.add(from, { id: phone.newId(), from: 'them', text: voice ? undefined : text, voice, at: Date.now() });
     });
     return start + typing;
+  }
+
+  /** The player read a chat: the next message waiting for it comes in. */
+  flush(p: ServerPlayer, conv: string): void {
+    const phone = p.phone;
+    const q = phone.deferred.get(conv);
+    if (!q?.length || (phone.convs.get(conv)?.unread ?? 0) > 0 || (phone.inFlight.get(conv) ?? 0) > 0) return;
+    const next = q.shift()!;
+    if (!q.length) phone.deferred.delete(conv);
+    this.post(p, conv, next.text, next.voice, false, true);
   }
 
   /**
@@ -89,7 +111,8 @@ export class Varusmestari {
     const kind = kinds[Math.floor(Math.random() * kinds.length)]!;
     const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
     const text = pick(FI.inventory.ask[kind]!).replace(/\{s\}/g, String(INVENTORY.answerTime)).replace(/\{rank\}/g, rank);
-    const arrives = this.post(p, V.number, text);
+    p.phone.conv(VA.number, VA.name);
+    const arrives = this.post(p, VA.number, text);
     const expires = arrives + INVENTORY.answerTime * 1000;
     p.inventory = { kind, asked: this.room.inventoryValue(p, kind), expires };
     p.outbox.push({ k: 'inventory', until: expires });
@@ -104,8 +127,8 @@ export class Varusmestari {
     p.phone.locked = true;
     p.stats.pushups++;
     const reply = capitalize(pick(FI.inventory.timeout));
-    this.post(p, V.number, reply);
-    this.room.offerTypo(p, V.name, '…', reply);
+    this.post(p, VA.number, reply);
+    this.room.offerTypo(p, VA.name, '…', reply);
   }
 
   /** A number while an inventory check waits: right (a grenade) or wrong (try again). */
@@ -153,6 +176,7 @@ export class Varusmestari {
       this.room.offerTypo(p, conv.name, text, reply);
       return 'other';
     }
+    if (conv.id === VA.number) return this.toVaapeli(p, conv.id, out.id, text, now);
     if (conv.id !== V.number) {
       // Numbers that don't exist: the message bounces.
       phone.schedule(now + 500, () => {
@@ -182,6 +206,39 @@ export class Varusmestari {
     return c.kind;
   }
 
+  /**
+   * The vääpeli's chat: a number answers the inventory check, PUNNERRETTU reports the push-ups,
+   * anything else gets told off.
+   */
+  private toVaapeli(p: ServerPlayer, conv: string, id: string, text: string, now: number): Classified['kind'] {
+    const phone = p.phone;
+    const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
+    const say = (list: readonly string[]) => capitalize(pick(list).replace(/\{rank\}/g, rank));
+    const digits = normalize(text).replace(/\s+/g, '');
+    const c = classify(text);
+    let reply: string;
+    let pub = false;
+    let kind: Classified['kind'] = c.kind;
+    if (p.inventory && /^\d{1,3}$/.test(digits)) {
+      const d = this.inventoryAnswer(p, Number(digits), say);
+      reply = d.reply;
+      pub = d.public;
+      kind = d.command ? 'command' : 'numbers';
+    } else if (c.kind === 'command' && c.cmd === 'PUNNERRETTU' && phone.locked) {
+      phone.locked = false;
+      reply = say(VA.unlocked);
+      kind = 'command';
+    } else {
+      reply = say(p.inventory ? VA.other : VA.idle);
+      pub = true;
+    }
+    const [r0, r1] = PHONE.readDelay;
+    phone.schedule(now + (kind === 'command' ? 250 : (r0 + Math.random() * (r1 - r0)) * 1000), () => phone.setState(conv, id, 'read'));
+    this.post(p, conv, reply, undefined, true);
+    if (pub) this.room.offerTypo(p, VA.name, text, reply);
+    return kind;
+  }
+
   /** Nylands brigad: anything that isn't Swedish gets told to answer in Swedish. */
   private swedishReply(text: string): string {
     const t = normalize(text);
@@ -202,10 +259,6 @@ export class Varusmestari {
     phone.recent = phone.recent.filter((r) => now - r.at < PHONE.spamWindow * 1000).slice(-10);
     const last = phone.recent.slice(-PHONE.spamRepeat);
     const spam = phone.recent.length >= PHONE.spamCount || (last.length === PHONE.spamRepeat && last.every((r) => r.text === last[0]!.text));
-
-    // An inventory check waiting: a number is the answer (even during the push-up lock).
-    const digits = normalize(text).replace(/\s+/g, '');
-    if (p.inventory && /^\d{1,3}$/.test(digits)) return this.inventoryAnswer(p, Number(digits), say);
 
     // On the range: the radio check first, then LATAA and KRANAATTI for the range's own guns.
     if (p.training) {

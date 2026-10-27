@@ -185,13 +185,23 @@ export class MatchHud {
     }
   }
 
-  /** The armourer's inventory check: seconds left to answer (0: none). */
-  inventory(left: number): void {
+  /**
+   * The phone bar under the round timer: an inventory check counting down (seconds left, 0:
+   * none), otherwise who has written and not been read yet.
+   */
+  phoneBar(left: number, unread: string[]): void {
     const s = Math.ceil(left);
-    if (!this.changed('inventory', s)) return;
-    this.inventoryLine.textContent = fill(UI.hud.inventory, { s });
-    this.inventoryLine.classList.toggle('hidden', s <= 0);
+    const text =
+      s > 0
+        ? fill(UI.hud.inventory, { from: FI.inventory.name, s })
+        : unread.length
+          ? fill(unread.length === 1 ? UI.hud.newMessage : UI.hud.newMessages, { from: unread.join(', ') })
+          : '';
+    if (!this.changed('phoneBar', text + (s > 0 && s <= 5))) return;
+    this.inventoryLine.textContent = text;
+    this.inventoryLine.classList.toggle('hidden', !text);
     this.inventoryLine.classList.toggle('urgent', s > 0 && s <= 5);
+    this.inventoryLine.classList.toggle('calm', s <= 0);
   }
 
   /** Our own phone: connected, offline, or not paired yet. */

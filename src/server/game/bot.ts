@@ -14,6 +14,7 @@ import type { Room } from './room';
 export const BOT_SKILL = 0.5;
 
 const ASEVARASTO = FI.varusmestari.number;
+const VAAPELI = FI.inventory.number;
 /** What bots type when they want more ammo: mostly right, sometimes not. */
 const RELOAD_TEXTS = ['Lataa', 'lataa', 'LATAA', 'Lataa!', 'lataa', 'Lataa', 'lataaa', 'ltaa', 'lata', 'lataa nyt', 'laataa'];
 
@@ -290,7 +291,7 @@ export class Bot {
         const right = this.room.inventoryValue(p, inv.kind);
         const off = (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
         const n = Math.random() < 0.8 ? right : Math.max(0, right + off);
-        this.typing = { text: String(n), shown: 0, nextAt: now + 300, conv: ASEVARASTO };
+        this.typing = { text: String(n), shown: 0, nextAt: now + 300, conv: VAAPELI };
         p.phone.out = true;
       }
     }
@@ -301,7 +302,7 @@ export class Bot {
     if (!this.unlockAt) this.unlockAt = now + 5000 + Math.random() * 9000;
     else if (now >= this.unlockAt) {
       this.unlockAt = 0;
-      this.typing = { text: Math.random() < 0.3 ? 'punnerrettu' : 'PUNNERRETTU', shown: 0, nextAt: now + 400, conv: ASEVARASTO };
+      this.typing = { text: Math.random() < 0.3 ? 'punnerrettu' : 'PUNNERRETTU', shown: 0, nextAt: now + 400, conv: VAAPELI };
       p.phone.out = true;
     }
   }
@@ -342,6 +343,8 @@ export class Bot {
     }
     this.inventory(now);
     this.ladder(now);
+    // Bots read what comes in (so what waits behind it can come in too).
+    if (!this.typing) for (const c of p.phone.convs.values()) if (c.unread > 0) this.room.onPhoneMessage(p, { t: 'read', conv: c.id });
     const t = this.typing;
     if (!t) {
       if (p.phone.out && now >= this.phoneDownAt) p.phone.out = false;

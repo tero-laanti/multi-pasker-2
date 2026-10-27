@@ -46,7 +46,8 @@ result.desktopLine = await desktop.evaluate(() => document.querySelector('.inven
 await shot(desktop, 'inv_1_desktop');
 await phone.waitForSelector('.banner.urgent:not(.hidden)', { timeout: 5000 });
 result.phoneBanner = await phone.evaluate(() => document.querySelector('.banner')?.textContent);
-await phone.tap('.v-list .conv');
+// The check comes from the vääpeli, in a chat of his own.
+await phone.tap('.conv >> text=Vääpeli');
 await phone.waitForSelector('.v-chat');
 await wait(300);
 const question = await phone.evaluate(() => [...document.querySelectorAll('.bubble.them:not(.typing)')].map((b) => b.textContent).pop() ?? '');
@@ -69,7 +70,7 @@ result.answer = answer;
 
 async function send(text: string): Promise<void> {
   if (!(await phone.$('.v-chat'))) {
-    await phone.tap('.v-list .conv');
+    await phone.tap('.conv >> text=Vääpeli');
     await phone.waitForSelector('.v-chat');
   }
   await phone.tap('.kb-key[data-k="SYM"]');
@@ -86,15 +87,18 @@ await send(String(answer));
 await wait(3500);
 result.afterRight = await desktop.evaluate(() => ({ line: document.querySelector('.inventory-line')?.classList.contains('hidden') ? 'hidden' : 'shown', grenades: (window as any).__pasker.game.weapons.grenades }));
 result.grenadesBefore = grenadesBefore;
-await phone.tap('.v-list .conv');
+await phone.tap('.conv >> text=Vääpeli');
 await wait(500);
 result.replies = await phone.evaluate(() => [...document.querySelectorAll('.bubble.them:not(.typing)')].map((b) => b.textContent).slice(-3));
 await shot(phone, 'inv_3_phone_after');
 await phone.tap('.back');
 
-// Time one out: push-ups.
+// Time one out: push-ups. (A new check waits until the vääpeli's last message has been read.)
+await phone.tap('.conv >> text=Vääpeli');
+await wait(300);
+await phone.tap('.back');
 await dev('inventory');
-await desktop.waitForSelector('.inventory-line:not(.hidden)', { timeout: 8000 });
+await desktop.waitForFunction(() => /Inventory/.test(document.querySelector('.inventory-line')?.textContent ?? ''), null, { timeout: 8000 });
 await dev('inventory');
 await wait(3500);
 result.timedOut = await desktop.evaluate(() => document.querySelector('.typofeed')?.textContent);

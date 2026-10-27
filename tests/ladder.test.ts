@@ -45,10 +45,15 @@ function setup(players = 3) {
     room.phoneJoin(phone as never, { t: 'phoneHello', v: PROTOCOL_VERSION, pair: p.phone.pairToken }, false);
     return { p, ws, phone };
   });
+  /** Players who glance at their phones: whatever comes in is read (so what waits behind it comes too). */
+  const readAll = () => {
+    for (const { p } of all) for (const c of p.phone.convs.values()) if (c.unread > 0) room.onPhoneMessage(p, { t: 'read', conv: c.id });
+  };
   const run = (ms: number) => {
     for (let i = 0; i < ms / 20; i++) {
       clock.advance(20);
       room.tick(0.02);
+      readAll();
     }
   };
   let rid = 0;
@@ -234,7 +239,7 @@ describe('the TJ ladder', () => {
     expect(p.ladder.tj).toBe(0);
     expect(p.rank).toBe(6);
     run(8000);
-    expect(texts(a!.phone, V.number).some((m) => m.text === FI.ladder.tj0)).toBe(true);
+    expect(texts(a!.phone, V.number).some((m) => m.text?.includes(FI.ladder.tj0))).toBe(true);
     // Done: no more offers, but the services keep working.
     p.ladder.choice = null;
     p.ladder.kills = 2;

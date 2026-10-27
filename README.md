@@ -85,17 +85,18 @@ Everyone's first join starts on the range, not in the match (the scoreboard show
 the range*): walk to the marked table, knock down the marked target, press R and find there is
 no spare magazine, then pick up the phone from the duty table behind you (E). That opens the
 pairing screen, which explains that the phone app is only a web page from the host's computer
-(nothing to install, no permissions). Asevarasto's first text is a radio check (*yhteyskoe*):
+(nothing to install, no permissions, it connects only to the host computer). Asevarasto's first
+text is a radio check (*yhteyskoe*):
 reply `YK` and the magazines are full. Train as long as you like, then Esc → **Go to the match**.
 The browser remembers that you've done it.
 
-**Without a phone:** the pairing panel (on the training's pairing screen and in the Esc menu)
-has **Open a virtual phone**: the same phone app on your screen, typed on by clicking its keys
-with the mouse (the keyboard does nothing). Your character has the phone out while it is open
-and the game waits for you, so it is slower than a real phone; *Back to the game* or Esc puts it
-away. Or *Skip: play without a phone*, with heavy penalties: no LATAA refills (ammo only comes
-with a new life), no grenades and no promotions or upgrades. A phone can still be paired later
-from the Esc menu.
+**Without a phone of your own:** the pairing panel (on the training's pairing screen and in the
+Esc menu) has **Open a virtual phone**: the same phone app on your screen, typed on by clicking
+its keys with the mouse (the keyboard does nothing). Your character has the phone out while it
+is open and the game waits for you, so it is much slower and clumsier than a real phone; *Back
+to the game* or Esc puts it away. Phones never use Bluetooth or a cable: the phone page connects
+over Wi-Fi to the computer hosting the game, so the phones' Wi-Fi has to be the same network as
+the host (wired PCs are fine).
 
 ## Ammo
 
@@ -117,11 +118,17 @@ Ammo and grenades come from the armourer, *varusmestari*, by text message from y
    punctuation don't matter; anything else gets a reply from the armourer, and typos, swearing
    and chatter are shown to everyone.
 
-**Inventory checks** (*inventaario*): a few times a round the armourer texts a question about
-your own kit or the round: rounds in your magazine or spare, grenades, your kills or deaths, or
-how many soldiers are on the field. Both screens count down from 20 seconds. The right number
-earns a grenade; wrong answers go to everyone's typo feed, and no right answer in time means
-push-ups (no service until you report `PUNNERRETTU`).
+**Inventory checks** (*inventaario*): now and then (never in your first minute in the match) the
+company's **Vääpeli** texts a question about your own kit or the round, in a chat of his own:
+rounds in your magazine or spare, grenades, your kills or deaths, or how many soldiers are on the
+field. Both screens count down from 20 seconds. The right number earns a grenade; wrong answers
+go to everyone's typo feed, and no right answer in time means push-ups (no service at the
+armoury until you report `PUNNERRETTU`).
+
+**One new message per chat:** nobody sends you a second message before you have read the first;
+the next one comes in when you open the chat. Replies to what you send always come straight
+away. A yellow bar under the round timer says who has written (or counts down an inventory
+check).
 
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
@@ -323,7 +330,7 @@ runs a scripted scenario against a running server and saves screenshots, and
 desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow,
 `tools/e2e/ladder-flow.ts` climbs the TJ ladder through the phone (codes typed on its keyboard,
 the upgrade screen, the office number, the voice note), `tools/e2e/tutorial-flow.ts` runs the
-training from the first step to the match, once with a phone and once skipping it, and
+training from the first step to the match, once with a phone and once with the virtual phone, and
 `tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out.
 
 ### Measured performance

@@ -157,6 +157,9 @@ export const FI = {
    * number. {s} is the seconds to answer, {rank} the player's rank.
    */
   inventory: {
+    /** The company's sergeant major does the inventory checks, in a chat of his own. */
+    name: 'Vääpeli',
+    number: '7420',
     ask: {
       mag: ['Inventaario! Montako patruunaa lippaassasi on nyt? Vastaa numerolla, {s} sekuntia.', 'Inventaario. Lippaan patruunat, montako? Numerolla. Aikaa {s} sekuntia.'],
       spare: ['Inventaario! Montako patruunaa varalippaassasi on? Numerolla, {s} sekuntia.', 'Inventaario. Varalipas, montako patruunaa? Aikaa {s} sekuntia.'],
@@ -169,6 +172,10 @@ export const FI = {
     rightFull: ['Täsmää. Vyö on jo täynnä, joten saat kiitoksen.', 'Oikein. Kranaatille ei ole tilaa, pelkkä kiitos.'],
     wrong: ['Ei täsmää. Laske uudestaan.', 'Väärin. Kello käy.', 'Ei pidä paikkaansa, {rank}. Uusi yritys.'],
     timeout: ['Inventaario jäi tekemättä. Kaksikymmentä punnerrusta. Kuittaa PUNNERRETTU.', 'Aika loppui. Punnerrusasentoon, ja kuittaa PUNNERRETTU kun olet valmis.'],
+    /** Anything else typed to the vääpeli. */
+    other: ['Numerolla. Inventaario ei ole keskustelu.', 'Vääpeli kysyy, alokas vastaa numerolla.', 'Täällä lasketaan, ei jutella.'],
+    idle: ['Ei inventaariota käynnissä. Odota vuoroasi.', 'Kysyn kun kysyn.'],
+    unlocked: ['Hyvä. Asevarasto palvelee taas.', 'Kuitattu. Jatka.'],
   },
 
   /** The tutorial on the range: Asevarasto's first text is a radio check, answered with YK. */
@@ -182,7 +189,6 @@ export const FI = {
     offerKill: ['Kunniamaininta, {rank} {name}. Varastossa olisi jotain sinulle.', 'Kunniamaininta. Joku on kerrankin tehnyt töitä.', 'Kunniamaininta tuli tänne asti. Katsotaan mitä löytyy.'],
     offerDeath: ['Vahinkoilmoitus käsitelty. Korvaavaa kalustoa on tarjolla.', 'Vahinkoilmoitus käsitelty. Kokoa ei ole, ota mikä on.', 'Vahinkoilmoitus käsitelty. Ei se aina sinun vikasi ole. Yleensä on.'],
     /** A new offer while the previous one is unfinished: the old one stays valid. */
-    queued: ['Seuraava tehtävä odottaa, mutta edellinen on kesken. Jonossa: {n}.', 'Hoida ensin edellinen. Jonossa: {n}.'],
     /** Stage 1: the rifle. */
     stage1: ['Nimellesi on kirjattu rynnäkkökivääri. Kuittaa vastaanotto viestillä: {code}', 'Rynkky odottaa luukulla. Kuittaa: {code}', 'Ase on varattu nimellesi. Lähetä {code}, niin kirjaan sen ulos.'],
     stage1Codes: ['KUITTAAN', 'SELVÄ', 'UUDISTUS', 'VASTAANOTETTU'],

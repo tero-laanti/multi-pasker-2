@@ -95,11 +95,6 @@ export class App {
     this.pairPanels = [pairPanel(), pairPanel()];
     this.menu.addPairPanels(this.pairPanels[0]!.root, this.pairPanels[1]!.root);
     this.tutorialHud = new TutorialHud(this.hud.root, root, {
-      skip: () => {
-        this.tutorial?.skipPhone();
-        this.tutorialHud.hideModal();
-        void this.lock();
-      },
       resume: () => {
         this.tutorialHud.hideModal();
         void this.lock();
@@ -372,7 +367,7 @@ export class App {
       phoneOnline: () => this.match?.pairInfo?.phone === 'online',
     });
     t.onStep = (step) => {
-      this.tutorialHud.show(step, t.noPhone);
+      this.tutorialHud.show(step);
       this.menu.setTraining(true, step === 'done');
     };
     t.onNoSpare = () => this.tutorialHud.noSpare();

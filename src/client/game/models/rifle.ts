@@ -137,7 +137,7 @@ export function buildRifle(): WeaponModel {
     sightZ: 0.016,
     magAxis,
     serialPlate,
-    hands: { right, left, phone, phoneAnchor: phone.userData.phoneAnchor as THREE.Object3D },
+    hands: { right, left, phone, phoneAnchor: phone.userData.phoneAnchor as THREE.Object3D, trigger: right.userData.trigger as THREE.Object3D | undefined },
     rackOffset: new THREE.Vector3(0.05, 0.035, 0.19),
     magPivot,
     magRock: 0.4,

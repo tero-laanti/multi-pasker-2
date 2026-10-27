@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries, mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { HAND_POSES } from './handPoses';
 
@@ -31,6 +32,11 @@ export interface HandsModel {
   phone: THREE.Group;
   /** Child of `phone` at the phone's centre (identity transform): parent the phone mesh here. */
   phoneAnchor: THREE.Object3D;
+  /**
+   * The shooting hand's index finger, pivoting at its knuckle: turning it by a negative angle
+   * about its X axis curls it (the trigger pull).
+   */
+  trigger?: THREE.Object3D;
 }
 
 type V3 = [number, number, number];
@@ -138,11 +144,42 @@ export function thumbJoints(t: ThumbPose, root: THREE.Vector3): THREE.Vector3[] 
   return out;
 }
 
-/** The thumb in the holder's space: the ball of the thumb from its root in the palm, then two segments. */
-function thumbParts(t: ThumbPose, root: THREE.Vector3): THREE.BufferGeometry[] {
+/** Directions to points on a sphere (an icosphere's corners), for hulls. */
+const SPHERE_DIRS: THREE.Vector3[] = (() => {
+  const pos = new THREE.IcosahedronGeometry(1, 1).getAttribute('position');
+  const out: THREE.Vector3[] = [];
+  for (let i = 0; i < pos.count; i++) {
+    const d = new THREE.Vector3().fromBufferAttribute(pos, i);
+    if (!out.some((o) => o.distanceToSquared(d) < 1e-6)) out.push(d);
+  }
+  return out;
+})();
+
+/** The smooth convex hull round some spheres. */
+function hull(spheres: [THREE.Vector3, number][]): THREE.BufferGeometry {
+  const pts: THREE.Vector3[] = [];
+  for (const [c, r] of spheres) for (const d of SPHERE_DIRS) pts.push(c.clone().addScaledVector(d, r));
+  const g = new ConvexGeometry(pts);
+  g.deleteAttribute('normal');
+  const m = mergeVertices(g);
+  m.computeVertexNormals();
+  m.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(m.getAttribute('position').count * 2), 2));
+  return m;
+}
+
+/**
+ * The thumb in the holder's space. Its base bone is part of the hand: the ball of the thumb and
+ * the web to the index knuckle are one rounded piece, so only its two outer segments show.
+ */
+function thumbParts(t: ThumbPose, root: THREE.Vector3, indexKnuckle: THREE.Vector3): THREE.BufferGeometry[] {
   const T = GLOVE.thumb;
   const [a, b, c, e] = thumbJoints(t, root);
-  return [capsule(a!, b!, T.base), capsule(b!, c!, T.r), capsule(c!, e!, T.r * TAPER[1]!)];
+  const web = hull([
+    [a!, T.base],
+    [b!, T.r * 1.02],
+    [indexKnuckle, 0.0075],
+  ]);
+  return [web, capsule(b!, c!, T.r), capsule(c!, e!, T.r * TAPER[1]!)];
 }
 
 /** Where the thumb's root sits in the holder's space. */
@@ -185,23 +222,36 @@ function mirrorX(g: THREE.BufferGeometry): THREE.BufferGeometry {
   return g;
 }
 
-/** How far a wrist bends at most (radians): past that, the forearm turns with the hand. */
-export const WRIST_MAX = (28 * Math.PI) / 180;
+/**
+ * How far a wrist bends (radians): towards the little finger (ulnar), towards the thumb
+ * (radial), back (extension) and forward (flexion). Past that, the forearm turns with the hand.
+ */
+export const WRIST = { ulnar: (30 * Math.PI) / 180, radial: (15 * Math.PI) / 180, extension: (45 * Math.PI) / 180, flexion: (45 * Math.PI) / 180 };
+
+/** The wrist's range for a bend in direction (x: ulnar +, z: extension +), between the four limits. */
+export function wristLimit(x: number, z: number): number {
+  const a = x >= 0 ? WRIST.ulnar : WRIST.radial;
+  const b = z >= 0 ? WRIST.extension : WRIST.flexion;
+  const l = Math.hypot(x, z) || 1;
+  return 1 / Math.sqrt((x / l) ** 2 / (a * a) + (z / l) ** 2 / (b * b));
+}
 
 /**
  * The forearm's direction in (right-)hand space; its angle from straight back (0, -1, 0) is
- * the wrist's bend, never more than WRIST_MAX.
+ * the wrist's bend, kept within the wrist's range in that direction.
  */
 export function forearmInHand(p: GlovePose): THREE.Vector3 {
   const m = handMatrix(p);
   const f = v(p.forearm).transformDirection(new THREE.Matrix4().copy(m).setPosition(0, 0, 0).invert());
   if (p.left) f.x = -f.x;
   const straight = new THREE.Vector3(0, -1, 0);
-  const bend = f.angleTo(straight);
-  if (bend <= WRIST_MAX) return f;
+  const side = new THREE.Vector3(f.x, 0, f.z);
+  if (side.lengthSq() < 1e-9) return f;
+  side.normalize();
+  const limit = wristLimit(side.x, side.z);
+  if (f.angleTo(straight) <= limit) return f;
   // Turn it back towards straight, in the same plane, until the wrist is within range.
-  const side = f.clone().addScaledVector(straight, -f.dot(straight)).normalize();
-  return straight.multiplyScalar(Math.cos(WRIST_MAX)).addScaledVector(side, Math.sin(WRIST_MAX));
+  return straight.multiplyScalar(Math.cos(limit)).addScaledVector(side, Math.sin(limit));
 }
 
 /** Hand space → holder space for a pose. */
@@ -238,7 +288,9 @@ export function glovePieces(p: GlovePose): Record<GlovePiece, THREE.BufferGeomet
     if (p.left) mirrorX(g);
     return g.applyMatrix4(m);
   };
-  const thumb = thumbParts(p.thumb, thumbRoot(p));
+  const knuckle = v(GLOVE.fingers.index.mcp);
+  if (p.left) knuckle.x = -knuckle.x;
+  const thumb = thumbParts(p.thumb, thumbRoot(p), knuckle.applyMatrix4(m));
   for (const g of thumb) g.deleteAttribute('uv');
   return {
     palm: place([palmPart()]),
@@ -250,8 +302,25 @@ export function glovePieces(p: GlovePose): Record<GlovePiece, THREE.BufferGeomet
   };
 }
 
-/** Glove and sleeve geometry of a pose, in the holder's space. */
-export function gloveGeometry(p: GlovePose): { glove: THREE.BufferGeometry; sleeve: THREE.BufferGeometry } {
+/** Hands whose index finger is on a trigger: it is a piece of its own, so it can pull. */
+const TRIGGER_HANDS = new Set<HandKey>(['pistol.right', 'rifle.right']);
+
+/**
+ * The index finger of a (right) hand in its own frame, and where that frame sits in the
+ * holder's space: at the knuckle, turned with the finger's spread (its X axis is the curl axis).
+ */
+function triggerFinger(p: GlovePose): { geometry: THREE.BufferGeometry; pivot: THREE.Matrix4 } {
+  const f = GLOVE.fingers.index;
+  const local = new THREE.Matrix4().makeTranslation(f.mcp[0], f.mcp[1], f.mcp[2]).multiply(new THREE.Matrix4().makeRotationZ(p.index.spread ?? 0));
+  const parts = fingerParts('index', p.index);
+  for (const g of parts) g.deleteAttribute('uv');
+  const geometry = mergeGeometries(parts)!.applyMatrix4(local.clone().invert());
+  geometry.computeBoundingSphere();
+  return { geometry, pivot: handMatrix(p).multiply(local) };
+}
+
+/** Glove and sleeve geometry of a pose, in the holder's space (the trigger finger apart, if it has one). */
+export function gloveGeometry(p: GlovePose, key?: HandKey): { glove: THREE.BufferGeometry; sleeve: THREE.BufferGeometry; trigger?: { geometry: THREE.BufferGeometry; pivot: THREE.Matrix4 } } {
   const parts: THREE.BufferGeometry[] = [];
   // The cuff and sleeve run up the forearm (given in the holder's space, so into hand space).
   const fore = forearmInHand(p);
@@ -274,10 +343,13 @@ export function gloveGeometry(p: GlovePose): { glove: THREE.BufferGeometry; slee
   const m = handMatrix(p);
   cuffs.applyMatrix4(m);
   sleeve.applyMatrix4(m);
-  const glove = mergeGeometries([cuffs, ...Object.values(glovePieces(p))])!;
+  const split = key !== undefined && TRIGGER_HANDS.has(key) && !p.left;
+  const pieces = glovePieces(p);
+  const kept = (Object.keys(pieces) as GlovePiece[]).filter((k) => !(split && k === 'index')).map((k) => pieces[k]);
+  const glove = mergeGeometries([cuffs, ...kept])!;
   glove.computeBoundingSphere();
   sleeve.computeBoundingSphere();
-  return { glove, sleeve };
+  return { glove, sleeve, trigger: split ? triggerFinger(p) : undefined };
 }
 
 let mats: { glove: THREE.MeshStandardMaterial; sleeve: THREE.MeshStandardMaterial } | null = null;
@@ -296,9 +368,20 @@ function materials(): { glove: THREE.MeshStandardMaterial; sleeve: THREE.MeshSta
 export function buildHand(key: HandKey): THREE.Group {
   const group = new THREE.Group();
   group.name = key;
-  const geo = gloveGeometry(HAND_POSES[key]);
+  const geo = gloveGeometry(HAND_POSES[key], key);
   const m = materials();
   group.add(new THREE.Mesh(geo.glove, m.glove), new THREE.Mesh(geo.sleeve, m.sleeve));
+  if (geo.trigger) {
+    // The knuckle (placed once) and inside it the joint that only curls, for the trigger pull.
+    const knuckle = new THREE.Group();
+    geo.trigger.pivot.decompose(knuckle.position, knuckle.quaternion, knuckle.scale);
+    const joint = new THREE.Group();
+    joint.name = 'trigger finger';
+    joint.add(new THREE.Mesh(geo.trigger.geometry, m.glove));
+    knuckle.add(joint);
+    group.add(knuckle);
+    group.userData.trigger = joint;
+  }
   return group;
 }
 

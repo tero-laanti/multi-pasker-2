@@ -413,20 +413,6 @@ canvas.view {
   position: static;
   flex: 0 0 auto;
 }
-.tutorial-skip {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.tutorial-penalty {
-  flex: 1 1 320px;
-  font-size: 15px;
-  color: var(--fg-dim);
-}
 .tutorial-ok {
   font-size: 30px;
   font-weight: 700;
@@ -1461,6 +1447,9 @@ input[type='range'] {
   border-radius: 3px;
   white-space: nowrap;
   animation: inventory-pulse 1s ease-in-out infinite;
+}
+.inventory-line.calm {
+  animation: none;
 }
 .inventory-line.urgent {
   background: var(--danger);

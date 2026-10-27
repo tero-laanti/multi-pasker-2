@@ -11,8 +11,6 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 }
 
 export interface TutorialHudActions {
-  /** Play without a phone (heavy penalties). */
-  skip(): void;
   /** Back to the range after pairing: lock the mouse again. */
   resume(): void;
   openSimulator(): void;
@@ -33,7 +31,6 @@ export class TutorialHud {
   private modal: HTMLDivElement;
   private modalBody: HTMLDivElement;
   private connected: HTMLDivElement;
-  private skipBox: HTMLDivElement;
 
   constructor(hudRoot: HTMLElement, appRoot: HTMLElement, private a: TutorialHudActions) {
     this.panel = el('div', 'tutorial hidden', hudRoot);
@@ -54,10 +51,6 @@ export class TutorialHud {
     for (const point of UI.tutorial.pairPoints) el('li', '', list, point);
     this.pair = new PairPanel(() => a.openSimulator(), () => a.openVirtual());
     cols.appendChild(this.pair.root);
-    this.skipBox = el('div', 'tutorial-skip', this.modalBody);
-    const skip = el('button', 'btn small', this.skipBox, UI.tutorial.skip);
-    skip.onclick = () => a.skip();
-    el('div', 'tutorial-penalty', this.skipBox, UI.tutorial.penalty);
     this.connected = el('div', 'tutorial-connected hidden', card);
     el('div', 'tutorial-ok', this.connected, UI.tutorial.pairedTitle);
     el('div', 'tutorial-card-body', this.connected, UI.tutorial.pairedBody);
@@ -75,11 +68,11 @@ export class TutorialHud {
   }
 
   /** The instructions for a step (and the count, "3 / 5"). */
-  show(step: TutorialStep, noPhone: boolean): void {
+  show(step: TutorialStep): void {
     const s = step === 'pair' ? 'phone' : step;
     const i = TUTORIAL_STEPS.indexOf(s);
     this.count.textContent = step === 'done' ? '' : `${i + 1} / ${TUTORIAL_STEPS.length}`;
-    const text = step === 'done' && noPhone ? UI.tutorial.steps.doneNoPhone : UI.tutorial.steps[step];
+    const text = UI.tutorial.steps[step];
     this.title.textContent = text.title;
     this.body.textContent = text.body;
     this.panel.classList.toggle('done', step === 'done');

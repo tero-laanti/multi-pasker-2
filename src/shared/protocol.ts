@@ -280,7 +280,9 @@ export type GameEvent =
   /** On the range (no snapshots of ourselves there): a chat opened or closed on our phone. */
   | { k: 'phoneOut'; on: boolean }
   /** The armourer's inventory check: answer by this server time (0: over). */
-  | { k: 'inventory'; until: number };
+  | { k: 'inventory'; until: number }
+  /** Who has written to our phone and not been read yet (the desktop's message bar). */
+  | { k: 'unread'; from: string[] };
 
 export type AwardId = 'winner' | 'deathsTyping' | 'longestDraft' | 'typos' | 'phoneTime' | 'pushups' | 'swedish';
 

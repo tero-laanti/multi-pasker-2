@@ -117,6 +117,7 @@ export class PhoneApp {
         if (e.origin !== location.origin || (e.data as { t?: string })?.t !== 'virtualShown') return;
         this.virtualShown = !!(e.data as { on: boolean }).on;
         this.updateOut();
+        if (this.virtualShown) this.caughtUp();
       });
       // No typing on the keyboard here; Esc only puts the virtual phone away.
       window.addEventListener('keydown', (e) => {
@@ -257,7 +258,7 @@ export class PhoneApp {
       return;
     }
     c.messages.push(msg);
-    const viewing = this.view === 'chat' && this.chat === convId && document.visibilityState === 'visible';
+    const viewing = this.view === 'chat' && this.chat === convId && this.onScreen;
     if (msg.from === 'them') {
       if (viewing) this.net.read(convId);
       else c.unread++;
@@ -382,6 +383,23 @@ export class PhoneApp {
     }
     const visible = document.visibilityState === 'visible';
     this.net.out(visible && (this.view === 'chat' || this.sheetOpen || this.upgrade !== null));
+  }
+
+  /** The phone is in front of its player: visible, and (the virtual one) shown in the game. */
+  private get onScreen(): boolean {
+    return document.visibilityState === 'visible' && (!this.virtual || this.virtualShown);
+  }
+
+  /** Back on screen (the virtual phone shown again): what arrived meanwhile, scrolled to the newest. */
+  private caughtUp(): void {
+    if (this.view === 'chat' && this.chat) {
+      const c = this.convs.get(this.chat);
+      if (c && c.unread > 0) {
+        c.unread = 0;
+        this.net.read(c.id);
+      }
+    }
+    if (this.view === 'chat' || this.view === 'list') this.render();
   }
 
   /** Rank and days left in the list header: "Sotamies · TJ 5". */

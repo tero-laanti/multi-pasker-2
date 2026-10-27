@@ -152,13 +152,12 @@ export class LadderService {
     const pending = l.stage + (l.open ? 1 : 0) + l.queued + (l.choice ? 0 : 0);
     if (pending >= LADDER.stages) return;
     if (l.open || l.choice) {
+      // It waits its turn (the HUD and the phone show the queue); no extra message.
       l.queued++;
-      this.say(p, pick(L.queued).replace('{n}', String(l.queued)));
       this.notify(p);
       return;
     }
-    this.say(p, this.fill(p, pick(why === 'kill' ? L.offerKill : L.offerDeath)));
-    this.issue(p);
+    this.issue(p, this.fill(p, pick(why === 'kill' ? L.offerKill : L.offerDeath)));
     this.notify(p);
   }
 
@@ -167,9 +166,12 @@ export class LadderService {
     return capitalize(s.replace(/\{rank\}/g, rank).replace(/\{name\}/g, p.name).replace(/\{rankTo\}/g, FI.ranksTo[p.rank] ?? '').replace(/\{tj\}/g, String(p.ladder.tj)));
   }
 
-  /** A message from the asevarasto into the player's chat (shown after a short typing pause). */
-  private say(p: ServerPlayer, text: string, from: string = V.number, voice?: { url: string; duration: number }): void {
-    this.room.varusmestari.post(p, from, text, voice);
+  /**
+   * A message from the asevarasto (or a contact) into the player's chat, after a short typing
+   * pause. `reply`: an answer to what the player just did, never held back behind unread ones.
+   */
+  private say(p: ServerPlayer, text: string, from: string = V.number, voice?: { url: string; duration: number }, reply = false): void {
+    this.room.varusmestari.post(p, from, text, voice, reply);
   }
 
   /** A code from the pool that no other player has been given at this stage, if any is left. */
@@ -182,16 +184,20 @@ export class LadderService {
     return c;
   }
 
-  /** Sets up the next stage's challenge and tells the player where to answer. */
-  private issue(p: ServerPlayer): void {
+  /**
+   * Sets up the next stage's challenge and tells the player where to answer, in one message
+   * (after `intro`, the reason for the offer, if any).
+   */
+  private issue(p: ServerPlayer, intro = ''): void {
     const l = p.ladder;
+    const say = (text: string) => this.say(p, intro ? `${intro}\n${text}` : text);
     const stage = l.stage + 1;
     if (stage > LADDER.stages) return;
     if (stage === 1 || stage === 2) {
       let code = this.code(stage, stage === 1 ? L.stage1Codes : L.stage2Codes);
       code = code.replace('{RANK}', (FI.ranks[p.rank] ?? '').toLocaleUpperCase('fi-FI')).replace('{NAME}', p.name.toLocaleUpperCase('fi-FI'));
       l.open = { stage, conv: V.number, answer: normalize(code), code, posted: true };
-      this.say(p, pick(stage === 1 ? L.stage1 : L.stage2).replace('{code}', code));
+      say(pick(stage === 1 ? L.stage1 : L.stage2).replace('{code}', code));
       return;
     }
     if (stage === 3) {
@@ -203,7 +209,7 @@ export class LadderService {
       const code = rules ? this.code(3, L.officeWords) : this.code(3, L.officePhrases);
       const text = pick(rules ? L.officeRules : L.officePhrase).replace('{office}', name).replace('{code}', code);
       l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text } };
-      this.say(p, pick(L.stage3).replace('{office}', name).replace('{number}', number));
+      say(pick(L.stage3).replace('{office}', name).replace('{number}', number));
       this.postTask(p);
       return;
     }
@@ -211,7 +217,7 @@ export class LadderService {
       const number = this.huolto(p);
       const code = this.code(4, L.stage4Codes);
       l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.huoltoNote), voice: [...code] } };
-      this.say(p, pick(L.stage4).replace('{number}', number));
+      say(pick(L.stage4).replace('{number}', number));
       this.postTask(p);
       return;
     }
@@ -222,7 +228,7 @@ export class LadderService {
       const kind = pick(['full', 'last3', 'reversed', 'pistol'] as const);
       const code = kind === 'full' ? s.rifle : kind === 'last3' ? s.rifle.slice(-3) : kind === 'reversed' ? [...s.rifle].reverse().join('') : s.pistol;
       l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.stage5[kind]) } };
-      this.say(p, pick(L.stage5Intro));
+      say(pick(L.stage5Intro));
       this.postTask(p);
       return;
     }
@@ -233,7 +239,7 @@ export class LadderService {
       const code = this.code(6, FI.voice.swedish.map(([, c]) => c));
       const file = FI.voice.swedish.find(([, c]) => c === code)![0];
       l.open = { stage, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.nylandsNote), line: file } };
-      this.say(p, pick(L.stage6).replace('{number}', number));
+      say(pick(L.stage6).replace('{number}', number));
       this.postTask(p);
     }
   }
@@ -295,7 +301,7 @@ export class LadderService {
     const t = normalize(text);
     if (l.munkki && conv === V.number && t === 'KIITOS') {
       l.munkki = false;
-      this.say(p, pick(L.munkkiDone));
+      this.say(p, pick(L.munkkiDone), V.number, undefined, true);
       this.complete(p);
       return 'done';
     }
@@ -313,19 +319,17 @@ export class LadderService {
     l.stage = c.stage;
     p.rank = l.stage;
     const from = c.conv;
+    const promoted = this.fill(p, pick(L.promoted));
     if (c.stage === 1) {
-      this.say(p, pick(L.stage1Done), from);
+      this.say(p, `${pick(L.stage1Done)}\n${promoted}`, from, undefined, true);
       this.room.giveWeapon(p, 'rifle');
-    }
-    if (c.stage === 6) {
+    } else if (c.stage === 6) {
       // Nylands brigad answers in Swedish; the promotion comes from the asevarasto.
-      this.say(p, pick(L.nylandsDone), from);
+      this.say(p, pick(L.nylandsDone), from, undefined, true);
       p.stats.swedishAt = this.room.now();
     }
-    if (l.done) {
-      this.say(p, this.fill(p, pick(L.promoted)));
-      this.say(p, L.tj0);
-    } else this.say(p, this.fill(p, pick(L.promoted)), from);
+    if (l.done) this.say(p, `${promoted}\n${L.tj0}`);
+    else if (c.stage !== 1) this.say(p, promoted, from, undefined, true);
     this.room.broadcastPlayers();
     if (c.stage >= 2) {
       const options = upgradeChoices(l.upgrades, c.stage);
@@ -349,7 +353,7 @@ export class LadderService {
     l.upgrades[id] = Math.min(UPGRADES[id].levels, lv);
     if (id === 'munkki') l.munkki = true;
     this.room.applyUpgrades(p, id);
-    this.say(p, pick(L.upgradeTaken).replace('{upgrade}', UPGRADES[id].name));
+    this.say(p, pick(L.upgradeTaken).replace('{upgrade}', UPGRADES[id].name), V.number, undefined, true);
     this.next(p);
     this.notify(p);
     return true;

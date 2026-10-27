@@ -94,8 +94,6 @@ class TutorialView {
 export class TutorialMode implements GameMode {
   readonly alive = true;
   stage: TutorialStep = 'walk';
-  /** Skipped the phone: done, but the match will be hard. */
-  noPhone = false;
   /** Seconds left of the "no spare magazine" moment before the phone step. */
   private pause = 0;
   private target: TargetState | null;
@@ -134,7 +132,6 @@ export class TutorialMode implements GameMode {
     w.endlessSpare = false;
     w.resetLife(['pistol'], { pistol: w.stats('pistol').magazine, rifle: w.stats('rifle').magazine }, { pistol: 0, rifle: 0 });
     w.grenades = 0;
-    this.noPhone = false;
     this.set('walk');
   }
 
@@ -149,15 +146,6 @@ export class TutorialMode implements GameMode {
     if (this.stage === 'pair' || this.stage === 'phone') this.set('reply');
   }
 
-  /** Played on without a phone: the range officer hands over rounds, the match won't. */
-  skipPhone(): void {
-    if (this.stage === 'done') return;
-    this.noPhone = true;
-    this.game.weapons.endlessSpare = true;
-    this.game.weapons.refillAll();
-    this.set('done');
-  }
-
   /** Asevarasto on the range: the radio check answered, or LATAA / KRANAATTI from the phone. */
   supply(what: 'radioCheck' | 'ammo' | 'grenade'): void {
     const w = this.game.weapons;
@@ -167,7 +155,6 @@ export class TutorialMode implements GameMode {
     }
     w.refillAll();
     if (what === 'radioCheck' && this.stage !== 'done') {
-      this.noPhone = false;
       w.endlessSpare = false;
       this.set('done');
     }
@@ -186,8 +173,7 @@ export class TutorialMode implements GameMode {
 
   /** Until the training is done its own panel does the explaining. */
   outOfAmmo(): string {
-    if (this.stage === 'done') return this.noPhone ? UI.hud.outOfAmmoNoPhone : UI.hud.outOfAmmo;
-    return '';
+    return this.stage === 'done' ? UI.hud.outOfAmmo : '';
   }
 
   step(dt: number): void {

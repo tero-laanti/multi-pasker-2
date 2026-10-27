@@ -103,7 +103,7 @@ describe('the shooting range tutorial', () => {
     expect(a.ws.events().filter((e) => e.k === 'training').map((e) => (e as { what: string }).what)).toEqual(['radioCheck', 'ammo', 'grenade']);
   });
 
-  it('a phone paired before the pickup gets the radio check right away', () => {
+  it('a phone paired before the pickup gets the radio check once the welcome is read', () => {
     const { room, join, pair, run } = setup();
     const a = join('Aapo', true);
     const phone = pair(a.p);
@@ -111,6 +111,10 @@ describe('the shooting range tutorial', () => {
     // The usual welcome is already in the chat it was sent (pairing happened before the pickup).
     expect(a.p.phone.convs.get(V.number)?.messages.map((m) => m.text)).toEqual(V.welcome);
     room.onMessage(a.p, { t: 'radioCheck' });
+    run(4000);
+    // One new message per chat: it waits behind the unread welcome.
+    expect(phone.texts()).not.toContain(FI.training.radioCheck[0]);
+    room.onPhoneMessage(a.p, { t: 'read', conv: V.number });
     run(4000);
     expect(phone.texts().at(-1)).toBe(FI.training.radioCheck[0]);
     expect(a.p.radioCheck).toBe('waiting');

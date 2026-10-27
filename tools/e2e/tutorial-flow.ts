@@ -164,7 +164,7 @@ async function run(): Promise<void> {
   await desktop.waitForFunction(() => (window as any).__pasker.app.mode === 'match' && (window as any).__pasker.match.alive, null, { timeout: 8000 });
   result.inMatch = await desktop.evaluate(() => ({ mode: (window as any).__pasker.app.mode, alive: (window as any).__pasker.match.alive, trained: localStorage.getItem('pasker.trained'), spare: (window as any).__pasker.game.weapons.reserve.pistol }));
 
-  // A second first-timer skips the phone.
+  // A second first-timer has no phone: the virtual one on the pairing screen, YK clicked.
   const other = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   other.on('pageerror', (e) => logs.push(`[other pageerror] ${e.message}`));
   await joinFresh(other, 'Bertta');
@@ -172,16 +172,22 @@ async function run(): Promise<void> {
   await toPhone(other);
   await other.keyboard.press('KeyE');
   await other.waitForSelector('.tutorial-modal:not(.hidden)', { timeout: 3000 });
-  await other.click('.tutorial-skip .btn');
-  result.skipped = await other.evaluate(() => {
-    const t = (window as any).__pasker.app.tutorial;
-    return { stage: t.stage, noPhone: t.noPhone, title: document.querySelector('.tutorial-title')?.textContent };
-  });
-  await wait(500);
-  await shot(other, 'tut_12_skipped');
+  result.skipOffered = await other.evaluate(() => !!document.querySelector('.tutorial-skip'));
+  await other.click('.tutorial-modal .pair-virtual .btn');
+  const frame = other.frameLocator('.vphone-frame');
+  await frame.locator('.v-list .conv').first().waitFor({ timeout: 10000 });
+  await frame.locator('.v-list .conv').first().click();
+  await frame.locator('.v-chat').waitFor();
+  await wait(3500);
+  await frame.locator('.kb-key[data-k="y"]').click();
+  await frame.locator('.kb-key[data-k="k"]').click();
+  await frame.locator('.send').click();
+  await other.waitForFunction(() => (window as any).__pasker.app.tutorial?.stage === 'done', null, { timeout: 10000 });
+  result.virtual = await other.evaluate(() => ({ stage: (window as any).__pasker.app.tutorial.stage, pairInfo: (window as any).__pasker.match.pairInfo.virtual }));
+  await shot(other, 'tut_12_virtual');
+  await other.click('.vphone .vphone-bar .btn');
   await other.evaluate(() => (window as any).__pasker.app.deploy());
   await other.waitForFunction(() => (window as any).__pasker.match?.alive, null, { timeout: 8000 });
-  result.skipperOutOfAmmo = await other.evaluate(() => (window as any).__pasker.match.outOfAmmo());
   result.board = await desktop.evaluate(() => [...(window as any).__pasker.match.players.values()].map((p: any) => `${p.name}:${p.training}`));
 }
 

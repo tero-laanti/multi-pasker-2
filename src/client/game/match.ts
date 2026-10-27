@@ -74,6 +74,8 @@ export class MatchMode implements GameMode {
   training = false;
   /** An inventory check to answer by this server time (0: none). */
   inventoryUntil = 0;
+  /** Chats on our phone with unread messages. */
+  unreadFrom: string[] = [];
   onPairInfo: (info: PairInfo) => void = () => {};
   /** Asevarasto's answers on the range (the radio check, LATAA, KRANAATTI). */
   onTraining: (what: 'radioCheck' | 'ammo' | 'grenade') => void = () => {};
@@ -220,6 +222,9 @@ export class MatchMode implements GameMode {
         break;
       case 'inventory':
         this.inventoryUntil = e.until;
+        break;
+      case 'unread':
+        this.unreadFrom = e.from;
         break;
       case 'shot':
         if (e.p !== this.myId) this.remoteShot(e);
@@ -508,7 +513,7 @@ export class MatchMode implements GameMode {
     this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut, this.pairInfo?.virtual ?? false);
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);
-    this.hud.inventory(this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0);
+    this.hud.phoneBar(this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0, this.unreadFrom);
     const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';
     this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);

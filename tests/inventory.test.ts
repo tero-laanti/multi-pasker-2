@@ -6,6 +6,7 @@ import { PROTOCOL_VERSION, type GameEvent, type PhoneServerMsg } from '../src/sh
 import { Room } from '../src/server/game/room';
 
 const V = FI.varusmestari;
+const VA = FI.inventory;
 
 class FakeSocket {
   readonly OPEN = 1;
@@ -44,14 +45,20 @@ function setup() {
     room.phoneJoin(phone as never, { t: 'phoneHello', v: PROTOCOL_VERSION, pair: p.phone.pairToken }, false);
     return { p, ws, phone };
   };
+  /** The players read what comes in (held messages follow once the chat is read). */
+  const readAll = () => {
+    for (const p of room.players.values()) if (!p.bot) for (const c of p.phone.convs.values()) if (c.unread > 0) room.onPhoneMessage(p, { t: 'read', conv: c.id });
+  };
   const run = (ms: number) => {
     for (let i = 0; i < ms / 10; i++) {
       clock.advance(10);
       room.tick(0.01);
+      readAll();
     }
   };
   let rid = 0;
-  const send = (p: ReturnType<typeof join>['p'], text: string) => room.onPhoneMessage(p, { t: 'send', rid: `r${++rid}`, conv: V.number, text, life: p.life, round: room.round.n });
+  const send = (p: ReturnType<typeof join>['p'], text: string, conv: string = VA.number) =>
+    room.onPhoneMessage(p, { t: 'send', rid: `r${++rid}`, conv, text, life: p.life, round: room.round.n });
   /** Makes the check due now and lets the question arrive. */
   const ask = (p: ReturnType<typeof join>['p']) => {
     p.inventoryAt = clock.now();
@@ -108,12 +115,22 @@ describe('the inventory check', () => {
     expect(a.p.stats.pushups).toBe(1);
     run(4000);
     expect(FI.inventory.timeout.map((s) => s[0]!.toUpperCase() + s.slice(1))).toContain(a.phone.texts().at(-1));
-    // No service until the push-ups are reported.
+    // No service at the armoury until the push-ups are reported (to the vääpeli, here).
     a.p.ammo.pistol = 1;
-    send(a.p, 'LATAA');
+    send(a.p, 'LATAA', V.number);
     expect(a.p.reload).toBeNull();
     send(a.p, 'PUNNERRETTU');
     expect(a.p.phone.locked).toBe(false);
+  });
+
+  it('comes from the vääpeli, in a chat of his own, never in the first minute', () => {
+    const { join, run, clock } = setup();
+    const a = join('Aapo');
+    expect(a.p.inventoryAt - clock.now()).toBeGreaterThanOrEqual(INVENTORY.settle * 1000);
+    a.p.inventoryAt = clock.now();
+    run(4000);
+    expect(a.p.phone.convs.get(VA.number)?.name).toBe(VA.name);
+    expect(a.p.phone.convs.get(V.number)?.messages.some((m) => asked([m.text ?? '']))).toBe(false);
   });
 
   it('waits for a good moment: not while dead, without a phone or between rounds', () => {

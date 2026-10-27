@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { HAND_POSES } from '../src/client/game/models/handPoses';
-import { forearmInHand, gloveGeometry, type HandKey } from '../src/client/game/models/hands';
+import { forearmInHand, gloveGeometry, wristLimit, type HandKey } from '../src/client/game/models/hands';
 import type { WeaponModel } from '../src/client/game/models/pistol';
 import { PHONE } from '../src/client/game/models/weaponShapes';
 import { clearance, collectTriangles, TriGrid } from './meshClearance';
@@ -83,8 +83,8 @@ describe('first-person hands', () => {
       expect(p.thumb.mcp, `${key} thumb mcp`).toBeLessThanOrEqual(1.0);
       expect(p.thumb.ip, `${key} thumb ip`).toBeGreaterThanOrEqual(0);
       expect(p.thumb.ip, `${key} thumb ip`).toBeLessThanOrEqual(1.3);
-      const bend = (Math.acos(-forearmInHand(p).y) * 180) / Math.PI;
-      expect(bend, `${key} wrist bend`).toBeLessThanOrEqual(28.01);
+      const f = forearmInHand(p);
+      expect(Math.acos(-f.y), `${key} wrist bend`).toBeLessThanOrEqual(wristLimit(f.x, f.z) + 1e-6);
     }
   });
 

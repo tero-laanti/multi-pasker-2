@@ -171,7 +171,8 @@ export function buildPistol(): WeaponModel {
   // One-handed hold: the left hand only appears to bring a fresh magazine (posed on the
   // seated magazine) and to rack the bolt (posed pinching the cocking piece).
   const phone = buildPhoneHand();
-  const hands = { right: buildHand('pistol.right'), left: buildHand('pistol.left'), leftRack: buildHand('pistol.leftRack'), phone, phoneAnchor: phone.userData.phoneAnchor as THREE.Object3D };
+  const right = buildHand('pistol.right');
+  const hands = { right, left: buildHand('pistol.left'), leftRack: buildHand('pistol.leftRack'), phone, phoneAnchor: phone.userData.phoneAnchor as THREE.Object3D, trigger: right.userData.trigger as THREE.Object3D | undefined };
   hands.left.visible = false;
   hands.leftRack.visible = false;
   root.add(hands.right, hands.left, hands.leftRack, hands.phone);

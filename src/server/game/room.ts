@@ -130,6 +130,7 @@ export class Room {
         p.alive = false;
         p.reload = null;
       } else p.training = false;
+      this.settleInventory(p);
       if (!p.alive && !p.training && this.round.state === 'playing') this.respawn(p);
       this.emit({ k: 'join', p: p.id, name: p.name });
     } else {
@@ -140,7 +141,7 @@ export class Room {
       p.newSerials();
       p.phone.pairCode = this.freePairCode();
       p.training = !!msg.train;
-      p.inventoryAt = this.now() + randomBetween(INVENTORY.interval) * 1000;
+      this.settleInventory(p);
       this.chirps(p);
       this.players.set(p.id, p);
       if (!p.training) this.respawn(p);
@@ -172,6 +173,9 @@ export class Room {
 
   /** A message landing on someone's phone chirps where they stand (alive only). */
   private chirps(p: ServerPlayer): void {
+    p.phone.onUnread = () => {
+      if (!p.bot) p.outbox.push({ k: 'unread', from: p.phone.unreadFrom() });
+    };
     const owner = p;
     p.phone.onIncoming = () => {
       if (owner.alive) this.emit({ k: 'chirp', p: owner.id });
@@ -281,7 +285,11 @@ export class Room {
       }
       case 'read': {
         const c = phone.convs.get(msg.conv);
-        if (c) c.unread = 0;
+        if (c && c.unread > 0) {
+          c.unread = 0;
+          phone.onUnread();
+        }
+        this.varusmestari.flush(p, msg.conv);
         break;
       }
       case 'draft': {
@@ -385,7 +393,7 @@ export class Room {
     const name = BOT_NAMES.find((n) => !used.has(`${n}`)) ?? `Botti${this.bots.length + 1}`;
     const p = new ServerPlayer(this.freeId(), randomUUID(), name, this.freeColor(), true);
     p.newSerials();
-    p.inventoryAt = this.now() + randomBetween(INVENTORY.interval) * 1000;
+    this.settleInventory(p);
     this.chirps(p);
     this.players.set(p.id, p);
     const bot = new Bot(p, this);
@@ -656,7 +664,12 @@ export class Room {
     }
   }
 
-  /** The armourer's surprise inventory checks: players in the match with a phone (or bots). */
+  /** No inventory check before the player has had a minute in the match. */
+  private settleInventory(p: ServerPlayer): void {
+    p.inventoryAt = Math.max(p.inventoryAt, this.now() + INVENTORY.settle * 1000 + Math.random() * (INVENTORY.interval[1] - INVENTORY.interval[0]) * 500);
+  }
+
+  /** The vääpeli's surprise inventory checks: players in the match with a phone (or bots). */
   private inventoryChecks(now: number): void {
     if (this.round.state !== 'playing') return;
     for (const p of this.players.values()) {
@@ -666,7 +679,8 @@ export class Room {
       }
       if (now < p.inventoryAt) continue;
       const reachable = p.bot || (p.phone.online && p.connected);
-      if (!reachable || p.training || !p.alive || p.phone.locked || !p.phone.convs.has(FI_NUMBER)) {
+      // Not while something from the vääpeli is still unread (one new message per chat).
+      if (!reachable || p.training || !p.alive || p.phone.locked || !p.phone.convs.has(FI_NUMBER) || p.phone.busy(FI.inventory.number)) {
         p.inventoryAt = now + INVENTORY.retry * 1000;
         continue;
       }
@@ -679,6 +693,7 @@ export class Room {
   deploy(p: ServerPlayer): void {
     if (!p.training) return;
     p.training = false;
+    this.settleInventory(p);
     if (this.activeCount() > 16 && this.bots.length > 0) this.removeBot();
     if (this.round.state === 'playing') this.respawn(p);
     this.updateGate();
@@ -961,11 +976,10 @@ export class Room {
         p.phone.send({ t: 'inventory', left: 0 });
       }
       p.inventory = null;
-      p.inventoryAt = this.now() + randomBetween(INVENTORY.interval) * 1000;
-      if (p.phone.paired) {
-        p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: `#round ${this.round.n}`, at: Date.now() });
-        this.varusmestari.greet(p);
-      }
+      p.inventoryAt = 0;
+      this.settleInventory(p);
+      // A divider in the armoury chat (the services list was sent once, when the phone paired).
+      if (p.phone.paired && p.phone.convs.has(FI_NUMBER)) p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: `#round ${this.round.n}`, at: Date.now() });
       p.newSerials();
       p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle });
       if ((p.connected && !p.training) || p.bot) this.respawn(p);

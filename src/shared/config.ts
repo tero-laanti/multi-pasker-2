@@ -275,8 +275,10 @@ export const PHONE = {
 
 /** The armourer's surprise inventory checks: a question about your own kit, answered by phone. */
 export const INVENTORY = {
-  /** Seconds between checks for each player (random in this range, the first one too). */
-  interval: [60, 120] as [number, number],
+  /** Seconds between checks for each player (random in this range). */
+  interval: [90, 180] as [number, number],
+  /** No check in a player's first seconds in the match (after joining, deploying or a new round). */
+  settle: 60,
   /** Seconds to answer. A right answer earns a grenade; no right answer in time, push-ups. */
   answerTime: 20,
   /** A check that falls due at a bad moment (dead, phone away) waits this long (s). */
