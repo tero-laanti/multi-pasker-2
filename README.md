@@ -210,7 +210,9 @@ tests it in Chrome.
 **Deploying** is a manual step from your own machine; nothing runs on push. The Terraform
 configuration in `deploy/aws/` puts `dist-web/` in a private S3 bucket behind CloudFront at
 https://mp2.laanti.fi, with its certificate and DNS records in the laanti.fi Route 53 zone. It
-needs AWS credentials on the machine for the account that holds that zone.
+needs AWS credentials on the machine for the account that holds that zone: preferably a user of
+its own with only [deploy/aws/iam-policy.json](deploy/aws/iam-policy.json), which limits it to
+the site's own buckets and to DNS records under mp2.laanti.fi.
 
 ```bash
 npm run build:web
