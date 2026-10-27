@@ -68,7 +68,9 @@ interface TypoCandidate {
 /** The match: players, bots, rounds, shots and damage. Ticked at NET.tickHz by the server. */
 export class Room {
   readonly world: CollisionWorld;
-  readonly nav: NavNode[];
+  /** Bot paths with the gates shut, and with them open (the outer ring joined on). */
+  private navShut: NavNode[];
+  private navOpen: NavNode[];
   readonly players = new Map<number, ServerPlayer>();
   readonly bots: Bot[] = [];
   round: RoundInfo;
@@ -98,9 +100,11 @@ export class Room {
     this.voiceNotes = opts.voiceNotes ?? new VoiceNotes(null);
     this.evening = opts.evening ?? new Evening(null);
     this.world = new CollisionWorld(map.brushes);
-    this.nav = buildNavGraph(this.world, map.nav ?? []);
     this.round = { n: 1, state: 'playing', endsAt: this.now() + ROUND_TIME, gateOpen: false };
+    this.setGate(true);
+    this.navOpen = buildNavGraph(this.world, map.nav ?? []);
     this.setGate(false);
+    this.navShut = buildNavGraph(this.world, map.nav ?? []);
   }
 
   // ---- membership ----
@@ -437,6 +441,11 @@ export class Room {
   }
 
   // ---- gate and spawning ----
+
+  /** Bot paths as the gates stand now. */
+  get nav(): NavNode[] {
+    return this.round.gateOpen ? this.navOpen : this.navShut;
+  }
 
   private setGate(open: boolean): void {
     this.round.gateOpen = open;

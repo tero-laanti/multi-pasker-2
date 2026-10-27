@@ -7,8 +7,9 @@ import type { MapData, MaterialId } from './types';
  * Varuskunta: a summer Finnish garrison. Core: the kasarmi (north, playable ground floor),
  * the asevarasto (east, raised floor with a loading dock and a fenced yard), the sotku (west,
  * red-ochre timber with a porch) around the paraatikenttä with the flagpole; the esterata runs
- * along the south as a flanking route. Outer ring (east, behind the puomi gate, open with more
- * than ~8 players): a tent camp with kaminas and a forest edge. -Z is north.
+ * along the south as a flanking route, and the Veksi (the garrison sick bay) fills the
+ * south-east corner. Outer ring (east, behind two gates that open with more than ~8 players):
+ * a tent camp with kaminas, a loop through both gates. -Z is north.
  */
 export function buildGarrison(): MapData {
   const m = new MapBuilder();
@@ -47,6 +48,7 @@ export function buildGarrison(): MapData {
   asevarasto(m);
   sotku(m);
   esterata(m);
+  veksi(m);
 
   // North alley behind the kasarmi: bins, a bike shed, a store.
   for (const [x, z] of [
@@ -67,7 +69,7 @@ export function buildGarrison(): MapData {
   m.box(-49, 0, 20, -46, 1.2, 22, 'logs');
 
   const gateBrushes = perimeterAndGate(m);
-  outerRing(m, [...NAV.map(([x, z]) => [x, z] as [number, number]), ...OUTER_SPAWNS.map(([x, , z]) => [x, z] as [number, number])]);
+  outerRing(m);
 
   // Trees around the outside of the fence and a few inside.
   const rnd = makeRng(1918);
@@ -76,7 +78,7 @@ export function buildGarrison(): MapData {
     const x = rnd() * 300 - 140;
     const z = rnd() * 300 - 150;
     const inCore = x > -56 && x < 56 && z > -54 && z < 50;
-    const inOuter = x > 50 && x < 96 && z > -50 && z < 48;
+    const inOuter = x > 50 && x < 96 && z > -50 && z < 10;
     if (inCore || inOuter) continue;
     const r = rnd();
     m.prop({ kind: r < 0.55 ? 'spruce' : r < 0.8 ? 'pine' : 'birch', x, y: 0, z, yaw: rnd() * 6.28, scale: 0.8 + rnd() * 0.6 });
@@ -110,10 +112,11 @@ export function buildGarrison(): MapData {
     [31, 0.03, 36],
     [-46, 0, 41],
     [46, 0, 41],
-    [46, 0, 9],
+    [42, 0, -30],
   ];
-  for (const [x, y, z] of core) m.spawn(x, y, z, face(-x, -z));
-  for (const [x, y, z] of OUTER_SPAWNS) m.spawn(x, y, z, face(-x + 30, -z), true);
+  // Facing the middle of the parade ground; in the outer ring, the way back into the core.
+  for (const [x, y, z] of core) m.spawn(x, y, z, face(x, z));
+  for (const [x, y, z] of OUTER_SPAWNS) m.spawn(x, y, z, face(x - 30, z), true);
   for (const [x, z, y] of NAV) m.navPoint(x, z, y ?? 0);
 
   return m.build('varuskunta', { minX: -56, minZ: -54, maxX: 96, maxZ: 50 }, [0.45, 0.78, 0.43], {
@@ -294,44 +297,47 @@ function esterata(m: MapBuilder): void {
   m.prop({ kind: 'sign', x: -33, y: 1.0, z: 23, text: 'ESTERATA', size: 1.8 });
 }
 
-/** Perimeter fence and the gate; returns the brushes that close the gate. */
+/**
+ * Perimeter fence and the two gates to the outer ring (the road, and a back gate by the camp);
+ * returns the brushes that close them.
+ */
 function perimeterAndGate(m: MapBuilder): number[] {
   const fence = (x0: number, z0: number, x1: number, z1: number) => m.box(x0, 0, z0, x1, 3, z1, 'clip', MASK.MOVE | MASK.GRENADE);
   fence(-52.1, -50.1, 52.1, -50);
   fence(-52.1, 46, 52.1, 46.1);
   fence(-52.1, -50, -52, 46);
-  fence(52, -50, 52.1, -3.2);
+  fence(52, -50, 52.1, -38.2);
+  fence(52, -34.2, 52.1, -3.2);
   fence(52, 3.2, 52.1, 46);
   m.prop({ kind: 'wire', x: 0, y: 0, z: -50.05, size: 104 });
   m.prop({ kind: 'wire', x: 0, y: 0, z: 46.05, size: 104 });
   m.prop({ kind: 'wire', x: -52.05, y: 0, z: -2, size: 96, yaw: Math.PI / 2 });
-  m.prop({ kind: 'wire', x: 52.05, y: 0, z: -26.6, size: 46.8, yaw: Math.PI / 2 });
+  m.prop({ kind: 'wire', x: 52.05, y: 0, z: -44.1, size: 11.8, yaw: Math.PI / 2 });
+  m.prop({ kind: 'wire', x: 52.05, y: 0, z: -18.7, size: 31, yaw: Math.PI / 2 });
   m.prop({ kind: 'wire', x: 52.05, y: 0, z: 24.6, size: 42.8, yaw: Math.PI / 2 });
-  // The gate: a clip in the opening while it is closed, a striped boom and a guard booth.
+  // The gates: clips in the openings while they are closed, striped booms, a guard booth.
   const gate = m.brushes.length;
   m.box(51.95, 0, -3.2, 52.15, 4, 3.2, 'clip', MASK.MOVE | MASK.GRENADE);
   m.prop({ kind: 'boom', x: 52.05, y: 0, z: -3.3, size: 6.4 });
+  const back = m.brushes.length;
+  m.box(51.95, 0, -38.2, 52.15, 4, -34.2, 'clip', MASK.MOVE | MASK.GRENADE);
+  m.prop({ kind: 'boom', x: 52.05, y: 0, z: -38.3, size: 4 });
   m.box(53, 0, -7.2, 55.2, 2.5, -4.6, 'plaster');
   m.box(52.8, 2.5, -7.4, 55.4, 2.7, -4.4, 'roofTin');
   m.prop({ kind: 'sign', x: 52.0, y: 3.4, z: 3.6, yaw: Math.PI / 2, text: 'PORTTI', size: 1.4 });
-  return [gate];
+  return [gate, back];
 }
 
-/** Outer ring; random trees and rocks keep clear of the reserved points (nav, spawns). */
-function outerRing(m: MapBuilder, reserved: [number, number][]): void {
-  // A loop of forest paths stays open so bots can walk it.
-  const paths: [number, number][] = [[60, 12], [70, 18], [84, 14], [90, 28], [78, 38], [64, 32], [60, 12], [57, 7], [63, 0]];
-  const segDist = (x: number, z: number, a: [number, number], b: [number, number]) => {
-    const dx = b[0] - a[0];
-    const dz = b[1] - a[1];
-    const k = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)));
-    return Math.hypot(a[0] + dx * k - x, a[1] + dz * k - z);
-  };
-  const clear = (x: number, z: number, r: number) =>
-    reserved.every(([rx, rz]) => Math.hypot(rx - x, rz - z) > r) && paths.every((p, i) => i === 0 || segDist(x, z, paths[i - 1]!, p) > r * 0.7);
+/**
+ * Outer ring behind the gates: the tent camp, its own fence on the south side (the forest
+ * beyond it is scenery). Smaller than before, so sixteen players still meet.
+ */
+function outerRing(m: MapBuilder): void {
   m.clip(52, -5, -52, 96, 40, -50);
-  m.clip(52, -5, 46, 96, 40, 48);
-  m.clip(94, -5, -52, 96, 40, 48);
+  m.clip(52, -5, 8, 96, 40, 10);
+  m.clip(94, -5, -52, 96, 40, 10);
+  m.box(52.1, 0, 8, 94, 3, 8.1, 'clip', MASK.MOVE | MASK.GRENADE);
+  m.prop({ kind: 'wire', x: 73.05, y: 0, z: 8.05, size: 41.9 });
   // Tent camp: tents with stove pipes, a woodpile and a latrine.
   for (const [x, z] of [
     [60, -30],
@@ -346,38 +352,83 @@ function outerRing(m: MapBuilder, reserved: [number, number][]): void {
   m.box(75, 0, -40, 79, 1.0, -38, 'logs');
   m.box(86, 0, -14, 87.4, 2.2, -12.6, 'planks');
   m.box(64, 0, -10, 66.5, 1.2, -8, 'logs');
-  // Forest edge with rocks.
-  const rnd = makeRng(77);
-  for (let i = 0; i < 26; i++) {
-    const x = 56 + rnd() * 36;
-    const z = 8 + rnd() * 36;
-    const r = rnd();
-    if (!clear(x, z, 2.2)) continue;
-    const kind = r < 0.6 ? 'spruce' : 'pine';
-    const scale = 0.75 + rnd() * 0.35;
-    // Trunk radius at chest height for the drawn tree.
-    m.propCollider(x, z, (kind === 'pine' ? 0.207 : 0.122) * scale, 0, 4, 'wood', 8);
-    m.prop({ kind, x, y: 0, z, yaw: rnd() * 6, scale, solid: true });
+}
+
+/**
+ * Veksi, the varuskuntasairaala (garrison sick bay), in the south-east corner against the fence:
+ * white plaster with red crosses. The waiting room with the reception counter in the west, a
+ * corridor through the middle from the street door, and the ward of beds in the east with a
+ * door to the yard in the south. Its east wall stands on the fence, so there is no gap to look along.
+ */
+function veksi(m: MapBuilder): void {
+  const x0 = 36;
+  const x1 = 52;
+  const z0 = 6;
+  const z1 = 18;
+  const t = 0.25;
+  const H = 3.6;
+  const win = (at: number): Opening => ({ at, width: 1.4, bottom: 1.0, top: 2.1 });
+  const door = (at: number): Opening => ({ at, width: 1.6, bottom: 0, top: 2.4 });
+  m.box(x0 + t, 0, z0 + t, x1 - t, 0.1, z1 - t, 'concrete');
+  m.wall('x', x0, 0, z0, x1 - x0, H, t, 'white', [win(1.3), win(4.1), door(6.45)]);
+  m.wall('x', x0, 0, z1 - t, x1 - x0, H, t, 'white', [win(1.8), win(9.1), door(11.3), win(13.9)]);
+  m.wall('z', x0, 0, z0 + t, z1 - z0 - 2 * t, H, t, 'white', [door(0.3)]);
+  m.wall('z', x1 - t, 0, z0 + t, z1 - z0 - 2 * t, H, t, 'white');
+  m.box(x0 + t, H - 0.06, z0 + t, x1 - t, H, z1 - t, 'white');
+  // Tin roof along the building, white gables.
+  m.prism(x0 + t, H, z0 - 0.4, x1 - t, H + 2, z1 + 0.4, 'x', 'roofTin');
+  for (const [a, b] of [
+    [x0, x0 + t],
+    [x1 - t, x1],
+  ] as const)
+    m.prism(a, H, z0, b, H + 1.875, z1, 'x', 'white');
+  // Waiting room | corridor | ward.
+  const inner = (x: number, doors: number[]) =>
+    m.wall('z', x, 0.1, z0 + t, z1 - z0 - 2 * t, H - 0.16, 0.15, 'white', doors.map((at) => ({ at, width: 1.4, bottom: 0, top: 2.2 })));
+  inner(41.9, [8.55]);
+  inner(44.45, [1.15, 6.35]);
+  // Reception counter (waist high: vault it or peek over it), chairs and a bench.
+  m.box(39.1, 0.1, z0 + t, 39.7, 1.05, 10.4, 'plywood');
+  m.box(39.7, 0.1, 9.8, 41.9, 1.05, 10.4, 'plywood');
+  m.box(38.5, 0.1, 11.5, 40.9, 1.0, 12.2, 'metal');
+  m.box(36.5, 0.1, 17.15, 40.1, 1.0, z1 - t, 'planks');
+  // The ward: beds with steel headboards, three by the east wall and two by the corridor.
+  for (const bz of [7.4, 10.9, 14.4]) {
+    m.box(49.75, 0.1, bz, 51.65, 0.75, bz + 0.9, 'canvas');
+    m.box(51.65, 0.1, bz, x1 - t, 1.15, bz + 0.9, 'steelTarget');
   }
-  for (let i = 0; i < 8; i++) {
-    const x = 58 + rnd() * 32;
-    const z = 10 + rnd() * 32;
-    const s = 1 + rnd() * 1.4;
-    const yaw = rnd() * 3;
-    if (!clear(x, z, s * 1.6 + 1.2)) continue;
-    m.obb(x, 0, z, s * 1.4, s * 0.9, s, yaw, 'concreteDark');
+  for (const bz of [9.9, 15.3]) {
+    m.box(44.7, 0.1, bz, 46.6, 0.75, bz + 0.9, 'canvas');
+    m.box(44.6, 0.1, bz, 44.7, 1.15, bz + 0.9, 'steelTarget');
   }
+  // Red crosses on the west gable and on the street side, each three plain bars.
+  const cross = (cx: number, cy: number, cz: number, alongX: boolean, arm: number) => {
+    const bar = (u0: number, u1: number, y0: number, y1: number) =>
+      alongX ? m.box(cx + u0, y0, cz - 0.05, cx + u1, y1, cz, 'red') : m.box(cx - 0.05, y0, cz + u0, cx, y1, cz + u1, 'red');
+    bar(-arm / 6, arm / 6, cy - arm / 2, cy + arm / 2);
+    bar(-arm / 2, -arm / 6, cy - arm / 6, cy + arm / 6);
+    bar(arm / 6, arm / 2, cy - arm / 6, cy + arm / 6);
+  };
+  cross(x0, 4.5, 12, false, 1.5);
+  cross(48.1, 2.6, z0, true, 1.5);
+  m.prop({ kind: 'sign', x: x0 - 0.03, y: 2.95, z: 7.6, yaw: -Math.PI / 2, text: 'VARUSKUNTASAIRAALA', size: 2.6 });
+  m.prop({ kind: 'sign', x: 43.25, y: 3.05, z: z0 - 0.03, yaw: Math.PI, text: 'VEKSI', size: 1.4 });
+  m.prop({ kind: 'sign', x: 40.8, y: 2.4, z: z0 + t + 0.02, text: 'VASTAANOTTO', size: 1.6 });
+  // A canopy over the street door, and a container in the yard behind.
+  m.box(41.65, 2.55, 3.4, 44.85, 2.7, z0, 'roofTin');
+  for (const x of [41.8, 44.7]) m.box(x - 0.06, 0, 3.49, x + 0.06, 2.55, 3.61, 'metal');
+  m.box(46, 0, 30, 52, 2.6, 32.4, 'metal');
 }
 
 const OUTER_SPAWNS: [number, number, number][] = [
-  [58, 0, -40],
+  [62, 0, -46],
   [74, 0, -8],
   [86, 0, -32],
-  [62, 0, 22],
-  [80, 0, 36],
-  [88, 0, 8],
-  [57, 0, 7],
   [60, 0, -10],
+  [75, 0, -30],
+  [88, 0, -22],
+  [84, 0, -3],
+  [90, 0, -44],
 ];
 
 /** Bot navigation points [x, z, floor height]; links are found automatically. */
@@ -400,10 +451,14 @@ const NAV: [number, number, number?][] = [
   [26.5, -11, 1.0], [29.4, -16, 1.0], [38.7, -16, 1.0], [29.4, -11.9, 1.0], [38.7, -11.9, 1.0], [29.4, -8, 1.0], [38.7, -8, 1.0],
   [29.4, -5, 1.0], [37, -5, 1.0], [39, -9.35, 1.0], [42.4, -9.6], [26.5, -3.2], [26.5, -18.8],
   [43.5, -15], [44, -10.5], [42.5, -4.5], [33, -1.6],
-  // Road to the gate and the outer ring.
+  // Road to the gate and the outer ring; the back gate.
   [40, 0], [48, 0], [55, 0], [63, 0], [72, 0], [82, 0],
   [56, -24], [64.5, -24], [64.5, -36], [64.5, -12], [74, -24], [74, -36], [86, -36], [86, -18],
-  [60, 12], [70, 18], [84, 14], [90, 28], [78, 38], [64, 32],
+  [48.5, -36.2], [55.5, -36.2],
+  // Veksi: the west door and the waiting room, the street door and the corridor, the ward, the yard door.
+  [33.5, 7.35], [37.7, 7.35, 0.1], [37.7, 13, 0.1], [40.6, 15.5, 0.1],
+  [43.25, 2], [43.25, 8.1, 0.1], [43.25, 13.3, 0.1], [43.25, 15.5, 0.1],
+  [48.1, 8.1, 0.1], [48.1, 13.3, 0.1], [48.1, 16.4, 0.1], [48.1, 20.5],
   // South: around the esterata (its obstacles need jumping) and the corners.
   [-44, 40], [-32, 23], [-18, 23], [-6, 23], [6, 23], [18, 23], [30, 23],
   [-32, 39], [-12, 39], [0, 39], [14, 39], [30, 39], [44, 40], [44, 24], [-40, 24],

@@ -310,6 +310,8 @@ const SPECS: Record<Exclude<MaterialId, 'clip'>, MatSpec> = {
   asphalt: { tex: () => concrete([72, 72, 74], 84), tile: 4, roughness: 0.9 },
   brick: { tex: brick, tile: 1.6, roughness: 0.85 },
   plaster: { tex: () => plaster([214, 206, 188], 90), tile: 3, roughness: 0.9 },
+  white: { tex: () => plaster([236, 234, 226], 94), tile: 3, roughness: 0.9 },
+  red: { tex: () => plaster([196, 28, 34], 96), tile: 2, roughness: 0.8 },
   ochre: { tex: () => plaster([204, 150, 72], 92), tile: 3, roughness: 0.9 },
   wood: { tex: () => planks([128, 100, 70], 1, 100, false), tile: 1.2, roughness: 0.8 },
   plywood: { tex: plywood, tile: 2.4, roughness: 0.75 },

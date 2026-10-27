@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 140 passing
+## Automated tests (`npm test`): 143 passing
 
 | Area | What the tests check |
 |---|---|
@@ -12,7 +12,7 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 | Weapons | Fire rates, magazines, damage presets, recoil pattern, spread, reload timing, time to kill; the phone-out penalty (no ADS, wider hip spread); the spare magazine (R takes it once, an empty trigger reloads, nothing left clicks) |
 | Grenades | Bounces, fuse, blast blocked by cover; the fuse burns from the G press, so a held grenade lands with less of it and one held too long goes off in the hand (a self-kill); a player shot with the pin out drops it, still burning; paused while holding it, it falls |
 | Range | Targets, drills, scoring |
-| Garrison | Spawns and navigation points are clear of solids, the nav graph is connected, the gate brush |
+| Garrison | Spawns and navigation points are clear of solids, the nav graph is connected, the gate brushes; bots find a way into the tent camp (and back, and through the back gate) only while the gates are open; bots reach the Veksi waiting room, corridor, ward and yard; every spawn faces into the map. In Chrome: the Veksi from the street and the side door, its lobby and ward, the back gate |
 | Match server | Rewind hits where the target was at the shooter's render time, cover blocks a claimed hit, fire rate and ammo caps, headshots, respawn, regeneration, reload refill timing, R taking only what the magazine needs from the spare, LATAA filling every magazine and spare (also during an R reload), token rejoin, 15 bots fighting for a minute within the tick budget, rounds and intermission; a browser on the server machine counts as the host by any of its addresses |
 | Training | A first-timer stays out of the match (no spawn, no snapshots, not counted, no awards or evening) until they deploy; the radio check sent when the phone is picked up (or right away if already paired), only YK answers it, then LATAA and KRANAATTI work for the range's guns |
 | Knife | Reach: a body in front within arm's length is reached, standing or crouched, but not one behind, beside or too far; the nearest of two takes the stab. Server: two stabs kill from full health and the kill is the knife's; a second stab too soon is ignored; no damage out of reach, through a wall, facing away or on spawn protection. Client: the stab lands once, at its moment, no shots while the knife is out, the gun ready again after; refused while reloading or holding a grenade. The hand round the handle sinks at most 1.7 mm into it. In Chrome: the stab in first person with both guns, the arm coming up from below |

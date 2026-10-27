@@ -74,7 +74,12 @@ service involved), and they can play on the same machine.
 3. Free-for-all on the garrison (*varuskunta*): 4-minute rounds, respawn after ~2.5 s, a short
    spawn protection that ends when you fire. Tab shows the scoreboard; it also appears between
    rounds, and the next round starts by itself after 12 s.
-4. With more than 8 players the gate (*puomi*) opens the outer ring: the tent camp and the forest.
+4. The garrison: the kasarmi (barracks) to the north, the asevarasto (armoury) to the east, the
+   sotku (canteen) to the west, the esterata (obstacle course) to the south, and the **Veksi**,
+   the garrison sick bay, in the south-east corner: a waiting room with the reception counter, a
+   corridor and a ward of beds, with doors to the street, the parade ground and the yard.
+5. With more than 8 players the two gates (*puomi*) open the outer ring, a tent camp you can loop
+   through by the road gate and the back gate. Bots use the gates too, once they are open.
 
 Reloading the page puts you back into the same player (score kept). Leaving from the Esc menu
 shows you as *left* to the others; you can come back during the round.

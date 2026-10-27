@@ -28,6 +28,8 @@ export const MATERIALS = {
   asphalt: 'concrete',
   brick: 'concrete',
   plaster: 'concrete',
+  white: 'concrete',
+  red: 'concrete',
   ochre: 'concrete',
   wood: 'wood',
   plywood: 'wood',
