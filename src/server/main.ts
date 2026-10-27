@@ -9,11 +9,12 @@ import { isOwnAddress, lanCandidates, pickLanAddress } from './lan';
 import { applyTuning, type TuningTree } from './tuningWriter';
 import { buildGarrison } from '../shared/map/garrison';
 import { Room } from './game/room';
-import type { ServerPlayer } from './game/player';
-import type { ClientMsg, PhoneClientMsg } from '../shared/protocol';
 import { mergeTuning, type TuningNode } from '../shared/tuningTree';
 import { VoiceNotes } from './voicenotes';
 import { Evening } from './game/awards';
+import { Connection } from './connection';
+import { TickLoop } from './loop';
+import { eveningFile, folderVoice } from './storage';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const DIST = path.join(ROOT, 'dist');
@@ -41,7 +42,7 @@ function parseArgs(argv: string[]): Args {
 
 const sfx = new AudioFolder(path.join(ROOT, 'assets/sfx'), path.join(ROOT, 'assets/sfx/_base'));
 const voice = new AudioFolder(path.join(ROOT, 'assets/voice'), path.join(ROOT, 'assets/voice/_placeholder'));
-const voiceNotes = new VoiceNotes(voice);
+const voiceNotes = new VoiceNotes(folderVoice(voice));
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -100,11 +101,11 @@ async function main(): Promise<void> {
 
   // The evening scoreboard lives in data/ (not in git) and survives restarts. A server on another
   // port (a second instance for testing) keeps its own.
-  const evening = new Evening(path.join(ROOT, 'data', args.port === NET.defaultPort ? 'evening.json' : `evening-${args.port}.json`));
+  const evening = new Evening(eveningFile(path.join(ROOT, 'data', args.port === NET.defaultPort ? 'evening.json' : `evening-${args.port}.json`)));
   room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined, voiceNotes, evening });
   const bots = Number(process.env.PASKER_BOTS ?? 0);
   for (let i = 0; i < bots; i++) room.addBot();
-  startTickLoop();
+  loop = new TickLoop(room);
 
   server.listen(args.port, '0.0.0.0', () => {
     printBanner(args, lan);
@@ -203,84 +204,24 @@ async function handleRequest(
 }
 
 let room: Room;
-let tickCount = 0;
-/** Tick times over the last second, for the F3 overlay. */
-let tickWindow: number[] = [];
-let tickStats = { avg: 0, max: 0 };
-
-/** Fixed-rate game tick with drift compensation. */
-function startTickLoop(): void {
-  const dt = 1000 / NET.tickHz;
-  let next = performance.now();
-  const loop = () => {
-    const t0 = performance.now();
-    tickCount++;
-    try {
-      room.tick(dt / 1000);
-    } catch (err) {
-      console.error('[tick]', err);
-    }
-    tickWindow.push(performance.now() - t0);
-    if (tickWindow.length >= NET.tickHz) {
-      tickStats = { avg: tickWindow.reduce((a, b) => a + b, 0) / tickWindow.length, max: Math.max(...tickWindow) };
-      tickWindow = [];
-    }
-    next += dt;
-    const now = performance.now();
-    if (next < now - dt * 5) next = now;
-    setTimeout(loop, Math.max(0, next - now));
-  };
-  setTimeout(loop, dt);
-}
-
+let loop: TickLoop;
 let nextClientId = 1;
 
 function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
   const id = nextClientId++;
   const addr = req.socket.remoteAddress ?? '';
-  const isHost = isOwnAddress(addr);
   console.log(`[ws] connection #${id} from ${addr}`);
-  let player: ServerPlayer | null = null;
-  /** Set when this connection is a phone: the player it belongs to. */
-  let phoneOf: ServerPlayer | null = null;
-  const stats = setInterval(() => {
-    if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs: tickStats.avg, tickMaxMs: tickStats.max, tickHz: NET.tickHz, ticks: tickCount }));
-  }, 1000);
+  const c = new Connection(room, ws, isOwnAddress(addr), loop, (line) => console.log(line));
   ws.on('message', (data, isBinary) => {
-    if (isBinary) {
-      if (!player) return;
-      const buf = data as Buffer;
-      room.onBinary(player, buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
+    if (!isBinary) {
+      c.text(String(data));
       return;
     }
-    let msg: ClientMsg | PhoneClientMsg;
-    try {
-      msg = JSON.parse(String(data)) as ClientMsg | PhoneClientMsg;
-    } catch {
-      return;
-    }
-    if (msg.t === 'ping') {
-      ws.send(JSON.stringify({ t: 'pong', id: msg.id, st: room.now() }));
-      if (player && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) player.rtt = Math.max(0, Math.min(9999, msg.rtt));
-      return;
-    }
-    if (msg.t === 'hello') {
-      player = room.join(ws, msg, isHost);
-      if (player) console.log(`[room] ${player.name} (#${player.id}) joined`);
-      return;
-    }
-    if (msg.t === 'phoneHello') {
-      phoneOf = room.phoneJoin(ws, msg, isHost);
-      if (phoneOf) console.log(`[phone] ${phoneOf.name}'s phone connected`);
-      return;
-    }
-    if (phoneOf) room.onPhoneMessage(phoneOf, msg as PhoneClientMsg);
-    else if (player) room.onMessage(player, msg as ClientMsg);
+    const buf = data as Buffer;
+    c.binary(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer);
   });
   ws.on('close', () => {
-    clearInterval(stats);
-    if (player && player.ws === ws) room.disconnect(player);
-    if (phoneOf) room.phoneDisconnect(phoneOf, ws);
+    c.closed();
     console.log(`[ws] connection #${id} closed`);
   });
 }

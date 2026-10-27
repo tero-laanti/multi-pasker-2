@@ -45,6 +45,8 @@ Other commands:
 | `npm run dev` | Development server with hot reload (same port, same LAN address) |
 | `npm test` | Unit tests (collision, movement, weapons, range, grenades, map, match server, bots) |
 | `npm run typecheck` | TypeScript type check |
+| `npm run build:web` | Build the web version (range and bot match, no server) into `dist-web/` |
+| `npm run preview:web` | Serve the web build at http://localhost:8100/ |
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
 | `npm run gen:voice` | Re-make placeholder voice lines and `docs/RECORDING.md` |
 
@@ -187,6 +189,43 @@ The dev panel's match controls (bots, round restart, gate, kill speed, giving we
 the host machine, or from any machine on a `npm run dev` server. The *network conditioner*
 in the same panel adds latency and jitter to your own connection, for testing interpolation and
 hit registration.
+
+## The web version (mp2.laanti.fi)
+
+The game is made for a LAN, but a browser-only taste of it can go on a website: `npm run build:web`
+builds it into `dist-web/`, static files with no game server. In it:
+
+- **Bot match** replaces *Join game*: the game server runs inside the page (the same server code,
+  started by `src/client/local/`) with 7 bots (`WEB_MATCH` in `config.ts`). A first bot match
+  starts with the training, as on a LAN.
+- The phone is the virtual one: the pairing panels offer only *Open a virtual phone*, which
+  connects to the server in the page. Voice notes are spliced in the page from clips on the site.
+- The main menu says the game is made for a LAN party and links to this repository.
+- Tools that need the server machine are left out (saving tuning to `config.ts`, the phone
+  simulator), and the evening scoreboard is kept in the browser.
+
+`npm run preview:web` serves the build at http://localhost:8100/, and `tools/e2e/web-flow.ts`
+tests it in Chrome.
+
+**Deploying** is a manual step from your own machine; nothing runs on push. The Terraform
+configuration in `deploy/aws/` puts `dist-web/` in a private S3 bucket behind CloudFront at
+https://mp2.laanti.fi, with its certificate and DNS records in the laanti.fi Route 53 zone. It
+needs AWS credentials on the machine for the account that holds that zone.
+
+```bash
+npm run build:web
+```
+
+```bash
+terraform -chdir=deploy/aws init
+```
+
+```bash
+terraform -chdir=deploy/aws apply
+```
+
+Applying again after a new build uploads only the files that changed. Pages are checked on every
+load; sounds can take up to an hour to update.
 
 ## Troubleshooting
 

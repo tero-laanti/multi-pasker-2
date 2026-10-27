@@ -11,6 +11,8 @@
     "start": "vite build && tsx src/server/main.ts",
     "dev": "tsx src/server/main.ts --dev",
     "build": "vite build",
+    "build:web": "vite build --mode web",
+    "preview:web": "vite preview --mode web --port 8100",
     "serve": "tsx src/server/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

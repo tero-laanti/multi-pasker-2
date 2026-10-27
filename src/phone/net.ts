@@ -4,6 +4,18 @@ import type { PhoneClientMsg, PhoneServerMsg } from '../shared/protocol';
 type Hello = Omit<Extract<PhoneClientMsg, { t: 'phoneHello' }>, 't' | 'v'>;
 
 /**
+ * In the browser version the virtual phone is a frame of the game page, whose bot match runs the
+ * server in the page: the phone connects to that.
+ */
+function localServer(): { connect(): WebSocket } | null {
+  try {
+    return window.parent !== window ? ((window.parent as unknown as { __paskerLocal?: { connect(): WebSocket } }).__paskerLocal ?? null) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The phone's connection. Phones drop the socket when the screen locks, so it reconnects at
  * once when the page is visible again. Sends wait in an outbox until the server confirms them
  * and are resent with the same request id after a reconnect; the server never acts twice.
@@ -45,7 +57,10 @@ export class PhoneNet {
   }
 
   private open(): void {
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    const local = localServer();
+    const ws = local ? local.connect() : new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    // Closing the virtual phone removes its frame; the in-page server must hear it went.
+    if (local) window.addEventListener('pagehide', () => ws.close(), { once: true });
     this.ws = ws;
     ws.onopen = () => {
       const h = this.hello();

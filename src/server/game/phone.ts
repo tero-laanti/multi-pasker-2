@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import type { WebSocket } from 'ws';
+import type { Socket } from '../socket';
 import type { MsgState, PhoneConversation, PhoneMessage, PhoneServerMsg, PhoneStatus } from '../../shared/protocol';
 
 interface Scheduled {
@@ -12,11 +11,11 @@ interface Scheduled {
  * varusmestari keeps about it. Bots have one too (they "type" for the phone glow and drafts).
  */
 export class Phone {
-  ws: WebSocket | null = null;
+  ws: Socket | null = null;
   /** The paired phone's token; empty until a phone has been paired. */
   token = '';
   /** Secret in the pairing QR link. */
-  readonly pairToken = randomUUID().replace(/-/g, '');
+  readonly pairToken = crypto.randomUUID().replace(/-/g, '');
   /** Short code for pairing by hand. */
   pairCode = '';
   sim = false;

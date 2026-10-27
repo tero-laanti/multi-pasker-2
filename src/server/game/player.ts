@@ -1,4 +1,4 @@
-import type { WebSocket } from 'ws';
+import type { Socket } from '../socket';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { PositionHistory } from '../../shared/history';
 import type { GameEvent, PlayerInfo, PhoneStatus } from '../../shared/protocol';
@@ -28,7 +28,7 @@ export interface Reload {
 
 /** Everything the server knows about one player (human or bot). */
 export class ServerPlayer {
-  ws: WebSocket | null = null;
+  ws: Socket | null = null;
   connected = true;
   x = 0;
   y = 0;

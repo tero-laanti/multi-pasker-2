@@ -5,6 +5,7 @@ import { UI } from '../../shared/ui';
 import { Mover, emptyCmd, newMoveState } from '../../shared/movement';
 import { cloneTuning, flattenTuning, getTuning, mergeTuning, setTuning, type TuningNode } from '../../shared/tuningTree';
 import { recoilKick, timeToKill } from '../../shared/weapons';
+import { WEB } from '../web';
 
 const STORE = 'pasker.tuning.session';
 const INTEGER = /(rpm|magazine|Body|Head|health|damage|RampShots|Period)$/;
@@ -83,8 +84,11 @@ export class TuningPanel {
     filter.oninput = () => this.filter(filter.value.trim().toLowerCase());
     h('div', 'tuning-hint', UI.tuning.hint, this.root);
     const actions = h('div', 'tuning-actions', undefined, this.root);
-    const save = h('button', 'btn small primary', UI.tuning.save, actions);
-    save.onclick = () => void this.save();
+    // Saving writes config.ts on the server machine; the web version has no server.
+    if (!WEB) {
+      const save = h('button', 'btn small primary', UI.tuning.save, actions);
+      save.onclick = () => void this.save();
+    }
     const text = h('button', 'btn small', UI.tuning.exportText, actions);
     text.onclick = () => this.showText();
     const reset = h('button', 'btn small', UI.tuning.resetAll, actions);

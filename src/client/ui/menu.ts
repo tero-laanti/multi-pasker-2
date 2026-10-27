@@ -1,6 +1,7 @@
 import { cleanName } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { DEFAULT_SETTINGS, type Quality, type Settings } from '../settings';
+import { REPO_URL, WEB } from '../web';
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -81,13 +82,22 @@ export class Menu {
     const range = h('button', 'btn primary', UI.menu.range, buttons);
     range.onclick = () => actions.startRange();
     h('div', 'btn-desc', UI.menu.rangeDesc, buttons);
-    const join = h('button', 'btn', UI.menu.join, buttons);
+    const join = h('button', 'btn', WEB ? UI.web.join : UI.menu.join, buttons);
     join.onclick = () => this.showJoin();
-    h('div', 'btn-desc', UI.menu.joinDesc, buttons);
+    h('div', 'btn-desc', WEB ? UI.web.joinDesc : UI.menu.joinDesc, buttons);
     const set = h('button', 'btn', UI.menu.settings, buttons);
     set.onclick = () => this.showSettings('main');
     this.main.appendChild(this.controls());
     h('div', 'footer', UI.menu.footer, this.main);
+    if (WEB) {
+      const notice = h('div', 'web-notice', undefined, this.main);
+      h('div', 'web-notice-title', UI.web.noticeTitle, notice);
+      for (const p of UI.web.notice) h('p', '', p, notice);
+      const link = h('a', 'web-notice-link', UI.web.noticeLink, notice);
+      link.href = REPO_URL;
+      link.target = '_blank';
+      link.rel = 'noopener';
+    }
 
     this.settingsScreen = h('div', 'screen settings hidden', undefined, this.root);
     this.join = h('div', 'screen join hidden', undefined, this.root);
@@ -124,7 +134,7 @@ export class Menu {
 
   private buildJoin(): void {
     const root = this.join;
-    h('div', 'title small', UI.menu.joinTitle, root);
+    h('div', 'title small', WEB ? UI.web.joinTitle : UI.menu.joinTitle, root);
     const form = h('div', 'join-form', undefined, root);
     h('label', 'join-label', UI.menu.nameLabel, form);
     this.joinInput = h('input', 'join-name', undefined, form);
@@ -145,7 +155,7 @@ export class Menu {
     this.joinNote = h('div', 'join-hint', UI.tutorial.joinNote, form);
     this.joinError = h('div', 'join-error', '', form);
     const btns = h('div', 'buttons row-buttons', undefined, root);
-    this.joinButton = h('button', 'btn primary', UI.menu.joinButton, btns);
+    this.joinButton = h('button', 'btn primary', WEB ? UI.web.joinButton : UI.menu.joinButton, btns);
     this.joinButton.onclick = () => this.submitJoin();
     const back = h('button', 'btn', UI.menu.back, btns);
     back.onclick = () => this.showMain();

@@ -7,3 +7,8 @@ test-results/
 playwright-report/
 .vite/
 .claude/
+dist-web/
+deploy/aws/.terraform/
+deploy/aws/*.tfstate
+deploy/aws/*.tfstate.*
+deploy/aws/*.tfplan

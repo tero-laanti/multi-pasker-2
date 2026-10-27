@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { FI } from '../../shared/fi';
 import type { AwardInfo, EveningRow } from '../../shared/protocol';
 import type { ServerPlayer } from './player';
@@ -33,21 +31,21 @@ export function roundAwards(players: ServerPlayer[]): AwardInfo[] {
   return out;
 }
 
+/** Where the evening is kept: a small JSON file on the server, the browser's storage in the browser version. */
+export interface EveningStore {
+  load(): EveningRow[];
+  save(rows: EveningRow[]): void;
+}
+
 /**
- * The evening scoreboard: totals over every round tonight, by player name, saved to a small
- * JSON file so a server restart doesn't lose them. Bots don't count.
+ * The evening scoreboard: totals over every round tonight, by player name, kept in a store so a
+ * server restart doesn't lose them. Bots don't count.
  */
 export class Evening {
   private rows = new Map<string, EveningRow>();
 
-  constructor(private file: string | null) {
-    if (!file) return;
-    try {
-      const data = JSON.parse(fs.readFileSync(file, 'utf8')) as { rows?: EveningRow[] };
-      for (const r of data.rows ?? []) if (r && typeof r.name === 'string') this.rows.set(r.name, r);
-    } catch {
-      // No evening yet.
-    }
+  constructor(private store: EveningStore | null) {
+    for (const r of store?.load() ?? []) if (r && typeof r.name === 'string') this.rows.set(r.name, r);
   }
 
   /** Adds a finished round. */
@@ -77,14 +75,6 @@ export class Evening {
   }
 
   private save(): void {
-    if (!this.file) return;
-    try {
-      fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      const tmp = `${this.file}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify({ saved: new Date().toISOString(), rows: this.list() }, null, 2));
-      fs.renameSync(tmp, this.file);
-    } catch (err) {
-      console.error('[evening] could not save', err);
-    }
+    this.store?.save(this.list());
   }
 }

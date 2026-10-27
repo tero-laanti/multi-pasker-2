@@ -174,6 +174,24 @@ export const UI = {
     hint: 'Click the keys with the mouse. Your character has the phone out while this is open.',
   },
 
+  /** The browser version on mp2.laanti.fi: no server to join, so a bot match and the virtual phone. */
+  web: {
+    join: 'Bot match',
+    joinDesc: 'Free-for-all on the garrison against bots, in this browser.',
+    joinTitle: 'Bot match',
+    joinButton: 'Start',
+    noticeTitle: 'Made for a LAN party',
+    notice: [
+      'This game is designed to be played on a local network: everyone in the same room on their own computer, texting the armourer from their own phone.',
+      'On the web you get a lesser version of it: bots instead of friends, and the phone on your screen instead of in your hand.',
+    ],
+    noticeLink: 'Host the LAN version yourself (GitHub)',
+    pairTitle: 'Your phone',
+    pairHint: 'In the web version the phone is on your screen and you click its keys with the mouse. At a LAN party you would use your own phone.',
+    trainingLead: 'You text the armourer for ammo and grenades. At a LAN party that happens on your own phone; here the phone is on your screen and you click its keys.',
+    pairStep: { title: 'Open the phone', body: 'Click “Open a virtual phone”.' },
+  },
+
   tutorial: {
     label: 'Training',
     steps: {

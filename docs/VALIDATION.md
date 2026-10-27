@@ -43,6 +43,14 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   menu: it pairs as a virtual phone, the character has the phone out exactly while it shows, the
   keyboard types nothing, LATAA clicked on its keys refills 8 rounds to 12 + 12, and *Back to the
   game* locks the mouse again. The training's radio check also works on it (YK clicked).
+- `tools/e2e/web-flow.ts`: the web version's static build (`npm run preview:web`): the LAN notice
+  and *Bot match* on the main menu, sounds loaded from the build, no server connection and no
+  failed requests; a first-timer's training with the virtual phone (no QR code shown), YK clicked;
+  the bot match with 7 bots fighting; LATAA clicked on the virtual phone refilling 8 rounds to
+  12 + 12. A voice note spliced in the page (9.2 s) and a Swedish line decode as audio.
+  After the server code was split so the page can run it, `phone-flow.ts`,
+  `virtual-phone-flow.ts` and `ladder-flow.ts` (all six stages, the voice note playing) were run
+  again against a LAN server.
 - `tools/e2e/inventory-flow.ts`: an inventory check on a desktop and an emulated phone: the
   countdown on both, a wrong answer in the typo feed, the right one earning a grenade, and a
   timed-out check in the typo feed with the push-ups.

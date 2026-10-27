@@ -1,6 +1,7 @@
 import { UI } from '../../shared/ui';
 import type { KillSpeedPreset } from '../../shared/config';
 import type { PlayerInfo } from '../../shared/protocol';
+import { WEB } from '../web';
 
 export interface DevActions {
   inMatch(): boolean;
@@ -99,7 +100,8 @@ export class DevPanel {
     btn(this.matchBox, UI.dev.newEvening, () => {
       if (window.confirm(UI.dev.newEvening + '?')) a.newEvening();
     });
-    btn(this.matchBox, UI.pair.simulator, () => a.openSimulator());
+    // The simulator is a phone page talking to a real server; the web version has none.
+    if (!WEB) btn(this.matchBox, UI.pair.simulator, () => a.openSimulator());
     this.gate = check(this.matchBox, UI.dev.gateOpen, () => a.gateOpen(), (on) => a.setGate(on));
     this.direct = check(this.root, UI.dev.rDirect, () => a.directReload(), (on) => a.setDirectReload(on));
     this.serverControls.push(...this.matchBox.querySelectorAll('button'), this.gate, this.direct);

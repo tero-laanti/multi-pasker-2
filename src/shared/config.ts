@@ -295,6 +295,12 @@ export const LADDER = {
   stages: 6,
 };
 
+/** The browser version (mp2.laanti.fi): no server to join, so its bot match runs one in the page. */
+export const WEB_MATCH = {
+  /** Bots in the bot match. With the player that makes 8, so the gate stays shut. */
+  bots: 7,
+};
+
 export const AUDIO = {
   maxGunshotVoices: 24,
   hearingRange: 120,

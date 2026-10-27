@@ -35,7 +35,7 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
 }
 
 /** An in-memory body, with byte ranges (iOS Safari needs them to play audio). */
-export function sendBuffer(req: IncomingMessage, res: ServerResponse, buf: Buffer, type: string): void {
+export function sendBuffer(req: IncomingMessage, res: ServerResponse, buf: Uint8Array, type: string): void {
   const range = req.headers.range;
   const m = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
   if (m) {

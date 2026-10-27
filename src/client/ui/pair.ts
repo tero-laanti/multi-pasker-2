@@ -1,5 +1,6 @@
 import { renderSVG } from 'uqr';
 import { UI } from '../../shared/ui';
+import { WEB } from '../web';
 
 export interface PairInfo {
   url: string;
@@ -20,7 +21,8 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
 
 /**
  * How to pair a phone with this player: a QR code with the pairing link, and the short code
- * for typing in at /phone. Shown after joining and in the Esc menu.
+ * for typing in at /phone. Shown after joining and in the Esc menu. The web version has no
+ * server for a phone to reach, so there it offers only the virtual phone.
  */
 export class PairPanel {
   readonly root: HTMLDivElement;
@@ -32,8 +34,8 @@ export class PairPanel {
   private lastUrl = '';
 
   constructor(onSimulator: () => void, onVirtual: () => void) {
-    this.root = el('div', 'pair-panel hidden');
-    el('div', 'pair-title', this.root, UI.pair.title);
+    this.root = el('div', `pair-panel hidden${WEB ? ' web' : ''}`);
+    el('div', 'pair-title', this.root, WEB ? UI.web.pairTitle : UI.pair.title);
     this.qr = el('div', 'pair-qr', this.root);
     el('div', 'pair-scan', this.root, UI.pair.scan);
     this.manual = el('div', 'pair-manual', this.root);
@@ -50,7 +52,7 @@ export class PairPanel {
       e.stopPropagation();
       onVirtual();
     };
-    el('div', 'pair-virtual-hint', virtual, UI.virtualPhone.openHint);
+    el('div', 'pair-virtual-hint', virtual, WEB ? UI.web.pairHint : UI.virtualPhone.openHint);
   }
 
   update(info: PairInfo | null, dev: boolean): void {

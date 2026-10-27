@@ -41,7 +41,8 @@ export class VirtualPhone {
       this.frame = el('iframe', 'vphone-frame', this.root);
       this.frame.title = UI.virtualPhone.title;
       this.frame.onload = () => this.tell();
-      this.frame.src = `/phone?virtual=1#${pairToken}`;
+      // phone.html, not the server's /phone route: the web version is static files.
+      this.frame.src = `/phone.html?virtual=1#${pairToken}`;
     }
     this.shown = true;
     this.root.classList.remove('hidden');

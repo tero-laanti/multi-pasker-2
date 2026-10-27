@@ -1,16 +1,24 @@
-import { createHash } from 'node:crypto';
-import fs from 'node:fs';
 import { FI } from '../shared/fi';
-import type { AudioFolder } from './http';
 
 /**
  * Voice notes spelled in the Finnish phonetic alphabet, spliced from the recorded words so any
- * code word works: intro, "Tunnus:", one word per letter, outro. Clips are read from the voice
- * folder (recordings win over placeholders); only WAV can be spliced, so a clip recorded in
- * another format falls back to its placeholder WAV.
+ * code word works: intro, "Tunnus:", one word per letter, outro. Clips come from a VoiceSource
+ * (the voice folder on the server, where recordings win over placeholders; clips fetched from
+ * the site in the browser version); only WAV can be spliced, so a clip recorded in another
+ * format falls back to its placeholder WAV.
  */
 
 const RATE = 44100;
+
+/** Where clips come from and where finished notes and lines are served from. */
+export interface VoiceSource {
+  /** A clip's WAV bytes, or null. */
+  wav(name: string): Uint8Array | null;
+  /** The URL of a whole recorded line. */
+  lineUrl(name: string): string;
+  /** The URL of a spliced note. */
+  noteUrl(id: string, wav: Uint8Array): string;
+}
 
 /** Mono samples in -1..1 at the clip's own rate. */
 interface Clip {
@@ -18,20 +26,23 @@ interface Clip {
   data: Float32Array;
 }
 
+const ascii = (buf: Uint8Array, at: number, n: number) => String.fromCharCode(...buf.subarray(at, at + n));
+
 /** Reads PCM (8/16/24/32-bit) or float WAV; null when the file isn't a WAV we understand. */
-export function readWav(buf: Buffer): Clip | null {
-  if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') return null;
+export function readWav(buf: Uint8Array): Clip | null {
+  if (buf.length < 44 || ascii(buf, 0, 4) !== 'RIFF' || ascii(buf, 8, 4) !== 'WAVE') return null;
+  const v = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
   let o = 12;
   let fmt: { format: number; channels: number; rate: number; bits: number } | null = null;
   while (o + 8 <= buf.length) {
-    const id = buf.toString('ascii', o, o + 4);
-    const size = buf.readUInt32LE(o + 4);
+    const id = ascii(buf, o, 4);
+    const size = v.getUint32(o + 4, true);
     const body = o + 8;
     if (id === 'fmt ') {
-      let format = buf.readUInt16LE(body);
+      let format = v.getUint16(body, true);
       // WAVE_FORMAT_EXTENSIBLE: the real format is in the sub-format GUID.
-      if (format === 0xfffe && size >= 26) format = buf.readUInt16LE(body + 24);
-      fmt = { format, channels: buf.readUInt16LE(body + 2), rate: buf.readUInt32LE(body + 4), bits: buf.readUInt16LE(body + 14) };
+      if (format === 0xfffe && size >= 26) format = v.getUint16(body + 24, true);
+      fmt = { format, channels: v.getUint16(body + 2, true), rate: v.getUint32(body + 4, true), bits: v.getUint16(body + 14, true) };
     } else if (id === 'data' && fmt) {
       const { format, channels, rate, bits } = fmt;
       const bytes = bits / 8;
@@ -42,15 +53,15 @@ export function readWav(buf: Buffer): Clip | null {
         let sum = 0;
         for (let c = 0; c < channels; c++) {
           const at = body + (i * channels + c) * bytes;
-          let v: number;
-          if (format === 3 && bits === 32) v = buf.readFloatLE(at);
-          else if (format === 3 && bits === 64) v = buf.readDoubleLE(at);
-          else if (bits === 8) v = (buf.readUInt8(at) - 128) / 128;
-          else if (bits === 16) v = buf.readInt16LE(at) / 32768;
-          else if (bits === 24) v = buf.readIntLE(at, 3) / 8388608;
-          else if (bits === 32) v = buf.readInt32LE(at) / 2147483648;
+          let x: number;
+          if (format === 3 && bits === 32) x = v.getFloat32(at, true);
+          else if (format === 3 && bits === 64) x = v.getFloat64(at, true);
+          else if (bits === 8) x = (v.getUint8(at) - 128) / 128;
+          else if (bits === 16) x = v.getInt16(at, true) / 32768;
+          else if (bits === 24) x = (v.getUint8(at) | (v.getUint8(at + 1) << 8) | (v.getInt8(at + 2) << 16)) / 8388608;
+          else if (bits === 32) x = v.getInt32(at, true) / 2147483648;
           else return null;
-          sum += v;
+          sum += x;
         }
         data[i] = sum / channels;
       }
@@ -61,22 +72,26 @@ export function readWav(buf: Buffer): Clip | null {
   return null;
 }
 
-export function writeWav(data: Float32Array, rate = RATE): Buffer {
-  const buf = Buffer.alloc(44 + data.length * 2);
-  buf.write('RIFF', 0, 'ascii');
-  buf.writeUInt32LE(36 + data.length * 2, 4);
-  buf.write('WAVE', 8, 'ascii');
-  buf.write('fmt ', 12, 'ascii');
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(1, 22);
-  buf.writeUInt32LE(rate, 24);
-  buf.writeUInt32LE(rate * 2, 28);
-  buf.writeUInt16LE(2, 32);
-  buf.writeUInt16LE(16, 34);
-  buf.write('data', 36, 'ascii');
-  buf.writeUInt32LE(data.length * 2, 40);
-  for (let i = 0; i < data.length; i++) buf.writeInt16LE(Math.round(Math.max(-1, Math.min(1, data[i]!)) * 32767), 44 + i * 2);
+export function writeWav(data: Float32Array, rate = RATE): Uint8Array<ArrayBuffer> {
+  const buf = new Uint8Array(44 + data.length * 2);
+  const v = new DataView(buf.buffer);
+  const text = (at: number, s: string) => {
+    for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i);
+  };
+  text(0, 'RIFF');
+  v.setUint32(4, 36 + data.length * 2, true);
+  text(8, 'WAVE');
+  text(12, 'fmt ');
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);
+  v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true);
+  v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  text(36, 'data');
+  v.setUint32(40, data.length * 2, true);
+  for (let i = 0; i < data.length; i++) v.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, data[i]!)) * 32767), true);
   return buf;
 }
 
@@ -112,49 +127,43 @@ function tidy(x: Float32Array, rate: number): Float32Array {
   return out;
 }
 
+/** A stable 16-hex-digit id for a note's parts (two 32-bit FNV-1a hashes). */
+function noteId(key: string): string {
+  const fnv = (s: string, h: number) => {
+    for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+    return (h >>> 0).toString(16).padStart(8, '0');
+  };
+  return fnv(key, 0x811c9dc5) + fnv(`#${key}`, 0x9e3779b9);
+}
+
 export class VoiceNotes {
-  private notes = new Map<string, { parts: string[]; wav?: Buffer; duration: number }>();
+  private notes = new Map<string, { parts: string[]; wav?: Uint8Array; url?: string; duration: number }>();
   private clips = new Map<string, Float32Array>();
 
-  /** Without a folder (tests) every clip is silence. */
-  constructor(private voice: AudioFolder | null) {}
+  /** Without a source (tests) every clip is silence. */
+  constructor(private source: VoiceSource | null) {}
 
   private clip(name: string): Float32Array {
     const cached = this.clips.get(name);
     if (cached) return cached;
-    const file = this.voice?.resolveWav(name);
-    let data: Float32Array = new Float32Array(0);
-    if (file) {
-      try {
-        const c = readWav(fs.readFileSync(file));
-        if (c) data = tidy(resample(c, RATE), RATE);
-      } catch {
-        // Unreadable clip: silence.
-      }
-    }
+    const wav = this.source?.wav(name);
+    const c = wav ? readWav(wav) : null;
+    const data = c ? tidy(resample(c, RATE), RATE) : new Float32Array(0);
     this.clips.set(name, data);
     return data;
   }
 
-  /** A whole recorded line (served from /voice/<name>) and its length. */
+  /** A whole recorded line and its length. */
   line(name: string): { url: string; duration: number } {
-    const file = this.voice?.resolveWav(name);
-    let duration = 3;
-    if (file) {
-      try {
-        const c = readWav(fs.readFileSync(file));
-        if (c) duration = c.data.length / c.rate;
-      } catch {
-        // Keep the estimate.
-      }
-    }
-    return { url: `/voice/${name}`, duration };
+    const wav = this.source?.wav(name);
+    const c = wav ? readWav(wav) : null;
+    return { url: this.source?.lineUrl(name) ?? `/voice/${name}`, duration: c ? c.data.length / c.rate : 3 };
   }
 
   /** Forget cached clips (recordings were added while the server runs). */
   reload(): void {
     this.clips.clear();
-    for (const n of this.notes.values()) n.wav = undefined;
+    for (const n of this.notes.values()) n.wav = n.url = undefined;
   }
 
   /**
@@ -167,18 +176,19 @@ export class VoiceNotes {
     const intro = V.intros[Math.floor(Math.random() * V.intros.length)]![0];
     const outro = V.outros[Math.floor(Math.random() * V.outros.length)]![0];
     const parts = [intro, V.codeWord[0], ...words, outro];
-    const id = createHash('sha1').update(parts.join('|')).digest('hex').slice(0, 16);
+    const id = noteId(parts.join('|'));
     let note = this.notes.get(id);
     if (!note) {
       note = { parts, duration: 0 };
       this.notes.set(id, note);
     }
-    const wav = this.build(id);
-    return { url: `/voicenote/${id}.wav`, duration: wav ? (wav.length - 44) / 2 / RATE : 0 };
+    const wav = this.build(id)!;
+    note.url ??= this.source ? this.source.noteUrl(id, wav) : `/voicenote/${id}.wav`;
+    return { url: note.url, duration: (wav.length - 44) / 2 / RATE };
   }
 
   /** The spliced WAV for a note id, built on first use. */
-  build(id: string): Buffer | null {
+  build(id: string): Uint8Array | null {
     const note = this.notes.get(id);
     if (!note) return null;
     if (note.wav) return note.wav;

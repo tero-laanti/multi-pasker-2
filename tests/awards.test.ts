@@ -7,6 +7,7 @@ import { MapBuilder } from '../src/shared/map/builder';
 import { PROTOCOL_VERSION, type GameEvent, type ServerMsg } from '../src/shared/protocol';
 import { Evening, roundAwards } from '../src/server/game/awards';
 import { ROUND_TIME, Room } from '../src/server/game/room';
+import { eveningFile } from '../src/server/storage';
 
 class FakeSocket {
   readonly OPEN = 1;
@@ -30,7 +31,7 @@ function arena() {
 function setup(file: string | null = null) {
   let t = 1000;
   const clock = { now: () => t, advance: (ms: number) => (t += ms) };
-  const room = new Room(arena(), { dev: false, now: clock.now, evening: new Evening(file) });
+  const room = new Room(arena(), { dev: false, now: clock.now, evening: new Evening(file ? eveningFile(file) : null) });
   const join = (name: string) => {
     const ws = new FakeSocket();
     const p = room.join(ws as never, { t: 'hello', v: PROTOCOL_VERSION, name })!;
@@ -89,10 +90,10 @@ describe('the evening scoreboard', () => {
     const sent = a.ws.sent.filter((m): m is Extract<ServerMsg, { t: 'evening' }> => (m as { t?: string }).t === 'evening').pop()!;
     expect(sent.rows.map((r) => r.name).sort()).toEqual(['Aapo', 'Bertta']);
     // A server restart reads the same evening back.
-    const again = new Evening(file);
+    const again = new Evening(eveningFile(file));
     const row = again.list().find((r) => r.name === 'Aapo')!;
     expect(row).toMatchObject({ rounds: 1, wins: 1, kills: 4 });
     again.reset();
-    expect(new Evening(file).list()).toEqual([]);
+    expect(new Evening(eveningFile(file)).list()).toEqual([]);
   });
 });

@@ -39,9 +39,11 @@ export class Net {
   /** Delivery time of the last delayed message per direction: delays never reorder (like TCP). */
   private lastDue = { in: 0, out: 0 };
 
+  /** Opens a connection to the server; the browser version's bot match swaps in the one in the page. */
+  socket: () => WebSocket = () => new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+
   connect(): void {
-    const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
-    const ws = new WebSocket(url);
+    const ws = this.socket();
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     ws.onopen = () => {

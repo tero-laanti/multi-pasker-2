@@ -1365,6 +1365,57 @@ input[type='range'] {
   font-size: 13px;
   color: var(--fg-dim);
 }
+/* The web version: no phone page to scan, only the virtual phone. */
+.pair-panel.web :is(.pair-qr, .pair-scan, .pair-manual, .pair-code) {
+  display: none;
+}
+.pair-panel.web .pair-virtual {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.pair-panel.web .pair-virtual .btn {
+  font-size: 19px;
+  padding: 10px 18px;
+}
+
+/* ---------- Web version notice (main menu) ---------- */
+.web-notice {
+  position: absolute;
+  top: 7vh;
+  right: 5vw;
+  width: min(380px, 34vw);
+  padding: 16px 20px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.web-notice-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.web-notice p {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--fg);
+}
+.web-notice-link {
+  margin-top: 2px;
+  font-size: 16px;
+  color: var(--accent);
+}
+.web-notice-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ---------- Virtual phone ---------- */
 .vphone {

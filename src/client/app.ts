@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { KillSpeedPreset, WeaponId } from '../shared/config';
+import { WEB_MATCH, type KillSpeedPreset, type WeaponId } from '../shared/config';
 import { UI } from '../shared/ui';
 import { buildGarrison } from '../shared/map/garrison';
 import { buildRange } from '../shared/map/range';
@@ -11,6 +11,7 @@ import { RangeMode } from './game/rangeMode';
 import { TutorialMode, markTutorialDone, tutorialDone } from './game/tutorial';
 import { ViewModel } from './game/viewmodel';
 import { Input } from './input';
+import type { LocalServer } from './local/server';
 import { Net } from './net';
 import { Renderer } from './render/renderer';
 import { loadSettings, saveSettings, type Settings } from './settings';
@@ -23,6 +24,7 @@ import { StatsOverlay } from './ui/stats';
 import { TuningPanel } from './ui/tuning';
 import { TutorialHud } from './ui/tutorialHud';
 import { VirtualPhone } from './ui/virtualPhone';
+import { WEB } from './web';
 
 type Mode = 'loading' | 'menu' | 'range' | 'training' | 'match';
 
@@ -59,6 +61,8 @@ export class App {
   private match: MatchMode | null = null;
   /** The training on the range before a first match. */
   private tutorial: TutorialMode | null = null;
+  /** The web version's bot match: the server running in this page, from the first Start on. */
+  private local: LocalServer | null = null;
   private tutorialHud: TutorialHud;
   private virtualPhone: VirtualPhone;
   private mode: Mode = 'loading';
@@ -138,7 +142,7 @@ export class App {
 
   async start(): Promise<void> {
     this.menu.showLoading();
-    this.net.connect();
+    if (!WEB) this.net.connect();
     const map = buildRange();
     this.renderer = new Renderer(this.canvas, this.settings.quality, map.sunDir);
     this.renderer.setView(this.settings.fov, this.settings.renderScale);
@@ -200,9 +204,9 @@ export class App {
     this.menu.showMain();
     this.exposeDebug();
     requestAnimationFrame((t) => this.loop(t));
-    // A tab reloaded during a match rejoins its player straight away.
+    // A tab reloaded during a match rejoins its player straight away (a bot match went with the page).
     const name = loadName();
-    if (storage('session')?.getItem(IN_MATCH_KEY) === '1' && name) this.joinMatch(name);
+    if (!WEB && storage('session')?.getItem(IN_MATCH_KEY) === '1' && name) this.joinMatch(name);
   }
 
   /** Time spent building weapon models and hands at start-up (ms). */
@@ -273,6 +277,10 @@ export class App {
   private joinMatch(name: string): void {
     this.audio.unlock();
     saveName(name);
+    if (WEB && !this.local) {
+      void this.startLocal().then(() => this.joinMatch(name));
+      return;
+    }
     if (!this.matchGame) {
       this.matchGame = new Game(this.deps(), buildGarrison());
       this.matchGame.killSpeed = this.killSpeed;
@@ -288,6 +296,21 @@ export class App {
     this.joinTimer = window.setTimeout(() => {
       if (this.match && !this.match.joined && this.mode !== 'match') this.menu.showJoin(UI.menu.serverOffline);
     }, 4000);
+  }
+
+  /**
+   * The web version has no server to join: its bot match runs one in this page, with bots, and
+   * stays for the page's lifetime. The virtual phone's frame finds it here too.
+   */
+  private async startLocal(): Promise<void> {
+    // Spelled out (not WEB) so the bundler sees a constant and leaves the server code out of the LAN build.
+    if (import.meta.env.MODE !== 'web') return;
+    const { LocalServer } = await import('./local/server');
+    if (this.local) return;
+    this.local = new LocalServer(WEB_MATCH.bots);
+    (window as unknown as { __paskerLocal: LocalServer }).__paskerLocal = this.local;
+    this.net.socket = () => this.local!.connect();
+    this.net.connect();
   }
 
   private showPairInfo(info: PairInfo | null): void {

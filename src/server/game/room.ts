@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-import type { WebSocket } from 'ws';
+import type { Socket } from '../socket';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
 import { INVENTORY, NET, PHONE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
@@ -116,7 +115,7 @@ export class Room {
   }
 
   /** A human joins or rejoins with their token. Returns the player. */
-  join(ws: WebSocket, msg: Extract<ClientMsg, { t: 'hello' }>, isHost = false): ServerPlayer | null {
+  join(ws: Socket, msg: Extract<ClientMsg, { t: 'hello' }>, isHost = false): ServerPlayer | null {
     if (msg.v !== PROTOCOL_VERSION) return null;
     let p = msg.token ? [...this.players.values()].find((x) => x.token === msg.token && !x.bot) : undefined;
     const name = cleanName(msg.name) || 'Alokas';
@@ -135,7 +134,7 @@ export class Room {
       this.emit({ k: 'join', p: p.id, name: p.name });
     } else {
       if (this.humanCount() + this.bots.length >= 16 && this.bots.length > 0) this.removeBot();
-      p = new ServerPlayer(this.freeId(), randomUUID(), name, this.freeColor(), false);
+      p = new ServerPlayer(this.freeId(), crypto.randomUUID(), name, this.freeColor(), false);
       p.ws = ws;
       p.isHost = isHost;
       p.newSerials();
@@ -198,7 +197,7 @@ export class Room {
   // ---- phones ----
 
   /** A phone connects: pairing by QR token or short code, or resuming with its own token. */
-  phoneJoin(ws: WebSocket, msg: Extract<PhoneClientMsg, { t: 'phoneHello' }>, isHost: boolean): ServerPlayer | null {
+  phoneJoin(ws: Socket, msg: Extract<PhoneClientMsg, { t: 'phoneHello' }>, isHost: boolean): ServerPlayer | null {
     const fail = (reason: 'code' | 'version' | 'sim' | 'token') => {
       ws.send(JSON.stringify({ t: 'pairFailed', reason }));
       return null;
@@ -228,7 +227,7 @@ export class Room {
         replaced = true;
       } else if (phone.paired) replaced = true;
       const first = !phone.paired;
-      phone.token = randomUUID();
+      phone.token = crypto.randomUUID();
       if (first && p.radioCheck !== 'armed') this.varusmestari.greet(p);
     } else if (phone.ws && phone.ws !== ws) {
       phone.ws.close(4002, 'resumed elsewhere');
@@ -256,7 +255,7 @@ export class Room {
     return p;
   }
 
-  phoneDisconnect(p: ServerPlayer, ws: WebSocket): void {
+  phoneDisconnect(p: ServerPlayer, ws: Socket): void {
     if (p.phone.ws !== ws) return;
     p.phone.ws = null;
     p.phone.out = false;
@@ -391,7 +390,7 @@ export class Room {
     if (this.activeCount() >= 16) return null;
     const used = new Set([...this.players.values()].map((p) => p.name));
     const name = BOT_NAMES.find((n) => !used.has(`${n}`)) ?? `Botti${this.bots.length + 1}`;
-    const p = new ServerPlayer(this.freeId(), randomUUID(), name, this.freeColor(), true);
+    const p = new ServerPlayer(this.freeId(), crypto.randomUUID(), name, this.freeColor(), true);
     p.newSerials();
     this.settleInventory(p);
     this.chirps(p);

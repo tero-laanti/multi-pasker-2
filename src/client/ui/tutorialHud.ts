@@ -1,5 +1,6 @@
 import { UI } from '../../shared/ui';
 import { TUTORIAL_STEPS, type TutorialStep } from '../game/tutorial';
+import { WEB } from '../web';
 import { PairPanel } from './pair';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
@@ -46,9 +47,12 @@ export class TutorialHud {
     this.modalBody = el('div', 'tutorial-card-body', card);
     const cols = el('div', 'tutorial-cols', this.modalBody);
     const why = el('div', 'tutorial-why', cols);
-    el('div', 'tutorial-lead', why, UI.tutorial.pairLead);
-    const list = el('ul', 'tutorial-points', why);
-    for (const point of UI.tutorial.pairPoints) el('li', '', list, point);
+    el('div', 'tutorial-lead', why, WEB ? UI.web.trainingLead : UI.tutorial.pairLead);
+    // What the phone page is and isn't (nothing to install, the local network only): the web version has no phone page.
+    if (!WEB) {
+      const list = el('ul', 'tutorial-points', why);
+      for (const point of UI.tutorial.pairPoints) el('li', '', list, point);
+    }
     this.pair = new PairPanel(() => a.openSimulator(), () => a.openVirtual());
     cols.appendChild(this.pair.root);
     this.connected = el('div', 'tutorial-connected hidden', card);
@@ -72,7 +76,7 @@ export class TutorialHud {
     const s = step === 'pair' ? 'phone' : step;
     const i = TUTORIAL_STEPS.indexOf(s);
     this.count.textContent = step === 'done' ? '' : `${i + 1} / ${TUTORIAL_STEPS.length}`;
-    const text = UI.tutorial.steps[step];
+    const text = WEB && step === 'pair' ? UI.web.pairStep : UI.tutorial.steps[step];
     this.title.textContent = text.title;
     this.body.textContent = text.body;
     this.panel.classList.toggle('done', step === 'done');
