@@ -28,10 +28,11 @@ const B = {
   shinL: 12,
   rifle: 13,
   pistol: 14,
-  count: 15,
+  sniper: 15,
+  count: 16,
 } as const;
 
-const PARENT: number[] = [-1, B.root, B.hips, B.spine, B.spine, B.aim, B.armUR, B.aim, B.armUL, B.hips, B.thighR, B.hips, B.thighL, B.aim, B.aim];
+const PARENT: number[] = [-1, B.root, B.hips, B.spine, B.spine, B.aim, B.armUR, B.aim, B.armUL, B.hips, B.thighR, B.hips, B.thighL, B.aim, B.aim, B.aim];
 const OFFSET: [number, number, number][] = [
   [0, 0, 0],
   [0, 0.95, 0],
@@ -48,7 +49,11 @@ const OFFSET: [number, number, number][] = [
   [0, -0.42, 0],
   [0.12, -0.06, -0.05],
   [0.03, -0.15, -0.48],
+  [0.12, -0.06, -0.05],
 ];
+
+/** Which bone carries each gun. */
+const GUN_BONE: Record<WeaponId, number> = { rifle: B.rifle, pistol: B.pistol, sniper: B.sniper };
 
 const UPPER_ARM = 0.29;
 const FOREARM = 0.29;
@@ -72,12 +77,14 @@ const COL = {
 const MUZZLE: Record<WeaponId, THREE.Vector3> = {
   rifle: new THREE.Vector3(0, 0.02, -0.95),
   pistol: new THREE.Vector3(0, 0.012, -0.17),
+  sniper: new THREE.Vector3(0, 0.02, -1.16),
 };
 
 /** Hand targets in aim-bone space for each weapon: [right, left]. */
 const GRIP: Record<WeaponId, [THREE.Vector3, THREE.Vector3]> = {
   rifle: [new THREE.Vector3(0.12, -0.15, -0.26), new THREE.Vector3(0.07, -0.1, -0.47)],
   pistol: [new THREE.Vector3(0.03, -0.21, -0.47), new THREE.Vector3(0.0, -0.23, -0.43)],
+  sniper: [new THREE.Vector3(0.12, -0.15, -0.26), new THREE.Vector3(0.07, -0.1, -0.52)],
 };
 
 /** The phone in the left hand, in aim-bone space, its screen turned up towards the face. */
@@ -168,6 +175,14 @@ function buildParts(accent: number): Part[] {
   add(new THREE.CylinderGeometry(0.012, 0.012, 0.2, 8).rotateX(Math.PI / 2).translate(0, 0.012, -0.85), B.rifle, COL.metal);
   add(rbox(0.03, 0.1, 0.045, 0.01).rotateX(0.35).translate(0, -0.09, -0.24), B.rifle, COL.wood);
   add(rbox(0.032, 0.18, 0.075, 0.012).rotateX(-0.3).translate(0, -0.13, -0.42), B.rifle, COL.metal);
+  // Sniper rifle: a long heavy barrel, a wooden stock and forend, and the scope on top.
+  add(rbox(0.05, 0.075, 0.36, 0.012).translate(0, 0, -0.3), B.sniper, COL.metal);
+  add(rbox(0.05, 0.1, 0.34, 0.015).translate(0, -0.03, -0.06), B.sniper, COL.wood);
+  add(rbox(0.056, 0.06, 0.32, 0.015).translate(0, -0.012, -0.58), B.sniper, COL.wood);
+  add(new THREE.CylinderGeometry(0.013, 0.015, 0.46, 8).rotateX(Math.PI / 2).translate(0, 0.014, -0.93), B.sniper, COL.metal);
+  add(new THREE.CylinderGeometry(0.026, 0.026, 0.3, 10).rotateX(Math.PI / 2).translate(0, 0.085, -0.3), B.sniper, COL.metal);
+  add(new THREE.CylinderGeometry(0.034, 0.03, 0.06, 10).rotateX(Math.PI / 2).translate(0, 0.085, -0.47), B.sniper, COL.metal);
+  add(rbox(0.03, 0.09, 0.045, 0.01).rotateX(0.35).translate(0, -0.1, -0.2), B.sniper, COL.wood);
   // Pistol.
   add(rbox(0.03, 0.036, 0.19, 0.008).translate(0, 0, -0.07), B.pistol, COL.metal);
   add(rbox(0.028, 0.1, 0.045, 0.01).rotateX(0.25).translate(0, -0.055, 0.0), B.pistol, COL.metal);
@@ -241,7 +256,7 @@ function armPose(w: WeaponId): ArmPose {
   return pose;
 }
 
-const ARM_POSES: Record<WeaponId, ArmPose> = { rifle: armPose('rifle'), pistol: armPose('pistol') };
+const ARM_POSES: Record<WeaponId, ArmPose> = { rifle: armPose('rifle'), pistol: armPose('pistol'), sniper: armPose('sniper') };
 
 /** Left arm holding the phone (the gun stays in the right hand). */
 const PHONE_ARM = (() => {
@@ -414,8 +429,9 @@ export class Character {
     for (const [bone, w] of [
       [B.rifle, 'rifle'],
       [B.pistol, 'pistol'],
+      [B.sniper, 'sniper'],
     ] as const) {
-      const r = w === 'rifle' ? 0.022 : 0.018;
+      const r = w === 'pistol' ? 0.018 : 0.022;
       const sup = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.17, 12).rotateX(Math.PI / 2), ATTACHMENT);
       sup.position.copy(MUZZLE[w]).add(new THREE.Vector3(0, 0, -0.08));
       sup.visible = false;
@@ -447,8 +463,7 @@ export class Character {
 
   private setWeapon(w: WeaponId): void {
     this.weapon = w;
-    this.bones[B.rifle]!.scale.setScalar(w === 'rifle' ? 1 : 1e-4);
-    this.bones[B.pistol]!.scale.setScalar(w === 'pistol' ? 1 : 1e-4);
+    for (const id of Object.keys(GUN_BONE) as WeaponId[]) this.bones[GUN_BONE[id]]!.scale.setScalar(w === id ? 1 : 1e-4);
     const p = ARM_POSES[w];
     this.bones[B.armUR]!.quaternion.copy(p.ur);
     this.bones[B.armFR]!.quaternion.copy(p.fr);
@@ -458,7 +473,7 @@ export class Character {
 
   /** Muzzle position in world space (call after update). */
   muzzleWorld(out: THREE.Vector3): THREE.Vector3 {
-    const bone = this.bones[this.weapon === 'rifle' ? B.rifle : B.pistol]!;
+    const bone = this.bones[GUN_BONE[this.weapon]]!;
     return out.copy(MUZZLE[this.weapon]).applyMatrix4(bone.matrixWorld);
   }
 
@@ -578,7 +593,7 @@ export class Character {
       this.muzzleWorld(this.tmp);
       this.object.worldToLocal(this.tmp);
       this.flash.position.copy(this.tmp);
-      const sz = this.weapon === 'rifle' ? 0.42 : 0.3;
+      const sz = this.weapon === 'pistol' ? 0.3 : this.weapon === 'sniper' ? 0.55 : 0.42;
       this.flash.scale.setScalar(sz * (0.8 + Math.random() * 0.4));
     }
   }

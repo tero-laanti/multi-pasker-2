@@ -8,8 +8,8 @@ Finnish. The full brief is in [docs/BRIEF.md](docs/BRIEF.md) and the technology 
 
 > **Status:** all seven milestones are in: the shooting range, LAN free-for-all matches on the
 > garrison map with bots, the phone (pairing, the messaging app with its own keyboard, the
-> varusmestari), the whole TJ ladder with ranks and upgrades, end-of-round awards and the evening
-> scoreboard. Not yet tried on real phones: see [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md) for
+> varusmestari), the service from TJ 347 to 0 with the päiväraha, P-kausi's gear by text and the
+> Sotku App's four upgrade paths, end-of-round awards and the evening scoreboard. Not yet tried on real phones: see [docs/CHECKPOINT-B.md](docs/CHECKPOINT-B.md) for
 > the real-device test and [docs/VALIDATION.md](docs/VALIDATION.md) for what was tested.
 
 ## Requirements
@@ -161,37 +161,55 @@ One phone per player: pairing another phone replaces the first. A phone that los
 (screen lock, reload) comes back to the same chats. For testing without phones, the host can turn
 on F2 → *R refills like LATAA* for everyone.
 
-The dev panel's match controls (bots, rounds, ladder) work in a browser on the host computer, by
+The dev panel's match controls (bots, rounds, the service) work in a browser on the host computer, by
 `localhost` or by its network address, or from any machine on an `npm run dev` server.
 
 For development, F2 → *Open phone simulator* opens the phone app in a window that you type into
 with the computer's keyboard (only on `npm run dev` servers or the host machine).
 
-## The TJ ladder
+## The service and the Sotku App
 
-Your first kill or first death brings an offer from the asevarasto; after that, every 3rd kill
-(*Kunniamaininta*) and every 3rd death (*Vahinkoilmoitus käsitelty*) bring another (more with a
-big crowd). Each completed task promotes you (alokas → sotamies → … → vääpeli) and counts TJ
-down from 6. One task is open at a time; later offers wait in the queue.
+Your service lasts the whole evening: TJ counts down from 347, kept by name across rounds and
+server restarts until the host starts a new evening. A kill serves 3 days, being killed by someone
+else 1 (a day in the veksi counts too), and killing someone who outranks you 2 more. Every day
+served pays the päiväraha: 5 € a day for days 1–165, 10 € for days 166–255 and 15 € after that,
+3,105 € for the whole service. The money shows only on the phone; the game shows what a kill paid
+under the kill confirmation.
 
-| Stage | Where | What |
+The first six weeks are P-kausi. Gear comes by text, as paperwork at the asevarasto:
+
+| Day | Gear | How you sign for it |
 |---|---|---|
-| 1 | Asevarasto | send the word it asks for: you get the rifle |
-| 2 | Asevarasto | send a phrase exactly (tongue twisters included) |
-| 3 | an office at a new number | open a chat with that number yourself, then send its phrase or the code word hidden in a wall of regulations |
-| 4 | the huoltopäällikkö at a 17-digit +358 number | a voice note spells the code in the phonetic alphabet |
-| 5 | the huoltopäällikkö again | your gun's serial number: inspect it (I). Sometimes the last three digits, reversed, or the pistol's |
-| 6 | Nylands brigad at a new number | a Swedish voice note gives the code; answer in Swedish (*Svara på svenska, tack.*) |
-| TJ 0 | — | *Kotiutettu.* LATAA and KRANAATTI still work |
+| 1 | the rifle (key 2) | send the word it asks for |
+| 10 | a longer rifle magazine (30 → 40) | send a phrase exactly (tongue twisters included) |
+| 20 | *Teroitettu puukko*: one stab kills | an office at a new number: open a chat with it yourself, then send its phrase or the code word hidden in a wall of regulations |
+| 30 | the grenade belt (two grenades) | the huoltopäällikkö at a 17-digit +358 number: a voice note spells the code in the phonetic alphabet |
 
-Stages 2 and up open an upgrade screen on the phone (*Kokoa ei ole, ota mikä on.*): three choices
-with their exact effect. Upgrades last until the round ends: a longer magazine, a muzzle brake, a
-lighter bolt, a suppressor (quiet, no flash, visible), a grenade belt, dark mode (nobody sees you
-on the phone), speed dial (`L` and `K`), sotkun munkkikahvit (KIITOS completes the next task),
-and a drum magazine on the later stages. The desktop shows your rank and TJ under the clock and a
-note when a task or an upgrade waits on the phone.
+On day 42 the company commander (*Komppanian päällikkö*) texts that P-kausi is over: you are
+sotamies, and the **Sotku App** opens on the phone's second tab. It sells four specialist paths of
+six nodes each, rows I–IV, each node needing one from the row above:
 
-F2 → *Trigger an offer* and *Advance the ladder* skip the waiting while testing.
+| Path | Role | Nodes |
+|---|---|---|
+| Sotilaspoliisi | the pistol as a main weapon | quick draw, 18-round magazine, hip-fire accuracy, hollow points (three hits kill), faster on the move, full auto |
+| Tarkka-ampuja | rifle expert | muzzle brake, 50-round magazine, lighter bolt, drum magazine, suppressor, and the sniper rifle on key 3 |
+| Viestimies | the phone and the minimap | speed dial (`L`, `K`), autofill of codes, a wider minimap, dark mode, enemies holding a phone on the minimap, and a recon drone (text LENNOKKI) |
+| Pioneeri | grenades | quicker resupply, longer throws, a shorter fuse, a third grenade, a bigger blast, and a mortar strike where you are looking (text TULI) |
+
+The whole tree costs 7,190 €, so a service buys about one and a half paths. Row I is handed over at
+once; the rows above need paperwork like P-kausi's (a word, a phrase or an office, the supply
+chief's voice note, and for the sniper rifle your rifle's serial number). One paperwork is open at
+a time and the rest queue. The café sells *Munkkikahvit* (the next paperwork is done by texting
+KIITOS) and *Nakkisuoja* (skips the next inventory check). Shopping takes the phone out, just like
+texting.
+
+The pay rises (TJ 181 and TJ 91) come as texts from the company commander with a promotion
+(korpraali, then alikersantti). At TJ 0 the discharge paperwork sends you to Nylands brigad, in
+Swedish (*Svara på svenska, tack.*); after it you are *reservin kersantti*, with a star in the kill
+feed and the scoreboard, and one Sotku item of your choice free. Nothing is paid after TJ 0.
+
+Every price and rule is in `SERVICE`, `SOTKU` and `GEAR` in `src/shared/config.ts`. F2 → *Serve 42
+days*, *Do the paperwork (or serve 10 days)* and *Add 500 €* skip the waiting while testing.
 
 ## Awards and the evening scoreboard
 
@@ -200,9 +218,10 @@ When a round ends, the scoreboard shows the awards: *Lomille ensimmäisenä* (mo
 unsent message, quoted), *Kirjoitusvirheiden kuningas* (most messages the armourer didn't
 accept), *Kiire odottamaan* (most time on the phone), *Punnerruskuningas* (most push-ups) and
 *Pakkoruotsin sankari* (first through Nylands brigad); and the evening scoreboard: wins, kills,
-deaths, awards and TJ 0s over every round tonight, by player name. It is saved to
-`data/evening.json` after each round, so restarting the server keeps it. Start a new evening with
-F2 → *New evening* on the host (or delete the file). Bots don't count.
+deaths and awards over every round tonight and where each player's TJ stands, by player name. It
+is saved to `data/evening.json` with everyone's service, so restarting the server keeps both.
+Start a new evening (everyone back to TJ 347) with F2 → *New evening* on the host (or delete the
+file). Bots don't count.
 
 The dev panel's match controls (bots, round restart, gate, kill speed, giving weapons) work from
 the host machine, or from any machine on a `npm run dev` server. The *network conditioner*
@@ -285,9 +304,9 @@ machine that deployed (not in git), so deploy from that machine.
 | Shift | sprint |
 | Space | jump (a small ledge assist lets you climb ledges just above jump height) |
 | C | crouch (toggle by default, hold in settings) |
-| 1 / 2 / wheel | pistol / rifle (you start a life with the pistol; the rifle comes from the TJ ladder) |
+| 1 / 2 / 3 / wheel | pistol / rifle / sniper rifle (you start with the pistol; the rifle comes in P-kausi, the sniper rifle from the Sotku) |
 | G | grenade: the pin comes out and the 2.5 s fuse starts; let go to throw. Hold it too long and it goes off in your hand |
-| V | knife: the gun dips and a puukko stabs at arm's length; two stabs kill |
+| V | knife: the gun dips and a puukko stabs at arm's length; two stabs kill, one with P-kausi's *teroitettu puukko* |
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
 | R | reload with the spare magazine (more comes with LATAA) |
@@ -384,10 +403,10 @@ glove sinks more than 2.5 mm into what it holds.
   each player's accent colour on the beret, arm bands and chest band, and a name tag.
 
 ```
-src/shared/    config.ts, ui.ts, fi.ts, protocol.ts, collision/, map/, nav.ts, history.ts, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
+src/shared/    config.ts, ui.ts, fi.ts, protocol.ts, service.ts (pay, ranks, the Sotku tree), upgrades.ts, collision/, map/, nav.ts, history.ts, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
 src/client/    app.ts, net.ts, game/ (core loop, range and match modes, remote players, weapons, viewmodel, models, effects), render/, audio/, ui/
 src/phone/     the phone app: app.ts, keyboard.ts, net.ts, media.ts
-src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari, ladder), voicenotes.ts, lan.ts, http.ts, tuningWriter.ts
+src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari, service), voicenotes.ts, lan.ts, http.ts, tuningWriter.ts
 tools/         sound import/synthesis, voice placeholders, e2e screenshot driver
 assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults; phone/ (wake video, icon)
 ```
@@ -396,8 +415,9 @@ Browser tests drive real Chrome through Playwright: `npx tsx tools/e2e/shot.ts <
 runs a scripted scenario against a running server and saves screenshots, and
 `npx tsx tools/e2e/phone-flow.ts <outDir> --url=http://localhost:8088/ --phone=390x844` joins a
 desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow,
-`tools/e2e/ladder-flow.ts` climbs the TJ ladder through the phone (codes typed on its keyboard,
-the upgrade screen, the office number, the voice note), `tools/e2e/tutorial-flow.ts` runs the
+`tools/e2e/service-flow.ts` goes through the service on a phone (the shop locked in P-kausi, the
+commander's text, paperwork typed on its keyboard, a path's tree, buying, autofill, the sniper
+rifle's scope), `tools/e2e/tutorial-flow.ts` runs the
 training from the first step to the match, once with a phone and once with the virtual phone, and
 `tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out.
 

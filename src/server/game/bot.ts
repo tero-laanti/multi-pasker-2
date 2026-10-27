@@ -8,6 +8,7 @@ import { DEG, clamp, wrapAngle } from '../../shared/math';
 import { Mover, emptyCmd, newMoveState, type MoveState } from '../../shared/movement';
 import { findPath, nearestNode } from '../../shared/nav';
 import { PF } from '../../shared/protocol';
+import { PATHS, canBuy, pathItems, shopItem, type PathId, type ShopId } from '../../shared/service';
 import type { ServerPlayer } from './player';
 import type { Room } from './room';
 
@@ -18,6 +19,9 @@ const ASEVARASTO = FI.varusmestari.number;
 const VAAPELI = FI.inventory.number;
 /** What bots type when they want more ammo: mostly right, sometimes not. */
 const RELOAD_TEXTS = ['Lataa', 'lataa', 'LATAA', 'Lataa!', 'lataa', 'Lataa', 'lataaa', 'ltaa', 'lata', 'lataa nyt', 'laataa'];
+
+/** Gear bots never buy: the sniper rifle, the drone and the mortar are for people. */
+const NOT_FOR_BOTS = new Set<ShopId>(['tkiv', 'lennokki', 'tuli']);
 
 /** A thumb slip: one letter dropped or doubled. */
 function slip(code: string): string {
@@ -56,10 +60,11 @@ export class Bot {
   private typing: { text: string; shown: number; nextAt: number; conv: string } | null = null;
   private phoneDownAt = 0;
   private retypeAt = 0;
-  /** TJ ladder: when to answer the open task, and when to pick an upgrade. */
+  /** Paperwork: when to answer the open one. The Sotku: the path this bot follows, and when it shops. */
   private task: object | null = null;
   private taskAt = 0;
-  private choiceAt = 0;
+  private shopPath: PathId = PATHS[Math.floor(Math.random() * PATHS.length)]!;
+  private shopAt = 0;
   /** When the bot answers the pending inventory check, and reports its push-ups. */
   private countAt = 0;
   private unlockAt = 0;
@@ -321,22 +326,25 @@ export class Bot {
     }
   }
 
-  /** The ladder: answer tasks after a while (in quiet moments), and take an upgrade. */
-  private ladder(now: number): void {
+  /** The Sotku: now and then, the next affordable node on this bot's path (never the big three). */
+  private shop(now: number): void {
+    const s = this.p.service;
+    if (!s.shopOpen || now < this.shopAt) return;
+    this.shopAt = now + 6000 + Math.random() * 8000;
+    const bought = s.bought();
+    const next = pathItems(this.shopPath).find((id) => !NOT_FOR_BOTS.has(id) && canBuy(id, bought) && shopItem(id).price <= s.money);
+    if (next) this.room.service.buy(this.p, next);
+  }
+
+  /** Paperwork: answer after a while, in quiet moments. */
+  private paperwork(now: number): void {
     const p = this.p;
-    const l = p.ladder;
-    if (l.choice) {
-      if (!this.choiceAt) this.choiceAt = now + 2000 + Math.random() * 4000;
-      else if (now >= this.choiceAt) {
-        this.choiceAt = 0;
-        this.room.ladder.choose(p, l.choice.options[Math.floor(Math.random() * l.choice.options.length)]!);
-      }
-    }
-    if (l.open !== this.task) {
-      this.task = l.open;
+    const s = p.service;
+    if (s.open !== this.task) {
+      this.task = s.open;
       this.taskAt = now + 4000 + Math.random() * 14000;
     }
-    const c = l.open;
+    const c = s.open;
     if (!c || this.typing || this.target || now < this.taskAt) return;
     // Contacts have to be opened by hand, bots included.
     if (c.conv !== ASEVARASTO && !p.phone.convs.has(c.conv)) this.room.onPhoneMessage(p, { t: 'open', conv: c.conv });
@@ -356,7 +364,8 @@ export class Bot {
       else if (p.reserve[w] < p.spare(w) && Math.random() < 0.01) this.textReload(now);
     }
     this.inventory(now);
-    this.ladder(now);
+    this.paperwork(now);
+    this.shop(now);
     // Bots read what comes in (so what waits behind it can come in too).
     if (!this.typing) for (const c of p.phone.convs.values()) if (c.unread > 0) this.room.onPhoneMessage(p, { t: 'read', conv: c.id });
     const t = this.typing;

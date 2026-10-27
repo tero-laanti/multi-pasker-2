@@ -1,6 +1,7 @@
 import { boxPlanes, brushFromPlanes } from '../../shared/collision/brush';
 import { CollisionWorld } from '../../shared/collision/world';
 import { SIM_DT, TUNING, type WeaponId } from '../../shared/config';
+import { WEAPON_IDS } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { Mover, emptyCmd, newMoveState } from '../../shared/movement';
 import { cloneTuning, flattenTuning, getTuning, mergeTuning, setTuning, type TuningNode } from '../../shared/tuningTree';
@@ -100,7 +101,7 @@ export class TuningPanel {
     this.derived = h('pre', '', '', der);
     const plotHead = h('div', 'tuning-plot-head', UI.tuning.recoilPattern, der);
     const sel = h('select', '', undefined, plotHead);
-    for (const w of ['pistol', 'rifle'] as WeaponId[]) {
+    for (const w of WEAPON_IDS) {
       const o = h('option', '', UI.hud.weapons[w], sel);
       o.value = w;
     }
@@ -226,7 +227,7 @@ export class TuningPanel {
   refresh(): void {
     if (!this.visible) return;
     const lines: string[] = [];
-    for (const w of ['pistol', 'rifle'] as WeaponId[]) {
+    for (const w of WEAPON_IDS) {
       const cb = timeToKill(w, 'body', 10, 'cod');
       const ch = timeToKill(w, 'head', 10, 'cod');
       const sb = timeToKill(w, 'body', 10, 'scramble');

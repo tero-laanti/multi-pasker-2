@@ -76,9 +76,17 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: 
   return e;
 }
 
+/** An enemy the minimap shows where they are now: holding a phone (Kännykkätutka), or seen by the drone. */
+export interface MinimapMark {
+  x: number;
+  z: number;
+  kind: 'phone' | 'drone';
+}
+
 /**
  * The minimap: the map from above around the player, turned so the view points up, with the
  * field of view, the closed gate, and a red dot where an enemy fired without a suppressor.
+ * The Sotku's gear widens it (Tutka) and adds enemies holding phones or seen by the drone.
  */
 export class Minimap {
   readonly root: HTMLDivElement;
@@ -91,6 +99,9 @@ export class Minimap {
   private gates: [number, number][][] = [];
   private pings = new Map<number, { x: number; z: number; t: number }>();
   private size = 0;
+  /** Metres to the edge, and how long a shot stays (Tutka changes both). */
+  private range = MINIMAP.range;
+  private shotShow = MINIMAP.shotShow;
 
   constructor(parent: HTMLElement) {
     this.root = el('div', 'minimap hidden', parent);
@@ -154,10 +165,16 @@ export class Minimap {
     this.pings.set(player, { x, z, t: 0 });
   }
 
+  /** The minimap's reach (m) and how long shots stay on it (s). */
+  setGear(range: number, shotShow: number): void {
+    this.range = range;
+    this.shotShow = shotShow;
+  }
+
   /** Draws the map around (x, z), turned so that the view (yaw) points up. */
-  draw(dt: number, x: number, z: number, yaw: number, fovDeg: number, gateOpen: boolean, visible: boolean): void {
+  draw(dt: number, x: number, z: number, yaw: number, fovDeg: number, gateOpen: boolean, visible: boolean, marks: MinimapMark[] = []): void {
     this.root.classList.toggle('hidden', !visible || !this.layer);
-    for (const [id, p] of this.pings) if ((p.t += dt) > MINIMAP.shotShow) this.pings.delete(id);
+    for (const [id, p] of this.pings) if ((p.t += dt) > this.shotShow) this.pings.delete(id);
     if (!visible || !this.layer) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (!this.size) {
@@ -166,7 +183,7 @@ export class Minimap {
     }
     const ctx = this.ctx;
     const r = this.size / 2;
-    const scale = r / MINIMAP.range;
+    const scale = r / this.range;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.size, this.size);
     ctx.save();
@@ -219,7 +236,7 @@ export class Minimap {
         px *= rim / d;
         pz *= rim / d;
       }
-      const fade = 1 - p.t / MINIMAP.shotShow;
+      const fade = 1 - p.t / this.shotShow;
       ctx.fillStyle = `rgba(230, 85, 63, ${(fade * (d > rim ? 0.7 : 1)).toFixed(3)})`;
       ctx.beginPath();
       ctx.arc(r + px, r + pz, 4.2 * dpr, 0, Math.PI * 2);
@@ -229,6 +246,41 @@ export class Minimap {
         ctx.lineWidth = 1.5 * dpr;
         ctx.beginPath();
         ctx.arc(r + px, r + pz, (4.2 + p.t * 22) * dpr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Enemies the gear shows where they are: phones glowing in hands, or the drone's view.
+    for (const m of marks) {
+      let [px, pz] = toMinimap(m.x - x, m.z - z, yaw);
+      px *= scale;
+      pz *= scale;
+      const d = Math.hypot(px, pz);
+      const rim = r - 7 * dpr;
+      if (d > rim) {
+        px *= rim / d;
+        pz *= rim / d;
+      }
+      ctx.fillStyle = m.kind === 'phone' ? '#7fd3ff' : '#e6553f';
+      ctx.strokeStyle = 'rgba(14, 18, 13, 0.9)';
+      ctx.lineWidth = 1.2 * dpr;
+      if (m.kind === 'phone') {
+        // A small phone: a rounded upright rectangle.
+        const w = 5 * dpr;
+        const h = 8 * dpr;
+        ctx.beginPath();
+        ctx.roundRect(r + px - w / 2, r + pz - h / 2, w, h, 1.5 * dpr);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        const s = 5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(r + px, r + pz - s);
+        ctx.lineTo(r + px + s, r + pz);
+        ctx.lineTo(r + px, r + pz + s);
+        ctx.lineTo(r + px - s, r + pz);
+        ctx.closePath();
+        ctx.fill();
         ctx.stroke();
       }
     }

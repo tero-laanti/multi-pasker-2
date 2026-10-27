@@ -141,7 +141,10 @@ export const FI = {
     unknownNumber: 'Numeroa ei ole olemassa.',
   },
 
-  /** Ranks, alokas (start) to vääpeli (TJ 0), and how the varusmestari addresses them. */
+  /**
+   * Ranks by days served: alokas in P-kausi, sotamies after it, korpraali and alikersantti with
+   * the pay rises, kersantti once discharged. How the varusmestari addresses them.
+   */
   ranks: ['alokas', 'sotamies', 'korpraali', 'alikersantti', 'kersantti', 'ylikersantti', 'vääpeli'],
   /** "Ylennys sotamieheksi": the same ranks in the translative. */
   ranksTo: ['alokkaaksi', 'sotamieheksi', 'korpraaliksi', 'alikersantiksi', 'kersantiksi', 'ylikersantiksi', 'vääpeliksi'],
@@ -149,8 +152,73 @@ export const FI = {
   rankAbbr: ['Alok.', 'Stm.', 'Kpl.', 'Alik.', 'Kers.', 'Ylik.', 'Vääp.'],
 
   /**
-   * The TJ ladder. Placeholders: {rank} {name} the player, {code} what to send, {office} and
-   * {number} a contact to write to, {n} a count, {tj} days left, {upgrade} an upgrade's name.
+   * The company commander: a higher-up who texts the milestones of your service (only to you).
+   * {name} the player, {tj} days left, {eur} the new päiväraha, {rankTo} the new rank in the
+   * translative, {number} where to write.
+   */
+  commander: {
+    name: 'Komppanian päällikkö',
+    number: '7400',
+    /** P-kausi is over: the Sotku App opens. */
+    pkausi: [
+      'Onnittelut, sotamies {name}! P-kausi on takana. Sinulla on nyt lupa käyttää Sotku-sovellusta tavaroiden ja palveluiden ostamiseen.',
+      'P-kausi suoritettu, sotamies {name}. Onnittelut. Saat nyt käyttää Sotku-sovellusta tavaroiden ja palveluiden ostamiseen.',
+    ],
+    /** A pay rise, which is also a promotion. */
+    rise: ['TJ {tj}! Ylennys {rankTo}. Päiväraha nousee: nyt {eur} € päivältä.', 'TJ {tj}. Onnittelut, ylennys {rankTo}. Päiväraha on nyt {eur} € päivältä.'],
+    /** TJ 0: the discharge paperwork, at Nylands brigad. */
+    tj0: [
+      'TJ 0! Kotiutuspaperit odottavat. Viimeinen luukku on Dragsvikissä: Nylands brigad, numero {number}. Svenska, tack.',
+      'TJ 0. Ennen kotiutusta vielä yksi luukku: Nylands brigad, numero {number}. Ruotsiksi.',
+    ],
+    /** Discharged: the reservist star and a free pick from the Sotku. */
+    discharged: [
+      'Kotiutettu. Reservin kersantti {name}, reservin tähti on ansaittu. Kotiutuslahja: valitse Sotkusta yksi tuote ilmaiseksi.',
+      'Palvelus suoritettu. Ylennys reservin kersantiksi, ja tähti hihaan. Valitse Sotkusta kotiutuslahja, yksi tuote ilmaiseksi.',
+    ],
+    /** Anything texted to the company commander. */
+    reply: ['Komppanian päällikkö ei vastaa tekstiviesteihin.', 'Asiat vääpelin kautta.', 'Tämä numero on vain tiedotteille.'],
+  },
+
+  /** Gear and the Sotku App's goods, by id (src/shared/service.ts), and the shop's paths. */
+  items: {
+    rifle: 'Rynnäkkökivääri',
+    lipas: 'Pidennetty lipas',
+    puukko: 'Teroitettu puukko',
+    vyo: 'Kranaattivyö',
+    pveto: 'Pistoolikoulutus',
+    plipas: 'Pistoolin pidennetty lipas',
+    lonkka: 'Lonkalta',
+    ontelo: 'Ontelokärjet',
+    kevyt: 'Kevyt varustus',
+    sarja: 'Sarjatulipistooli',
+    suujarru: 'Suujarru',
+    lipas2: 'Pidennetty lipas II',
+    lukko: 'Kevennetty lukko',
+    rumpu: 'Rumpulipas',
+    vaimennin: 'Vaimennin',
+    tkiv: 'Tarkkuuskivääri',
+    pikavalinta: 'Pikavalinta',
+    autofill: 'Automaattitäyttö',
+    tutka: 'Tutka',
+    tumma: 'Tumma tila',
+    kannykka: 'Kännykkätutka',
+    lennokki: 'Tiedustelulennokki',
+    tihea: 'Tiheä huolto',
+    heitto: 'Pitkä heitto',
+    sytytin: 'Lyhyt sytytin',
+    kolmas: 'Kolmas kranaatti',
+    raskas: 'Raskas panos',
+    tuli: 'Tulitoimitus',
+    munkki: 'Munkkikahvit',
+    nakkisuoja: 'Nakkisuoja',
+  } as Record<string, string>,
+  paths: { sp: 'Sotilaspoliisi', ta: 'Tarkka-ampuja', vm: 'Viestimies', pi: 'Pioneeri' } as Record<string, string>,
+
+  /**
+   * The paperwork that hands gear over. Placeholders: {rank} {name} the player, {code} what to
+   * send, {office} and {number} a contact to write to, {tj} days left, {item} or {upgrade} the
+   * gear's name.
    */
   /**
    * Surprise inventory checks: a question about your own kit or the round, answered with a
@@ -185,10 +253,14 @@ export const FI = {
     radioCheckWrong: ['Vastaa YK. Kaksi kirjainta, {rank}.', 'YK. Ei muuta. Yhteyskoe ei ole keskustelu.', 'Kirjoita YK. Isot tai pienet, kunhan kaksi kirjainta.'],
   },
   ladder: {
-    /** Why there is something new on offer: a kill streak or a death streak. */
+    /** P-kausi gear came due with a kill or with a death: the first line before the task. */
     offerKill: ['Kunniamaininta, {rank} {name}. Varastossa olisi jotain sinulle.', 'Kunniamaininta. Joku on kerrankin tehnyt töitä.', 'Kunniamaininta tuli tänne asti. Katsotaan mitä löytyy.'],
     offerDeath: ['Vahinkoilmoitus käsitelty. Korvaavaa kalustoa on tarjolla.', 'Vahinkoilmoitus käsitelty. Kokoa ei ole, ota mikä on.', 'Vahinkoilmoitus käsitelty. Ei se aina sinun vikasi ole. Yleensä on.'],
-    /** A new offer while the previous one is unfinished: the old one stays valid. */
+    /** What is being handed over: P-kausi gear, or something bought from the Sotku. */
+    gearIntro: ['Nimellesi on kirjattu: {item}.', 'P-kauden varusteita: {item} odottaa nimelläsi.'],
+    orderIntro: ['Sotkun tilaus saapui: {item}.', 'Tilauksesi on täällä: {item}.', 'Sotku toimitti: {item}.'],
+    /** A word to sign with (row II, and anything else handed over at the counter). */
+    word: ['Kuittaa vastaanotto viestillä: {code}', 'Kuittaa: {code}', 'Lähetä {code}, niin kirjaan sen ulos.'],
     /** Stage 1: the rifle. */
     stage1: ['Nimellesi on kirjattu rynnäkkökivääri. Kuittaa vastaanotto viestillä: {code}', 'Rynkky odottaa luukulla. Kuittaa: {code}', 'Ase on varattu nimellesi. Lähetä {code}, niin kirjaan sen ulos.'],
     stage1Codes: ['KUITTAAN', 'SELVÄ', 'UUDISTUS', 'VASTAANOTETTU'],
@@ -231,6 +303,8 @@ export const FI = {
     munkkiDone: ['Munkkikahvit tekivät tehtävänsä. Hoidettu.', 'Kiitos itsellesi. Tehtävä kuitattu munkin voimalla.'],
     /** Stage 5: the huoltopäällikkö wants the weapon's serial number (inspect: I). */
     stage5Intro: ['Huoltopäällikkö haluaa vielä jotain. Sama numero kuin viimeksi.', 'Huoltopäällikkö soittaa vielä. Tai siis kirjoittaa. Sama numero.'],
+    /** The same, the first time you hear of the huoltopäällikkö. */
+    stage5New: ['Tämä luovutetaan huoltopäällikön kautta: {number}. Hän tarkistaa ensin vanhan aseesi.', 'Huoltopäällikkö hoitaa tämän. Numero {number}. Pidä ase käden ulottuvilla.'],
     stage5: {
       full: ['Ennen luovutusta: ilmoita kiväärisi numero.', 'Ennen luovutusta tarkistetaan. Kiväärisi numero, kiitos.'],
       last3: ['Ennen luovutusta: kiväärisi numeron kolme viimeistä numeroa.', 'Ennen luovutusta: kolme viimeistä numeroa kiväärisi kyljestä.'],
@@ -260,8 +334,20 @@ export const FI = {
       SILL: 'SILAKKA',
       MÅS: 'LOKKI',
     } as Record<string, string>,
-    /** The ladder is done. */
-    tj0: 'TJ 0. Kotiutettu. Asevarasto on suljettu. LATAA ja KRANAATTI toimivat vielä, koska olen hyvä ihminen.',
+    /** Discharged: the asevarasto's farewell. */
+    tj0: 'TJ 0. Kotiutettu. LATAA ja KRANAATTI toimivat vielä, koska olen hyvä ihminen.',
+  },
+
+  /** The Sotku's once-a-round commands, texted to the asevarasto, and the café's goods at work. */
+  abilities: {
+    droneOk: ['Lennokki ilmassa. Viisitoista sekuntia, katso karttaa.', 'Tiedustelulennokki matkalla. Kartta näyttää kaikki.'],
+    mortarOk: ['Tulitoimitus vastaanotettu. Kolme laukausta, kymmenen sekuntia. Pysy kaukana.', 'Tuli! Iskemät kymmenen sekunnin päästä. Varo itse.'],
+    /** Already used this round. */
+    used: ['Se on jo käytetty tällä kierroksella.', 'Yksi per kierros. Odota seuraavaa.'],
+    /** TULI without a target: looking at the sky, or too far away. */
+    noTarget: ['Ei maalia. Katso sinne, minne tuli halutaan.', 'Mihin? Osoita maali ensin.'],
+    /** Nakkisuoja: the vääpeli's inventory check skips you once. */
+    nakkisuoja: ['Nakkisuoja käytetty. Tällä kertaa säästyit inventaariolta.', 'Nakkisuoja. Vääpeli katsoo toiseen suuntaan, tämän kerran.'],
   },
 
   /** End-of-round awards (names; the English explanations are in ui.ts). */

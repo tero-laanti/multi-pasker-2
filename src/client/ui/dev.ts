@@ -21,7 +21,8 @@ export interface DevActions {
   fillBots(): void;
   restartRound(): void;
   killMe(): void;
-  offer(): void;
+  serve(): void;
+  money(): void;
   advance(): void;
   inventory(): void;
   endRound(): void;
@@ -93,8 +94,9 @@ export class DevPanel {
     btn(this.matchBox, UI.dev.fillBots, () => a.fillBots());
     btn(this.matchBox, UI.dev.restartRound, () => a.restartRound());
     btn(this.matchBox, UI.dev.killMe, () => a.killMe());
-    btn(this.matchBox, UI.dev.offer, () => a.offer());
+    btn(this.matchBox, UI.dev.serve, () => a.serve());
     btn(this.matchBox, UI.dev.advance, () => a.advance());
+    btn(this.matchBox, UI.dev.money, () => a.money());
     btn(this.matchBox, UI.dev.inventory, () => a.inventory());
     btn(this.matchBox, UI.dev.endRound, () => a.endRound());
     btn(this.matchBox, UI.dev.newEvening, () => {

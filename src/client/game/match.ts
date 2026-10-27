@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
 import { TraceResult } from '../../shared/collision/world';
 import { meleeTarget } from '../../shared/melee';
-import { TUNING, type WeaponId } from '../../shared/config';
+import { GEAR, MINIMAP, TUNING, type WeaponId } from '../../shared/config';
+import { FI } from '../../shared/fi';
+import { benefit } from '../../shared/service';
 import { wrapAngle, type Vec3 } from '../../shared/math';
 import {
   PF,
@@ -21,9 +23,10 @@ import {
   type Snapshot,
 } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
-import { UPGRADES, weaponStats } from '../../shared/upgrades';
+import { weaponStats } from '../../shared/upgrades';
 import type { Net } from '../net';
 import type { MatchHud } from '../ui/matchHud';
+import type { MinimapMark } from '../ui/minimap';
 import type { PairInfo } from '../ui/pair';
 import type { Game, GameMode } from './game';
 import { Remotes } from './remotes';
@@ -76,6 +79,10 @@ export class MatchMode implements GameMode {
   training = false;
   /** An inventory check to answer by this server time (0: none). */
   inventoryUntil = 0;
+  /** Our recon drone shows every enemy until this server time. */
+  droneUntil = 0;
+  /** Mortar rounds on their way (server times): each whistles as it comes in. */
+  private mortars: { x: number; y: number; z: number; at: number; whistled: boolean }[] = [];
   /** Chats on our phone with unread messages. */
   unreadFrom: string[] = [];
   onPairInfo: (info: PairInfo) => void = () => {};
@@ -298,7 +305,7 @@ export class MatchMode implements GameMode {
       }
       case 'boom':
         g.grenades.remove(e.id);
-        g.explosionFx(e.x, e.y, e.z);
+        g.explosionFx(e.x, e.y, e.z, e.r);
         break;
       case 'join':
         if (e.p !== this.myId) this.hud.notice(fill(UI.hud.joined, { name: e.name }));
@@ -314,7 +321,7 @@ export class MatchMode implements GameMode {
         g.weapons.switchTo(e.w);
         break;
       case 'serials':
-        g.setSerials({ pistol: e.pistol, rifle: e.rifle });
+        g.setSerials({ pistol: e.pistol, rifle: e.rifle, sniper: e.sniper });
         break;
       case 'note':
         hud.note(e.text, 3);
@@ -326,7 +333,17 @@ export class MatchMode implements GameMode {
         hud.note(e.replaced ? UI.hud.phoneReplaced : UI.hud.phonePaired, 3);
         break;
       case 'ladder':
-        this.hud.ladder(e.rank, e.tj, e.open, e.queued, e.choice);
+        this.hud.ladder(e.rank, e.tj, e.open, e.queued);
+        break;
+      case 'pay':
+        this.hud.killPay(fill(e.senior ? UI.hud.paySenior : UI.hud.pay, { eur: e.eur }));
+        break;
+      case 'drone':
+        this.droneUntil = e.until;
+        hud.note(UI.hud.drone, 3);
+        break;
+      case 'mortar':
+        this.mortars.push({ x: e.x, y: e.y, z: e.z, at: e.at, whistled: false });
         break;
       case 'awards':
         this.awards = e.list;
@@ -341,9 +358,7 @@ export class MatchMode implements GameMode {
       case 'upgrades': {
         g.weapons.upgrades = { ...e.u };
         if (e.id) {
-          const def = UPGRADES[e.id];
-          const lv = e.u[e.id] ?? 1;
-          hud.note(fill(UI.hud.upgradeTaken, { name: def.name, benefit: def.benefit(lv) }), 3.5);
+          hud.note(fill(UI.hud.upgradeTaken, { name: FI.items[e.id] ?? e.id, benefit: benefit(e.id) }), 3.5);
           g.deps.audio.play('hit_kill', { bus: 'ui', volume: 0.35, rate: 1.4 });
         }
         break;
@@ -549,7 +564,27 @@ export class MatchMode implements GameMode {
     this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);
     const s = g.deps.settings;
-    this.hud.minimap.draw(dt, g.eye.x, g.eye.z, g.yaw, s.fov, this.gate, s.minimap);
+    // The Sotku's gear on the minimap: a longer reach (Tutka), phones in enemy hands, the drone.
+    const u = g.weapons.upgrades;
+    this.hud.minimap.setGear(u.tutka ? GEAR.radarRange : MINIMAP.range, MINIMAP.shotShow * (u.tutka ? GEAR.radarShotMul : 1));
+    const drone = serverNow < this.droneUntil;
+    const marks: MinimapMark[] = [];
+    if (drone || u.kannykka) {
+      for (const rp of this.remotes.players.values()) {
+        if (!rp.present || !rp.alive || rp.info.id === this.myId) continue;
+        const phone = (rp.s.flags & PF.PHONE) !== 0 && !rp.info.upgrades?.tumma;
+        if (drone) marks.push({ x: rp.s.x, z: rp.s.z, kind: 'drone' });
+        else if (phone) marks.push({ x: rp.s.x, z: rp.s.z, kind: 'phone' });
+      }
+    }
+    this.hud.minimap.draw(dt, g.eye.x, g.eye.z, g.yaw, s.fov, this.gate, s.minimap, marks);
+    // Mortar rounds whistle down for the last second and a half.
+    for (const m of this.mortars) {
+      if (m.whistled || serverNow < m.at - 1500) continue;
+      m.whistled = true;
+      g.deps.audio.playAt('mortar_whistle', m.x, m.y + 6, m.z, { volume: 0.9, refDistance: 10, rolloff: 0.8, maxDistance: 250 });
+    }
+    this.mortars = this.mortars.filter((m) => serverNow < m.at + 500);
     this.hud.netStatus(this.net.stats.connected ? '' : UI.menu.reconnecting);
   }
 

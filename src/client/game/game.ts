@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { GEAR, SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { WEAPON_IDS } from '../../shared/protocol';
 import { throwVelocity } from '../../shared/grenade';
 import { UI } from '../../shared/ui';
 import type { MapData } from '../../shared/map/types';
@@ -219,7 +220,7 @@ export class Game {
   }
 
   /** Each weapon has its own 6-digit serial (per player per round in matches). */
-  serials: Record<WeaponId, string> = { pistol: '000000', rifle: '000000' };
+  serials: Record<WeaponId, string> = { pistol: '000000', rifle: '000000', sniper: '000000' };
 
   setSerials(s: Record<WeaponId, string>): void {
     this.serials = { ...s };
@@ -227,12 +228,12 @@ export class Game {
   }
 
   newSerials(): void {
-    for (const id of ['pistol', 'rifle'] as WeaponId[]) this.serials[id] = String(100000 + Math.floor(Math.random() * 900000));
+    for (const id of WEAPON_IDS) this.serials[id] = String(100000 + Math.floor(Math.random() * 900000));
     this.applySerials();
   }
 
   private applySerials(): void {
-    for (const id of ['pistol', 'rifle'] as WeaponId[]) this.viewmodel.model(id)?.setSerial(this.serials[id]);
+    for (const id of WEAPON_IDS) this.viewmodel.model(id)?.setSerial(this.serials[id]);
   }
 
   /** Moves the local player (spawns), clearing smoothing so nothing interpolates across. */
@@ -279,6 +280,7 @@ export class Game {
       if (!this.deps.settings.crouchToggle) this.crouchWanted = k.has('KeyC');
       if (input.consumePress('Digit1')) this.weapons.switchTo('pistol');
       if (input.consumePress('Digit2')) this.weapons.switchTo('rifle');
+      if (input.consumePress('Digit3')) this.weapons.switchTo('sniper');
       const wheel = input.consumeWheel();
       if (wheel !== 0) this.weapons.cycleWeapon(wheel);
       if (input.consumePress('KeyI')) this.weapons.inspect();
@@ -303,7 +305,7 @@ export class Game {
     const fireHeld = canFire && input.mouseLeft;
     const shift = k.has('ShiftLeft') || k.has('ShiftRight');
     // Firing while sprinting drops the sprint so the gun comes up and the shot goes out.
-    if ((firePressed || (fireHeld && this.weapons.current === 'rifle')) && this.move.sprinting) this.sprintLock = 0.35;
+    if ((firePressed || (fireHeld && this.weapons.stats().auto)) && this.move.sprinting) this.sprintLock = 0.35;
     if (this.sprintLock > 0) this.sprintLock -= dt;
     const sprint = shift && forward > 0 && !adsHeld && this.sprintLock <= 0;
     if (sprint && this.crouchWanted) this.crouchWanted = false;
@@ -318,7 +320,7 @@ export class Game {
         crouch: this.crouchWanted,
         sprint,
         ads: this.weapons.ads > 0.5,
-        speedMul: TUNING[this.weapons.current].moveSpeedMul * lerp(1, TUNING.phoneOut.moveSpeedMul, this.weapons.phone),
+        speedMul: TUNING[this.weapons.current].moveSpeedMul * this.weapons.stats().moveMul * lerp(1, TUNING.phoneOut.moveSpeedMul, this.weapons.phone),
       };
       const wasGround = this.move.onGround;
       this.prevEye.copy(this.eye);
@@ -384,10 +386,12 @@ export class Game {
         const rx = Math.cos(this.yaw);
         const rz = -Math.sin(this.yaw);
         const e = this.eye;
-        const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz);
+        // Pitkä heitto: the same throw, harder.
+        const T = this.weapons.upgrades.heitto ? { ...TUNING.grenade, throwSpeed: TUNING.grenade.throwSpeed * GEAR.throwMul } : TUNING.grenade;
+        const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz, T);
         // Start just in front of the eye, a little left and low, but never inside a wall.
         this.world.trace(this.tr, e.x, e.y, e.z, e.x + fwd.x * 0.35 - rx * 0.12, e.y + fwd.y * 0.35 - 0.1, e.z + fwd.z * 0.35 - rz * 0.12, 0.045, 0.045, 0.045, MASK.GRENADE);
-        this.mode.grenadeReleased([this.tr.x, this.tr.y, this.tr.z], v, Math.max(0.05, this.weapons.fuseLeft ?? TUNING.grenade.fuse));
+        this.mode.grenadeReleased([this.tr.x, this.tr.y, this.tr.z], v, Math.max(0.05, this.weapons.fuseLeft ?? this.weapons.fuse));
         this.weapons.clearPin();
       }
       this.handleDroppedGrenade();
@@ -413,7 +417,7 @@ export class Game {
     const w = this.weapons;
     if (!w.droppedGrenade) return;
     w.droppedGrenade = false;
-    const fuse = Math.max(0.05, w.fuseLeft ?? TUNING.grenade.fuse);
+    const fuse = Math.max(0.05, w.fuseLeft ?? w.fuse);
     w.clearPin();
     this.mode.grenadeReleased([this.move.x, this.move.y + 0.9, this.move.z], [0, -1, 0], fuse);
   }
@@ -437,8 +441,9 @@ export class Game {
   }
 
   /** Flash, smoke, sound, light and screen shake of an explosion. */
-  explosionFx(x: number, y: number, z: number): void {
-    this.effects.explosion(x, y, z);
+  /** A blast's flash, smoke, sound and shake; `radius` when it is bigger than a grenade's. */
+  explosionFx(x: number, y: number, z: number, radius?: number): void {
+    this.effects.explosion(x, y, z, radius ? radius / TUNING.grenade.radius : 1);
     const dist = Math.hypot(x - this.eye.x, y - this.eye.y, z - this.eye.z);
     this.deps.audio.playAt(dist < 45 ? 'grenade_explode' : 'grenade_far', x, y + 0.3, z, { volume: 1, refDistance: 8, rolloff: 0.7, maxDistance: 600 });
     this.blast = { x, y, z, t: 0 };
@@ -508,11 +513,14 @@ export class Game {
       cam.rotation.set(this.pitch + punchP * DEG + (Math.random() - 0.5) * sh, this.yaw - punchY * DEG + (Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh, 'YXZ');
     }
     this.shake = Math.max(0, this.shake - dt * 3);
-    this.viewmodel.holder.visible = !co;
-    cam.updateMatrixWorld();
-
     const ads = lerp(w.adsPrev, w.ads, alpha);
     const adsE = ads * ads * (3 - 2 * ads);
+    // Looking through the sniper rifle's scope: the scope fills the view, the gun is out of sight.
+    const scoped = !co && w.current === 'sniper' && adsE > 0.85;
+    this.viewmodel.holder.visible = !co && !scoped;
+    hud.scope(scoped);
+    cam.updateMatrixWorld();
+
     renderer.zoom = co ? 1 : 1 + (TUNING[w.current].adsZoom - 1) * adsE;
     renderer.vmZoom = 1 + 0.04 * adsE;
 
@@ -602,6 +610,7 @@ export class Game {
       crouched: this.move.crouched,
       bloom: w.bloom,
       phone: w.phone,
+      hipMul: w.stats().hipMul,
     });
   }
 }

@@ -28,6 +28,12 @@ interface Voice {
 const SPEED_OF_SOUND = 343;
 
 /**
+ * Sounds that borrow another's recordings until they have their own: the sniper rifle is the
+ * assault rifle's shots and handling, played slower and so deeper.
+ */
+const BORROWED: [prefix: string, from: string, rate: number][] = [['sniper_', 'rifle_', 0.72]];
+
+/**
  * Sound effects. Files come from /sfx/<name> (see the server's AudioFolder); variants are
  * named `<base>_1`, `<base>_2`… and picked at random without immediate repeats.
  */
@@ -112,6 +118,15 @@ export class AudioEngine {
     return this.buffers.get(name)?.[0]?.duration ?? 0;
   }
 
+  /** The sound to play for `name`, and the rate to play it at (a borrowed one goes slower). */
+  private resolve(name: string, o: PlayOptions): [string, PlayOptions] {
+    if (this.buffers.has(name)) return [name, o];
+    for (const [prefix, from, rate] of BORROWED) {
+      if (name.startsWith(prefix)) return [from + name.slice(prefix.length), { ...o, rate: (o.rate ?? 1) * rate }];
+    }
+    return [name, o];
+  }
+
   private pick(name: string): AudioBuffer | null {
     const list = this.buffers.get(name);
     if (!list || list.length === 0) return null;
@@ -137,6 +152,7 @@ export class AudioEngine {
 
   /** Non-positional sound (own weapon, UI). */
   play(name: string, o: PlayOptions = {}): AudioBufferSourceNode | null {
+    [name, o] = this.resolve(name, o);
     const buf = this.pick(name);
     if (!buf || this.ctx.state !== 'running') return null;
     const src = this.source(buf, o);
@@ -151,6 +167,7 @@ export class AudioEngine {
 
   /** Positional sound with HRTF panning, distance attenuation, air absorption and travel delay. */
   playAt(name: string, x: number, y: number, z: number, o: SpatialOptions = {}): void {
+    [name, o] = this.resolve(name, o) as [string, SpatialOptions];
     const buf = this.pick(name);
     if (!buf || this.ctx.state !== 'running') return;
     const dist = Math.hypot(x - this.lx, y - this.ly, z - this.lz);

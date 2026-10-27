@@ -1,9 +1,9 @@
 import type { Socket } from '../socket';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { PositionHistory } from '../../shared/history';
-import type { GameEvent, PlayerInfo, PhoneStatus } from '../../shared/protocol';
+import { WEAPON_IDS, type GameEvent, type PlayerInfo, type PhoneStatus } from '../../shared/protocol';
 import { Phone } from './phone';
-import { Ladder } from './ladder';
+import { Service } from './service';
 import { maxGrenades, weaponStats } from '../../shared/upgrades';
 
 /** What the armourer asks in an inventory check. */
@@ -47,10 +47,10 @@ export class ServerPlayer {
   respawnAt = 0;
   protectedUntil = 0;
   owned: WeaponId[] = ['pistol'];
-  ammo: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
+  ammo: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine, sniper: TUNING.sniper.magazine };
   /** Spare rounds per gun (the spare magazine). */
-  reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
-  lastShotAt: Record<WeaponId, number> = { pistol: -1e9, rifle: -1e9 };
+  reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine, sniper: TUNING.sniper.magazine };
+  lastShotAt: Record<WeaponId, number> = { pistol: -1e9, rifle: -1e9, sniper: -1e9 };
   /** The last knife stab (server ms), and until when it shows (the MELEE flag). */
   lastMeleeAt = -1e9;
   meleeUntil = 0;
@@ -62,7 +62,7 @@ export class ServerPlayer {
   pinAt = 0;
   kills = 0;
   deaths = 0;
-  serials: Record<WeaponId, string> = { pistol: '000000', rifle: '000000' };
+  serials: Record<WeaponId, string> = { pistol: '000000', rifle: '000000', sniper: '000000' };
   readonly history = new PositionHistory();
   lastStateAt = 0;
   /** When the position was true: the client's send time (server clock), or the tick for bots. */
@@ -84,10 +84,11 @@ export class ServerPlayer {
   /** Sequence number of the last fire message received. */
   lastFireSeq = 0;
   readonly phone = new Phone();
-  readonly ladder = new Ladder();
+  /** The service: TJ, the wallet and gear, all evening. */
+  readonly service = new Service();
   /** Increases with every respawn; phone requests from an earlier life have no effect. */
   life = 0;
-  /** Index into FI.ranks: alokas (0) to vääpeli (6). */
+  /** Index into FI.ranks, from days served: alokas (0) to kersantti (4, discharged). */
   rank = 0;
   /** Counters for the end-of-round awards. */
   stats = ServerPlayer.freshStats();
@@ -124,18 +125,19 @@ export class ServerPlayer {
       ping: Math.round(this.rtt),
       phone: this.phone.status(),
       rank: this.rank,
-      upgrades: { ...this.ladder.upgrades },
+      upgrades: { ...this.service.upgrades },
+      star: this.service.discharged,
       training: this.training,
     };
   }
 
   /** Magazine size and fire rate with this player's upgrades. */
   gun(w: WeaponId) {
-    return weaponStats(w, this.ladder.upgrades);
+    return weaponStats(w, this.service.upgrades);
   }
 
   phoneStatus(round: number): PhoneStatus {
-    const l = this.ladder;
+    const s = this.service;
     return {
       name: this.name,
       alive: this.alive || this.training,
@@ -144,9 +146,9 @@ export class ServerPlayer {
       grenades: this.grenades,
       maxGrenades: this.maxGrenades,
       rank: this.rank,
-      tj: l.tj,
-      challenge: !!l.open,
-      queued: l.queued,
+      tj: s.tj,
+      challenge: !!s.open,
+      queued: Math.max(0, s.waiting.length - (s.open ? 1 : 0)),
       desktop: this.connected,
     };
   }
@@ -160,7 +162,7 @@ export class ServerPlayer {
   }
 
   newSerials(): void {
-    for (const w of ['pistol', 'rifle'] as WeaponId[]) this.serials[w] = String(100000 + Math.floor(Math.random() * 900000));
+    for (const w of WEAPON_IDS) this.serials[w] = String(100000 + Math.floor(Math.random() * 900000));
   }
 
   /** Spare rounds a gun carries when stocked up. */
@@ -171,11 +173,11 @@ export class ServerPlayer {
   /** Fresh life: a full magazine and the spare in every gun, no grenades, no reload in progress. */
   resetLife(): void {
     this.hp = TUNING.player.health;
-    for (const w of ['pistol', 'rifle'] as WeaponId[]) {
+    for (const w of WEAPON_IDS) {
       this.ammo[w] = this.gun(w).magazine;
       this.reserve[w] = this.spare(w);
     }
-    this.maxGrenades = maxGrenades(this.ladder.upgrades);
+    this.maxGrenades = maxGrenades(this.service.upgrades);
     this.reload = null;
     this.grenades = 0;
     this.pinAt = 0;

@@ -1,5 +1,5 @@
-import { INVENTORY, PHONE, TUNING } from '../../shared/config';
-import { classify, normalize, type Classified } from '../../shared/chat';
+import { GEAR, INVENTORY, PHONE, TUNING } from '../../shared/config';
+import { classify, normalize, type Classified, type CommandId } from '../../shared/chat';
 import { FI } from '../../shared/fi';
 import { level } from '../../shared/upgrades';
 import type { PhoneMessage } from '../../shared/protocol';
@@ -8,6 +8,7 @@ import type { Room } from './room';
 
 const V = FI.varusmestari;
 const VA = FI.inventory;
+const C = FI.commander;
 
 /** YK (yhteyskoe, the radio check), however it was typed. */
 export function isRadioCheckReply(text: string): boolean {
@@ -161,16 +162,16 @@ export class Varusmestari {
     phone.add(conv.id, out);
     phone.schedule(now + 120, () => phone.setState(conv.id, out.id, 'delivered'));
 
-    // The TJ ladder first: the right code in the right chat completes the task.
+    // Paperwork first: the right code in the right chat hands the gear over.
     const [r0, r1] = PHONE.readDelay;
-    const ladder = this.room.ladder.check(p, conv.id, text);
-    if (ladder === 'done') {
+    const paper = this.room.service.check(p, conv.id, text);
+    if (paper === 'done') {
       phone.schedule(now + 250, () => phone.setState(conv.id, out.id, 'read'));
       return 'command';
     }
-    const contact = this.room.ladder.contact(p, conv.id);
-    if (ladder === 'wrongChat' || (contact && conv.id !== V.number)) {
-      const reply = contact?.kind === 'nylands' ? this.swedishReply(text) : pick(ladder === 'wrongChat' ? FI.ladder.wrongChat : FI.ladder.officeOther);
+    const contact = this.room.service.contact(p, conv.id);
+    if (paper === 'wrongChat' || (contact && conv.id !== V.number) || conv.id === C.number) {
+      const reply = conv.id === C.number ? pick(C.reply) : contact?.kind === 'nylands' ? this.swedishReply(text) : pick(paper === 'wrongChat' ? FI.ladder.wrongChat : FI.ladder.officeOther);
       phone.schedule(now + (r0 + Math.random() * (r1 - r0)) * 1000, () => phone.setState(conv.id, out.id, 'read'));
       this.post(p, conv.id, reply);
       this.room.offerTypo(p, conv.name, text, reply);
@@ -187,7 +188,9 @@ export class Varusmestari {
       return 'unknownNumber';
     }
 
-    const c = classify(text, level(p.ladder.upgrades, 'pikavalinta') > 0);
+    const u = p.service.upgrades;
+    const abilities: CommandId[] = [...(level(u, 'lennokki') > 0 ? (['LENNOKKI'] as const) : []), ...(level(u, 'tuli') > 0 ? (['TULI'] as const) : [])];
+    const c = classify(text, level(u, 'pikavalinta') > 0, abilities);
     const d = this.decide(p, req, c, text, now);
     const read = now + (d.command ? 250 : (r0 + Math.random() * (r1 - r0)) * 1000);
     phone.schedule(read, () => phone.setState(conv.id, out.id, 'read'));
@@ -249,6 +252,7 @@ export class Varusmestari {
 
   private decide(p: ServerPlayer, req: SendRequest, c: Classified, text: string, now: number): Decision {
     const phone = p.phone;
+    const u = p.service.upgrades;
     const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
     const say = (list: readonly string[], cmd = '') => capitalize(pick(list).replace(/\{rank\}/g, rank).replace(/\{cmd\}/g, cmd));
     const answer = (list: readonly string[], cmd = ''): Decision => ({ reply: say(list, cmd), public: true, command: false });
@@ -323,8 +327,15 @@ export class Varusmestari {
       p.stats.reloads++;
       return ok(say(V.reloadOk));
     }
+    // The Sotku's once-a-round commands.
+    if (c.cmd === 'LENNOKKI') return ok(say(this.room.drone(p) === 'ok' ? FI.abilities.droneOk : FI.abilities.used));
+    if (c.cmd === 'TULI') {
+      const r = this.room.mortar(p);
+      return ok(say(r === 'ok' ? FI.abilities.mortarOk : r === 'used' ? FI.abilities.used : FI.abilities.noTarget));
+    }
     if (p.grenades >= p.maxGrenades) return ok(say(p.maxGrenades > 1 ? V.grenadeLimit2 : V.grenadeLimit1));
-    if (now - phone.lastGrenadeAt < TUNING.grenade.supplyCooldown * 1000) return ok(say(V.grenadeCooldown));
+    const cooldown = level(u, 'tihea') > 0 ? GEAR.grenadeCooldown : TUNING.grenade.supplyCooldown;
+    if (now - phone.lastGrenadeAt < cooldown * 1000) return ok(say(V.grenadeCooldown));
     if (!this.room.giveGrenade(p)) return answer(V.dead);
     phone.lastGrenadeAt = now;
     return ok(say(V.grenadeOk));

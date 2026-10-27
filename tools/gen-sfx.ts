@@ -192,6 +192,18 @@ console.log('Whistle');
   out('whistle', room(mix(x.length, [x, 1], [gain(breath, 0.25), 1]), 0.3, 0.6, 0.6), -6);
 }
 
+console.log('Mortar');
+{
+  // An incoming round: a whistle falling in pitch, louder as it comes, with air rushing past.
+  const r = rng(77);
+  const len = 1.6;
+  const tone = sine(N(len), RATE, 1900, 420, 1.1);
+  const air = biquad(noise(N(len), r), RATE, 'bandpass', (t) => 2600 - t * 1200, 1.4);
+  const x = mix(N(len), [tone, 0.8], [air, 0.35]);
+  for (let i = 0; i < x.length; i++) x[i]! *= Math.pow(i / x.length, 1.6);
+  out('mortar_whistle', room(x, 0.15, 0.5, 0.3), -8);
+}
+
 console.log('Grenade');
 {
   const r = rng(42);

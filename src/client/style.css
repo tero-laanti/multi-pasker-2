@@ -275,6 +275,41 @@ canvas.view {
 .prompt.show {
   opacity: 1;
 }
+/* The sniper rifle's scope: a black field with a round view and thin crosshairs. */
+.scope {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, transparent 0, transparent 38vmin, rgba(0, 0, 0, 0.55) 38.4vmin, #000 39.5vmin);
+}
+.scope-ring {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 78vmin;
+  height: 78vmin;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow: inset 0 0 6vmin rgba(0, 0, 0, 0.75);
+}
+.scope-line {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.85);
+}
+.scope-h {
+  left: calc(50% - 39vmin);
+  width: 78vmin;
+  top: 50%;
+  height: 1.5px;
+  transform: translateY(-50%);
+}
+.scope-v {
+  top: calc(50% - 39vmin);
+  height: 78vmin;
+  left: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+}
 .fuse {
   position: absolute;
   top: calc(50% + 22px);
@@ -1127,6 +1162,16 @@ input[type='range'] {
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
   opacity: 0;
   transition: opacity 0.3s;
+}
+.kill-pay {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-top: 3px;
+  font-variant-numeric: tabular-nums;
+}
+.kill-pay:empty {
+  display: none;
 }
 .kill-confirm.show {
   opacity: 1;

@@ -1,13 +1,14 @@
 import type { WeaponId } from './config';
 import type { HitZone } from './hitbox';
-import type { UpgradeId, Upgrades } from './upgrades';
+import type { StoreState } from './service';
+import type { Upgrades } from './upgrades';
 
 /**
  * Network protocol. The two high-rate messages (client movement state, server snapshots) are
  * binary; everything else is JSON. Times are server milliseconds since the server started.
  */
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 export const BIN = { STATE: 1, SNAPSHOT: 2 } as const;
 
@@ -28,10 +29,10 @@ export const PF = {
   MELEE: 2048,
 } as const;
 
-export const WEAPON_IDS: WeaponId[] = ['pistol', 'rifle'];
+export const WEAPON_IDS: WeaponId[] = ['pistol', 'rifle', 'sniper'];
 
 /** What a kill was done with. */
-export type KillWeapon = WeaponId | 'grenade' | 'knife';
+export type KillWeapon = WeaponId | 'grenade' | 'knife' | 'mortar';
 
 export interface ClientState {
   seq: number;
@@ -194,8 +195,10 @@ export interface PlayerInfo {
   ping: number;
   /** Their phone: never paired, connected, or paired but disconnected. */
   phone: 'none' | 'online' | 'offline';
-  /** Ladder stages completed: rank index (alokas 0 … vääpeli 6). */
+  /** Rank index from days served (alokas 0 … kersantti 4). */
   rank: number;
+  /** Discharged at TJ 0: the reservist star. */
+  star: boolean;
   /** Upgrade levels: everyone needs them (suppressors, drum magazines, dark mode). */
   upgrades: Upgrades;
   /** Still on the shooting range (the tutorial), not in the match yet. */
@@ -263,21 +266,28 @@ export type GameEvent =
   | { k: 'reload'; w: WeaponId; empty: boolean; dur: number; full: boolean }
   | { k: 'grenades'; n: number; max: number }
   | { k: 'nade'; id: number; p: number; o: [number, number, number]; v: [number, number, number]; fuse: number }
-  | { k: 'boom'; id: number; x: number; y: number; z: number }
+  /** `r`: blast radius when it isn't the usual one (a heavy charge, a mortar round). */
+  | { k: 'boom'; id: number; x: number; y: number; z: number; r?: number }
   | { k: 'join'; p: number; name: string }
   | { k: 'leave'; p: number; name: string }
   | { k: 'round'; round: RoundInfo }
   | { k: 'give'; w: WeaponId }
-  | { k: 'serials'; pistol: string; rifle: string }
+  | { k: 'serials'; pistol: string; rifle: string; sniper: string }
   | { k: 'note'; text: string }
   /** A phone message that wasn't valid where it was sent, with the reply: shown to everyone. */
   | { k: 'typo'; p: number; to: string; text: string; reply: string }
   /** Our phone was paired (`replaced`: it took over from another phone). */
   | { k: 'paired'; replaced: boolean }
-  /** Our upgrades changed (`id`: the one just taken, for the HUD). */
-  | { k: 'upgrades'; u: Upgrades; id?: UpgradeId }
-  /** Our place on the TJ ladder, for the HUD. */
-  | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number; choice: boolean }
+  /** Our upgrades changed (`id`: the gear just handed over, for the HUD). */
+  | { k: 'upgrades'; u: Upgrades; id?: string }
+  /** Our service, for the HUD: rank, days left, and paperwork open on the phone (and queued). */
+  | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number }
+  /** Our kill paid: days served and the päiväraha for them (`senior`: the victim outranked us). */
+  | { k: 'pay'; eur: number; days: number; senior: boolean }
+  /** Our recon drone is up: every enemy on the minimap until this server time. */
+  | { k: 'drone'; until: number }
+  /** Mortar rounds on their way: they land here at server time `at` (everyone hears them come). */
+  | { k: 'mortar'; x: number; y: number; z: number; at: number }
   /** End of round: the awards. */
   | { k: 'awards'; list: AwardInfo[] }
   /** A message arrived on this player's phone: anyone close by hears it chirp. */
@@ -311,8 +321,8 @@ export interface EveningRow {
   kills: number;
   deaths: number;
   awards: number;
-  /** Rounds in which they reached TJ 0. */
-  tj0: number;
+  /** Days left in their service (TJ) at the end of their last round. */
+  tj: number;
 }
 
 /** Accent colours for name tags and caps: 8 strong hues, also told apart by the name tag. */
@@ -360,19 +370,13 @@ export interface PhoneStatus {
   grenades: number;
   maxGrenades: number;
   rank: number;
-  /** Days left (stages to go) on the TJ ladder. */
+  /** Days left in the service. */
   tj: number;
-  /** A ladder task is open, and how many more wait behind it. */
+  /** Paperwork is open, and how many more wait behind it. */
   challenge: boolean;
   queued: number;
   /** The desktop is connected. */
   desktop: boolean;
-}
-
-/** The upgrade screen: three choices with their exact benefit. */
-export interface UpgradeOffer {
-  title: string;
-  options: { id: UpgradeId; name: string; level: number; benefit: string }[];
 }
 
 export type PhoneClientMsg =
@@ -383,8 +387,8 @@ export type PhoneClientMsg =
   | { t: 'read'; conv: string }
   | { t: 'draft'; conv: string; text: string }
   | { t: 'touch' }
-  /** Picked an upgrade on the upgrade screen. */
-  | { t: 'choose'; rid: string; id: UpgradeId }
+  /** The Sotku App's Buy (a shop node or a café item). */
+  | { t: 'buy'; rid: string; id: string }
   /** A chat (or the new-chat number pad) is open: the phone is in the player's hand. */
   | { t: 'out'; on: boolean }
   | { t: 'ping'; id: number; rtt?: number };
@@ -398,10 +402,10 @@ export type PhoneServerMsg =
       status: PhoneStatus;
       dev: boolean;
       replaced: boolean;
-      /** An upgrade screen still waiting for a choice. */
-      upgrade: UpgradeOffer | null;
+      /** The Sotku App: wallet, gear and what waits for paperwork. */
+      store: StoreState;
     }
-  | { t: 'upgrade'; offer: UpgradeOffer | null }
+  | { t: 'store'; s: StoreState }
   | { t: 'pairFailed'; reason: 'code' | 'version' | 'sim' | 'token' }
   | { t: 'msg'; conv: string; m: PhoneMessage }
   | { t: 'state'; conv: string; id: string; state: MsgState }

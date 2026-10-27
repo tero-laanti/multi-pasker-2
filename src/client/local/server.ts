@@ -2,6 +2,7 @@ import { FI } from '../../shared/fi';
 import { buildGarrison } from '../../shared/map/garrison';
 import type { EveningRow } from '../../shared/protocol';
 import { Evening, type EveningStore } from '../../server/game/awards';
+import type { ServiceRecord } from '../../server/game/service';
 import { Room } from '../../server/game/room';
 import { Connection } from '../../server/connection';
 import { TickLoop } from '../../server/loop';
@@ -9,23 +10,30 @@ import { VoiceNotes, type VoiceSource } from '../../server/voicenotes';
 import { ClientEnd } from './socket';
 
 const EVENING_KEY = 'pasker.evening';
+const SERVICE_KEY = 'pasker.service';
 
-/** The evening scoreboard in this browser's storage. */
+function read<T>(key: string, empty: T): T {
+  try {
+    return (JSON.parse(localStorage.getItem(key) ?? 'null') as T | null) ?? empty;
+  } catch {
+    return empty;
+  }
+}
+
+function write(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage blocked: the evening lasts as long as the page.
+  }
+}
+
+/** The evening (scoreboard and the player's service) in this browser's storage. */
 const eveningStore: EveningStore = {
-  load: () => {
-    try {
-      return JSON.parse(localStorage.getItem(EVENING_KEY) ?? '[]') as EveningRow[];
-    } catch {
-      return [];
-    }
-  },
-  save: (rows) => {
-    try {
-      localStorage.setItem(EVENING_KEY, JSON.stringify(rows));
-    } catch {
-      // Storage blocked: the evening lasts as long as the page.
-    }
-  },
+  load: () => read<EveningRow[]>(EVENING_KEY, []),
+  save: (rows) => write(EVENING_KEY, rows),
+  loadServices: () => read<Record<string, ServiceRecord>>(SERVICE_KEY, {}),
+  saveServices: (services) => write(SERVICE_KEY, services),
 };
 
 /**

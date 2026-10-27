@@ -1,7 +1,7 @@
 import type { Socket } from '../socket';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { INVENTORY, NET, PHONE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { GEAR, INVENTORY, NET, PHONE, SERVICE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
 import { blastReaches, explosionDamage, GRENADE_RADIUS, stepGrenade, type Grenade } from '../../shared/grenade';
 import { rayPlayer, type HitZone } from '../../shared/hitbox';
 import type { MapData, SpawnPoint } from '../../shared/map/types';
@@ -27,11 +27,10 @@ import { damageFor } from '../../shared/weapons';
 import { Bot } from './bot';
 import { ServerPlayer, type InventoryKind } from './player';
 import { Varusmestari } from './varusmestari';
-import { LadderService } from './ladder';
+import { ServiceDesk } from './service';
 import { VoiceNotes } from '../voicenotes';
 import { Evening, roundAwards } from './awards';
-import { UPGRADES, maxGrenades, type UpgradeId } from '../../shared/upgrades';
-import type { UpgradeOffer } from '../../shared/protocol';
+import { level, maxGrenades } from '../../shared/upgrades';
 import { FI } from '../../shared/fi';
 
 const FI_NUMBER = FI.varusmestari.number;
@@ -79,7 +78,7 @@ export class Room {
   directReload: boolean;
   tickMs = 0;
   readonly varusmestari = new Varusmestari(this);
-  readonly ladder = new LadderService(this);
+  readonly service = new ServiceDesk(this);
   readonly voiceNotes: VoiceNotes;
   readonly evening: Evening;
   private typos: TypoCandidate[] = [];
@@ -89,6 +88,9 @@ export class Room {
   private nextGrenadeId = 1;
   private tr = new TraceResult();
   private tickCount = 0;
+  private savedAt = 0;
+  /** Mortar rounds on their way: where, whose, and when they land (server ms). */
+  private mortars: { x: number; y: number; z: number; owner: number; at: number }[] = [];
   readonly now: () => number;
 
   constructor(
@@ -146,6 +148,13 @@ export class Room {
       p.newSerials();
       p.phone.pairCode = this.freePairCode();
       p.training = !!msg.train;
+      // Back tonight under the same name: the service goes on where it was.
+      const kept = this.evening.service(name);
+      if (kept) {
+        p.service.restore(kept);
+        this.service.resume(p);
+      }
+      this.equip(p);
       this.settleInventory(p);
       this.chirps(p);
       this.players.set(p.id, p);
@@ -170,10 +179,20 @@ export class Room {
     this.sendSpawnState(p);
     this.sendPairInfo(p);
     p.send({ t: 'evening', rows: this.evening.list() });
-    this.ladder.notify(p);
-    p.outbox.push({ k: 'upgrades', u: { ...p.ladder.upgrades } });
+    this.service.notify(p);
+    p.outbox.push({ k: 'upgrades', u: { ...p.service.upgrades } });
     p.phone.sendStatus(p.phoneStatus(this.round.n));
     return p;
+  }
+
+  /** Weapons, grenade belt and rank from the player's service (after a restore or a reset). */
+  equip(p: ServerPlayer): void {
+    const s = p.service;
+    p.owned = ['pistol'];
+    if (s.owned.has('rifle')) p.owned.push('rifle');
+    if (s.owned.has('tkiv')) p.owned.push('sniper');
+    p.maxGrenades = maxGrenades(s.upgrades);
+    p.rank = s.rank;
   }
 
   /** A message landing on someone's phone chirps where they stand (alive only). */
@@ -250,7 +269,7 @@ export class Room {
         status: p.phoneStatus(this.round.n),
         dev: this.opts.dev,
         replaced,
-        upgrade: this.upgradeOffer(p),
+        store: this.service.storeState(p),
       }),
     );
     phone.sendStatus(p.phoneStatus(this.round.n), true);
@@ -279,13 +298,14 @@ export class Room {
         break;
       case 'open': {
         const id = String(msg.conv).replace(/[^\d+]/g, '').slice(0, 24);
-        if (id && !this.ladder.opened(p, id) && !phone.convs.has(id)) phone.conv(id, id);
+        if (id && !this.service.opened(p, id) && !phone.convs.has(id)) phone.conv(id, id);
         break;
       }
-      case 'choose': {
+      case 'buy': {
         if (typeof msg.rid !== 'string' || phone.rids.has(msg.rid)) break;
         phone.rids.add(msg.rid);
-        if (msg.id in UPGRADES) this.ladder.choose(p, msg.id);
+        // A refused buy (no money, already had) just sends the shop as it is.
+        if (!this.service.buy(p, String(msg.id))) this.service.notify(p);
         break;
       }
       case 'read': {
@@ -316,34 +336,18 @@ export class Room {
     }
   }
 
-  /** The upgrade screen waiting on the player's phone, if any. */
-  upgradeOffer(p: ServerPlayer): UpgradeOffer | null {
-    const c = p.ladder.choice;
-    if (!c) return null;
-    return {
-      title: FI.ladder.upgradeTitle,
-      options: c.options.map((id) => {
-        const lv = (p.ladder.upgrades[id] ?? 0) + 1;
-        return { id, name: UPGRADES[id].name, level: lv, benefit: UPGRADES[id].benefit(lv) };
-      }),
-    };
-  }
-
-  sendUpgradeChoice(p: ServerPlayer): void {
-    p.phone.send({ t: 'upgrade', offer: this.upgradeOffer(p) });
-  }
-
-  /** An upgrade was taken: new limits now, a fresh bigger magazine, and everyone is told. */
-  applyUpgrades(p: ServerPlayer, id: UpgradeId): void {
-    p.maxGrenades = maxGrenades(p.ladder.upgrades);
-    if (id === 'lipas' || id === 'rumpu') {
-      p.ammo.rifle = p.gun('rifle').magazine;
-      p.reserve.rifle = p.spare('rifle');
-      this.sendAmmo(p, 'rifle');
+  /** Gear was handed over: new limits now, a fresh bigger magazine, and everyone is told. */
+  applyUpgrades(p: ServerPlayer, id: string): void {
+    p.maxGrenades = maxGrenades(p.service.upgrades);
+    const mags: Record<string, WeaponId> = { lipas: 'rifle', lipas2: 'rifle', rumpu: 'rifle', plipas: 'pistol' };
+    const w = mags[id];
+    if (w && p.owned.includes(w)) {
+      p.ammo[w] = p.gun(w).magazine;
+      p.reserve[w] = p.spare(w);
+      this.sendAmmo(p, w);
     }
-    p.outbox.push({ k: 'upgrades', u: { ...p.ladder.upgrades }, id });
+    p.outbox.push({ k: 'upgrades', u: { ...p.service.upgrades }, id });
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
-    p.phone.send({ t: 'upgrade', offer: null });
     this.broadcastPlayers();
   }
 
@@ -428,6 +432,7 @@ export class Room {
     const list = roundAwards(players);
     this.emit({ k: 'awards', list });
     this.evening.addRound(players, list);
+    this.evening.keepServices([...this.players.values()]);
     this.broadcast({ t: 'evening', rows: this.evening.list() });
   }
 
@@ -512,7 +517,7 @@ export class Room {
   private sendSpawnState(p: ServerPlayer): void {
     p.outbox.push({ k: 'spawn', p: p.id, x: p.x, y: p.y, z: p.z, yaw: p.yaw, ammo: { ...p.ammo }, reserve: { ...p.reserve }, weapons: [...p.owned] });
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
-    p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle });
+    p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle, sniper: p.serials.sniper });
   }
 
   // ---- messages ----
@@ -599,12 +604,16 @@ export class Room {
       case 'removeBot':
         this.removeBot();
         break;
-      case 'offer':
-        p.ladder.started = true;
-        this.ladder.offer(p, 'kill');
+      case 'serve':
+        this.service.serve(p, typeof arg === 'number' ? arg : SERVICE.pkausi, 'kill');
+        break;
+      case 'money':
+        p.service.money += typeof arg === 'number' ? arg : 500;
+        p.service.dirty = true;
+        this.service.notify(p);
         break;
       case 'advance':
-        this.ladder.advance(p);
+        this.service.advance(p);
         break;
       case 'inventory':
         if (p.inventory) p.inventory.expires = this.now();
@@ -612,7 +621,15 @@ export class Room {
         break;
       case 'newEvening':
         this.evening.reset();
+        for (const q of this.players.values()) {
+          q.service.reset();
+          this.equip(q);
+          if (q.weapon !== 'pistol' && !q.owned.includes(q.weapon)) q.weapon = 'pistol';
+          q.outbox.push({ k: 'upgrades', u: {} });
+          this.service.notify(q);
+        }
         this.broadcast({ t: 'evening', rows: this.evening.list() });
+        this.broadcastPlayers();
         break;
       case 'endRound':
         this.round = { ...this.round, endsAt: this.now() };
@@ -695,6 +712,16 @@ export class Room {
       // Not while something from the vääpeli is still unread (one new message per chat).
       if (!reachable || p.training || !p.alive || p.phone.locked || !p.phone.convs.has(FI_NUMBER) || p.phone.busy(FI.inventory.number)) {
         p.inventoryAt = now + INVENTORY.retry * 1000;
+        continue;
+      }
+      if (p.service.cafe.nakkisuoja > 0) {
+        // Nakkisuoja: this check skips them.
+        p.service.cafe.nakkisuoja--;
+        p.service.dirty = true;
+        p.phone.conv(FI.inventory.number, FI.inventory.name);
+        this.varusmestari.post(p, FI.inventory.number, FI.abilities.nakkisuoja[Math.floor(Math.random() * FI.abilities.nakkisuoja.length)]!);
+        this.service.notify(p);
+        p.inventoryAt = now + randomBetween(INVENTORY.interval) * 1000;
         continue;
       }
       this.varusmestari.inventory(p);
@@ -840,7 +867,7 @@ export class Room {
       ev.s = wall.s;
     }
     this.emit(ev);
-    if (victim) this.damage(victim, p, damageFor(w, zone, dist, this.killSpeed), zone, w, [ox, oy, oz]);
+    if (victim) this.damage(victim, p, damageFor(w, zone, dist, this.killSpeed, p.service.upgrades), zone, w, [ox, oy, oz]);
   }
 
   /**
@@ -871,7 +898,8 @@ export class Room {
     const cy = h.y + (h.crouched ? 0.6 : 1.0);
     this.world.trace(this.tr, ox, oy, oz, h.x, cy, h.z, 0, 0, 0, MASK.SHOT);
     if (this.tr.fraction < 1 && this.tr.fraction * Math.hypot(h.x - ox, cy - oy, h.z - oz) < Math.hypot(h.x - ox, cy - oy, h.z - oz) - 0.45) return;
-    this.damage(v, p, M.damage, 'body', 'knife', [ox, oy, oz]);
+    // Teroitettu puukko: one stab is enough.
+    this.damage(v, p, level(p.service.upgrades, 'puukko') > 0 ? TUNING.player.health : M.damage, 'body', 'knife', [ox, oy, oz]);
   }
 
   private headConfirmed(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, h: { x: number; y: number; z: number; crouched: boolean }, maxT: number): boolean {
@@ -908,9 +936,9 @@ export class Room {
     v.grenades = 0;
     if (a && a !== v) {
       a.kills++;
-      // The TJ ladder counts kills and deaths at someone else's hand.
-      this.ladder.onKill(a);
-      this.ladder.onDeath(v);
+      // The service counts kills and deaths at someone else's hand.
+      this.service.onKill(a, v);
+      this.service.onDeath(v);
     }
     const now = this.now();
     v.respawnAt = now + TUNING.player.respawnTime * 1000;
@@ -940,9 +968,14 @@ export class Room {
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
   }
 
+  /** The player's fuse (s): Lyhyt sytytin shortens it. */
+  fuseOf(p: ServerPlayer): number {
+    return level(p.service.upgrades, 'sytytin') > 0 ? GEAR.shortFuse : TUNING.grenade.fuse;
+  }
+
   /** Fuse left (s) on the grenade in hand. */
   private fuseLeft(p: ServerPlayer): number {
-    return TUNING.grenade.fuse - (this.now() - p.pinAt) / 1000;
+    return this.fuseOf(p) - (this.now() - p.pinAt) / 1000;
   }
 
   /**
@@ -951,7 +984,7 @@ export class Room {
    */
   throwGrenade(p: ServerPlayer, o: [number, number, number], v: [number, number, number]): void {
     if (!p.alive) return;
-    let fuse = TUNING.grenade.fuse;
+    let fuse = this.fuseOf(p);
     if (p.pinAt) {
       fuse = Math.max(0.05, this.fuseLeft(p));
       p.pinAt = 0;
@@ -985,17 +1018,63 @@ export class Room {
     this.emit({ k: 'nade', id: g.id, p: p.id, o: [g.x, g.y, g.z], v: [0, -1, 0], fuse });
   }
 
-  private explode(g: Grenade & { owner: number }): void {
-    this.emit({ k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z });
+  /** A grenade (or a mortar round) goes off: Raskas panos and the mortar blast wider. */
+  private explode(g: Grenade & { owner: number }, w: 'grenade' | 'mortar' = 'grenade'): void {
     const owner = this.players.get(g.owner) ?? null;
+    const heavy = w === 'mortar' || (owner && level(owner.service.upgrades, 'raskas') > 0);
+    const T = heavy ? { ...TUNING.grenade, radius: GEAR.heavyRadius } : TUNING.grenade;
+    this.emit(heavy ? { k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z, r: T.radius } : { k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z });
     for (const v of this.players.values()) {
       if (!v.alive) continue;
       const cy = v.y + 1.0;
       const dist = Math.hypot(v.x - g.x, cy - g.y, v.z - g.z);
-      const dmg = explosionDamage(dist);
+      const dmg = explosionDamage(dist, T);
       if (dmg <= 0 || !blastReaches(this.world, g.x, g.y, g.z, v.x, cy, v.z)) continue;
-      this.damage(v, owner, dmg, 'body', 'grenade', [g.x, g.y, g.z]);
+      this.damage(v, owner, dmg, 'body', w, [g.x, g.y, g.z]);
     }
+  }
+
+  /** Tiedustelulennokki: every enemy on the player's minimap for a while, once a round. */
+  drone(p: ServerPlayer): 'ok' | 'used' {
+    if (p.service.used.has('LENNOKKI')) return 'used';
+    p.service.used.add('LENNOKKI');
+    p.outbox.push({ k: 'drone', until: this.now() + GEAR.droneTime * 1000 });
+    return 'ok';
+  }
+
+  /**
+   * Tulitoimitus: mortar rounds where the player is looking (from the desktop's view, while the
+   * phone sends the order), landing a few seconds apart after a delay, once a round.
+   */
+  mortar(p: ServerPlayer): 'ok' | 'used' | 'noTarget' {
+    if (p.service.used.has('TULI')) return 'used';
+    const range = 250;
+    const cp = Math.cos(p.pitch);
+    const dx = -Math.sin(p.yaw) * cp;
+    const dy = Math.sin(p.pitch);
+    const dz = -Math.cos(p.yaw) * cp;
+    const ex = p.x;
+    const ey = p.eyeY();
+    const ez = p.z;
+    this.world.trace(this.tr, ex, ey, ez, ex + dx * range, ey + dy * range, ez + dz * range, 0, 0, 0, MASK.SHOT);
+    if (this.tr.fraction >= 1) return 'noTarget';
+    const tx = this.tr.x;
+    const tz = this.tr.z;
+    p.service.used.add('TULI');
+    const now = this.now();
+    for (let i = 0; i < GEAR.mortarRounds; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * GEAR.mortarSpread;
+      const x = tx + Math.cos(a) * r;
+      const z = tz + Math.sin(a) * r;
+      // Where it lands: the first thing below, from high above.
+      this.world.trace(this.tr, x, this.tr.y + 40, z, x, this.tr.y - 40, z, 0, 0, 0, MASK.SHOT);
+      const y = this.tr.fraction < 1 ? this.tr.y : 0;
+      const at = now + (GEAR.mortarDelay + i * GEAR.mortarGap) * 1000;
+      this.mortars.push({ x, y, z, owner: p.id, at });
+      this.emit({ k: 'mortar', x, y, z, at });
+    }
+    return 'ok';
   }
 
   // ---- rounds ----
@@ -1006,19 +1085,17 @@ export class Room {
       if (!p.bot && !p.connected && this.now() - p.leftAt > 60_000) this.players.delete(p.id);
     }
     this.round = { n: this.round.n + 1, state: 'playing', endsAt: this.now() + ROUND_TIME, gateOpen: this.activeCount() > GATE_PLAYERS };
-    this.ladder.resetRound();
+    this.service.resetRound();
     this.setGate(this.round.gateOpen);
     this.grenades = [];
+    this.mortars = [];
     for (const p of this.players.values()) {
       p.kills = 0;
       p.deaths = 0;
-      p.owned = ['pistol'];
-      p.maxGrenades = 1;
-      p.ladder.reset();
-      p.rank = 0;
+      // The service goes on: gear, TJ and the wallet stay, the once-a-round commands come back.
+      p.service.used.clear();
       p.stats = ServerPlayer.freshStats();
-      this.ladder.notify(p);
-      p.outbox.push({ k: 'upgrades', u: {} });
+      this.service.notify(p);
       p.phone.resetRound();
       if (p.inventory) {
         p.outbox.push({ k: 'inventory', until: 0 });
@@ -1030,7 +1107,7 @@ export class Room {
       // A divider in the armoury chat (the services list was sent once, when the phone paired).
       if (p.phone.paired && p.phone.convs.has(FI_NUMBER)) p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: `#round ${this.round.n}`, at: Date.now() });
       p.newSerials();
-      p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle });
+      p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle, sniper: p.serials.sniper });
       if ((p.connected && !p.training) || p.bot) this.respawn(p);
     }
     this.emit({ k: 'round', round: this.round });
@@ -1096,6 +1173,13 @@ export class Room {
       p.pinAt = 0;
       if (p.alive) this.explode({ id: this.nextGrenadeId++, owner: p.id, x: p.x, y: p.eyeY() - 0.35, z: p.z, vx: 0, vy: 0, vz: 0, fuse: 0, resting: true });
     }
+    if (this.mortars.length) {
+      const due = this.mortars.filter((m) => now >= m.at);
+      if (due.length) {
+        this.mortars = this.mortars.filter((m) => now < m.at);
+        for (const m of due) this.explode({ id: this.nextGrenadeId++, owner: m.owner, x: m.x, y: m.y + 0.15, z: m.z, vx: 0, vy: 0, vz: 0, fuse: 0, resting: true }, 'mortar');
+      }
+    }
     for (const g of this.grenades) stepGrenade(g, this.world, dt);
     const exploding = this.grenades.filter((g) => g.fuse <= 0);
     if (exploding.length) {
@@ -1103,6 +1187,11 @@ export class Room {
       for (const g of exploding) this.explode(g);
     }
 
+    // Services that changed go into the evening file every few seconds.
+    if (now - this.savedAt >= SERVICE.saveEvery * 1000) {
+      this.savedAt = now;
+      this.evening.keepServices([...this.players.values()]);
+    }
     const snapEvery = Math.max(1, Math.round(NET.tickHz / NET.snapshotHz));
     if (this.tickCount % snapEvery === 0) this.sendSnapshot(now);
     // Pings and connection states for the scoreboard.

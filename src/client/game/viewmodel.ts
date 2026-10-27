@@ -5,6 +5,8 @@ import { buildKnife } from './models/knife';
 import { buildPhone, type PhoneModel } from './models/phone';
 import { buildPistol, type WeaponModel } from './models/pistol';
 import { buildRifle } from './models/rifle';
+import { buildSniper } from './models/sniper';
+import { WEAPON_IDS } from '../../shared/protocol';
 import { THROW_RELEASE, type WeaponController } from './weapons';
 import type { Upgrades } from '../../shared/upgrades';
 import { grenadeMesh } from './grenades';
@@ -166,6 +168,7 @@ export class ViewModel {
     scene.add(this.holder);
     this.models.pistol = buildPistol();
     this.models.rifle = buildRifle();
+    this.models.sniper = buildSniper();
     for (const m of Object.values(this.models)) {
       this.holder.add(m.root);
       m.root.visible = false;
@@ -174,8 +177,8 @@ export class ViewModel {
     // Upgrades you can see: a suppressor on each gun, the rifle's drum magazine.
     const attachMat = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.5, metalness: 0.6 });
     for (const [id, m] of Object.entries(this.models) as [WeaponId, WeaponModel][]) {
-      const r = id === 'rifle' ? 0.019 : 0.016;
-      const len = id === 'rifle' ? 0.17 : 0.13;
+      const r = id === 'pistol' ? 0.016 : 0.019;
+      const len = id === 'pistol' ? 0.13 : id === 'sniper' ? 0.2 : 0.17;
       const suppressor = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 20).rotateX(Math.PI / 2).translate(0, 0, -len / 2 + 0.004), attachMat);
       suppressor.visible = false;
       m.muzzle.add(suppressor);
@@ -485,7 +488,7 @@ export class ViewModel {
   private phoneHand(m: WeaponModel): void {
     const hand = m.hands.phone;
     const k = smoothstep(0, 1, this.phoneK);
-    for (const id of ['pistol', 'rifle'] as WeaponId[]) {
+    for (const id of WEAPON_IDS) {
       const other = this.models[id];
       if (other && other !== m) other.hands.phone.visible = false;
     }

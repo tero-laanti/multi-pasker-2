@@ -1,4 +1,4 @@
-import { PHONE } from '../../shared/config';
+import { PHONE, SERVICE } from '../../shared/config';
 import { FI } from '../../shared/fi';
 import { ACCENTS, type AwardInfo, type EveningRow, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
@@ -50,19 +50,21 @@ export class MatchHud {
   private inventoryLine: HTMLDivElement;
   private taskLine: HTMLDivElement;
   private kills = 0;
-  private lastLadder: [number, number, boolean, number, boolean] = [0, 6, false, 0, false];
+  private lastLadder: [number, number, boolean, number] = [0, SERVICE.days, false, 0];
 
   /** Our kills this round (the score) next to rank and TJ. */
   score(kills: number): void {
     if (kills === this.kills) return;
-    const [r, tj, open, queued, choice] = this.lastLadder;
-    this.ladder(r, tj, open, queued, choice, kills);
+    const [r, tj, open, queued] = this.lastLadder;
+    this.ladder(r, tj, open, queued, kills);
   }
   private board: HTMLDivElement;
   private death: HTMLDivElement;
   private deathTitle: HTMLDivElement;
   private deathSub: HTMLDivElement;
   private confirm: HTMLDivElement;
+  private confirmName: HTMLDivElement;
+  private confirmPay: HTMLDivElement;
   private protect: HTMLDivElement;
   private status: HTMLDivElement;
   private phoneLine: HTMLDivElement;
@@ -99,6 +101,8 @@ export class MatchHud {
     this.deathTitle = el('div', 'death-title', this.death);
     this.deathSub = el('div', 'death-sub', this.death);
     this.confirm = el('div', 'kill-confirm', this.root);
+    this.confirmName = el('div', 'kill-name', this.confirm);
+    this.confirmPay = el('div', 'kill-pay', this.confirm);
     this.protect = el('div', 'spawn-protect hidden', this.root, UI.hud.spawnProtect);
     this.status = el('div', 'net-status hidden', this.root);
   }
@@ -135,7 +139,7 @@ export class MatchHud {
     const line = el('div', 'feed-line', this.feed);
     if (killer?.id === myId || victim?.id === myId) line.classList.add('mine');
     const name = (p: PlayerInfo | undefined) => {
-      el('span', 'feed-rank', line, `${FI.rankAbbr[p?.rank ?? 0] ?? ''} `);
+      el('span', 'feed-rank', line, `${p?.star ? '★ ' : ''}${FI.rankAbbr[p?.rank ?? 0] ?? ''} `);
       const s = el('span', 'feed-name', line, p?.name ?? '?');
       s.style.setProperty('--accent', accentOf(p));
       return s;
@@ -173,13 +177,13 @@ export class MatchHud {
     while (this.typoLines.length > PHONE.typoLines) this.typoLines.shift()!.node.remove();
   }
 
-  /** Rank and TJ under the round timer, and whether a task or an upgrade waits on the phone. */
-  ladder(rank: number, tj: number, open: boolean, queued: number, choice: boolean, kills = this.kills): void {
-    this.lastLadder = [rank, tj, open, queued, choice];
+  /** Rank and TJ under the round timer, and whether paperwork waits on the phone. */
+  ladder(rank: number, tj: number, open: boolean, queued: number, kills = this.kills): void {
+    this.lastLadder = [rank, tj, open, queued];
     this.kills = kills;
     const r = FI.ranks[rank] ?? FI.ranks[0]!;
     const head = `${r[0]!.toUpperCase()}${r.slice(1)} · TJ ${tj} · ${fill(kills === 1 ? UI.hud.kill1 : UI.hud.kills, { n: kills })}`;
-    const task = choice ? UI.hud.upgradeWaiting : open ? UI.hud.taskOpen + (queued > 0 ? ` · ${fill(UI.hud.taskQueued, { n: queued })}` : '') : '';
+    const task = open ? UI.hud.taskOpen + (queued > 0 ? ` · ${fill(UI.hud.taskQueued, { n: queued })}` : '') : '';
     if (this.changed('ladder', head + task)) {
       this.ladderLine.textContent = head;
       this.taskLine.textContent = task;
@@ -226,11 +230,17 @@ export class MatchHud {
   }
 
   killConfirm(name: string, head: boolean): void {
-    this.confirm.textContent = fill(UI.hud.killed, { name }) + (head ? ` · ${UI.hud.headshot}` : '');
+    this.confirmName.textContent = fill(UI.hud.killed, { name }) + (head ? ` · ${UI.hud.headshot}` : '');
+    this.confirmPay.textContent = '';
     this.confirm.classList.remove('show');
     void this.confirm.offsetWidth;
     this.confirm.classList.add('show');
     this.confirmTimer = 1.6;
+  }
+
+  /** What the kill paid, in small text under the confirmation (the total is only on the phone). */
+  killPay(text: string): void {
+    this.confirmPay.textContent = text;
   }
 
   spawnProtect(on: boolean): void {
@@ -302,7 +312,7 @@ export class MatchHud {
       const n = el('div', 'sb-name', r);
       const chip = el('span', 'sb-chip', n);
       chip.style.background = accentOf(p);
-      el('span', 'sb-rank-abbr', n, FI.rankAbbr[p.rank] ?? '');
+      el('span', 'sb-rank-abbr', n, `${p.star ? '★ ' : ''}${FI.rankAbbr[p.rank] ?? ''}`);
       el('span', '', n, p.name);
       if (!p.bot && p.phone !== 'none') {
         const ph = el('span', `sb-phone ${p.phone}`, n, '📱');
@@ -337,11 +347,11 @@ export class MatchHud {
       const t = el('div', 'ev-table', side);
       const E = UI.evening;
       const h = el('div', 'ev-row ev-cols', t);
-      for (const c of ['', E.wins, E.kills, E.deaths, E.awards, E.tj0]) el('div', '', h, c);
+      for (const c of ['', E.wins, E.kills, E.deaths, E.awards, E.tj]) el('div', '', h, c);
       for (const r of evening.slice(0, 10)) {
         const row = el('div', 'ev-row', t);
         el('div', 'ev-name', row, r.name);
-        for (const v of [r.wins, r.kills, r.deaths, r.awards, r.tj0]) el('div', 'sb-num', row, String(v));
+        for (const v of [r.wins, r.kills, r.deaths, r.awards, r.tj ?? SERVICE.days]) el('div', 'sb-num', row, String(v));
       }
     }
   }

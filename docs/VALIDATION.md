@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 143 passing
+## Automated tests (`npm test`): 151 passing
 
 | Area | What the tests check |
 |---|---|
@@ -20,8 +20,9 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 | Interpolation | Per-player timelines with state age, extrapolation cap, no blending across respawns, held states taking server-side changes, the adaptive delay and its render clock |
 | Phone and varusmestari | Pairing by QR token and code, replacement with a notice on both, token resume, the simulator refused outside development; LATAA refills only the sender, refuses when everything is full and never stacks; KRANAATTI carry limit and cooldown; duplicate request ids act once; requests from the dead, a previous life or an old round do nothing; a round restart; the PUNNERRETTU lockout; the typo feed's one-line-per-1.5 s rate limit preferring longer messages and keeping valid commands private; kill-feed drafts; a death with the phone out tells the phone who did it and what never got sent (nothing when the phone was away); the phone-in-hand flag exactly while a chat is open; command matching (case, spacing, punctuation, near misses, swearing, languages, greetings, numbers) |
 | Inventory check | From the vääpeli, in his own chat, never in a player's first minute in the match; asked only of the living with a connected phone during a round; the answer time starts when the question arrives; the number when asked or when answered counts; a right answer gives a grenade and closes it, a wrong one keeps it open, a timeout locks the phone until PUNNERRETTU; bots answer (mostly right) and report their push-ups |
-| Messages | One new message per chat: an unasked-for message waits until the one before has been read (a ladder offer and its task arrive as one message; the radio check waits behind an unread welcome); replies are never held back |
-| TJ ladder | First offer on the first kill or death, every 3rd kill and every 3rd death on separate counters, self-kills don't count; codes unique between players; one open task with a queue; every stage 1–6 including the office number opened by hand, the 17-digit number and its voice note, the serial number, the Swedish stage and "svara på svenska"; TJ 0; munkkikahvit; upgrade choice applied once; round reset; upgrade weapon numbers |
+| Messages | One new message per chat: an unasked-for message waits until the one before has been read (a piece of gear and its paperwork arrive as one message; the radio check waits behind an unread welcome); replies are never held back |
+| Service | Päiväraha 5 / 10 / 15 € a day in its bands (3,105 € for the whole service, a kill across a band boundary paid day by day, nothing after TJ 0); ranks by days served; a kill serves 3 days and pays the killer (shown under the kill), the victim serves 1, suicides nothing, killing a higher rank 2 more; the rifle's paperwork on the first kill or death, kept over a new round; codes unique between players; P-kausi's gear on days 1, 10, 20 and 30, one paperwork at a time in order; the office opened by hand and the code in the wrong chat; the supply chief's voice note from a 17-digit number; day 42's text from the company commander opening the shop with 210 €; the pay rises texted only to that player, with the promotions; the shop's checks (shut in P-kausi, needs, money), row I at once and the rest after paperwork; the café's munkki (KIITOS does the paperwork) and nakkisuoja (skips an inventory check); TJ 0 through Nylands brigad in Swedish, the star and a free pick; the service kept by name in the evening file over a server restart, and reset by a new evening; every node of the tree reachable, the tree costing more than two services |
+| Sotku gear | Pistol magazine, full auto, quicker draw and hollow points (34 per body hit, 25 without); the sniper rifle's headshot kills; rifle magazines and drum; the one-stab knife kills from full health; LENNOKKI and TULI only for those who bought them, once a round, the mortar's three rounds landing and blasting |
 | Awards and evening | Each award to the right player, nothing for nothing, the evening scoreboard adding rounds, surviving a restart (file), leaving bots out |
 | First-person hands | Every pose builds; fingers bend only towards the palm and within joint limits; no wrist bends more than 28°; left hands are true mirror images; no glove sinks more than 2.5 mm into the gun or phone it holds (exact mesh distance) |
 
@@ -51,17 +52,22 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   the bot match with 7 bots fighting; LATAA clicked on the virtual phone refilling 8 rounds to
   12 + 12. A voice note spliced in the page (9.2 s) and a Swedish line decode as audio.
   After the server code was split so the page can run it, `phone-flow.ts`,
-  `virtual-phone-flow.ts` and `ladder-flow.ts` (all six stages, the voice note playing) were run
-  again against a LAN server.
+  `virtual-phone-flow.ts` and the old ladder flow (all six stages, the voice note playing) were
+  run again against a LAN server.
 - `tools/e2e/inventory-flow.ts`: an inventory check on a desktop and an emulated phone: the
   countdown on both, a wrong answer in the typo feed, the right one earning a grenade, and a
   timed-out check in the typo feed with the push-ups.
 - The dev panel from Esc and F2, in a browser on the server machine using its LAN address: *Add
   bot* adds a bot (before the fix the server ignored it).
-- `tools/e2e/ladder-flow.ts`: all six ladder stages through the phone's own keyboard: codes read
-  from the chat and typed, the upgrade screen, the office number opened by hand, the voice note
-  fetched as a 9–10 s WAV with byte ranges and played, the serial number from the desktop, a
-  Finnish answer to Nylands brigad told off in Swedish, TJ 0.
+- `tools/e2e/service-flow.ts`: the service through a desktop and an emulated phone: the Chats |
+  Sotku tab bar, the shop locked in P-kausi (day 0 of 42), the rifle's code read from the chat and
+  typed, the company commander's text on day 42 and the shop opening with 210 €, the Tarkka-ampuja
+  path's tree with its lines, the buy sheet and a row I purchase handed over at once (the desktop's
+  recoil upgrade), "+15 €" under a kill confirmation, Automaattitäyttö's chip with the code from
+  the message and the armoury's commands (tapping it fills the field), munkkikahvit skipping
+  paperwork on the way to the sniper rifle, the sniper rifle on key 3 at the hip and through its
+  scope. The old ladder flow (all six stages through the phone's keyboard, the voice note fetched
+  as a 9–10 s WAV with byte ranges and played) ran before the ladder became the service.
 - The phone simulator: typing on the computer keyboard and Enter sends (KRANAATTI arrived).
 - Network conditioner: with 50 ms each way and ±10 ms jitter, every claimed hit the server
   refused was a follow-up shot at a target that had just died (20 of 24 confirmed).
@@ -111,10 +117,12 @@ compiles mid-fight (earlier hitches came from the test tool's screenshots, not t
 | Damage, CoD preset | pistol 25 body / 50 head; rifle 20 → 17 body with range, 30 head |
 | Damage, Scramble preset | pistol 17 / 34; rifle 13 → 11 / 20 |
 | Player | 100 health, regeneration after 4.5 s at 40/s, respawn 2.5 s, spawn protection 1 s |
-| Grenade | 2.5 s fuse from the G press (it can go off in the hand), pin pull 0.28 s, carry 1 (2 with Kranaattivyö), supply cooldown 15 s |
+| Grenade | 2.5 s fuse from the G press (it can go off in the hand), pin pull 0.28 s, carry 1 (2 with Kranaattivyö, 3 with Kolmas kranaatti), supply cooldown 15 s |
 | Phone in hand | hip spread ×1.8 + 3.5°, recoil ×1.5, speed ×0.92, no ADS, raise 0.3 s |
 | Rounds | 4 minutes, 12 s intermission; outer-ring gate opens above 8 players |
-| Ladder | offer every 3 kills and every 3 deaths, +1 per 4 players above 6 |
+| Service | TJ 347; a kill 3 days, a death 1, killing a higher rank +2; päiväraha 5 € (days 1–165), 10 € (166–255), 15 € (256–347); P-kausi 42 days, gear on days 1, 10, 20, 30 |
+| Sotku | four paths of six nodes, 7,190 € in all; row I at once, rows II–IV after paperwork; munkkikahvit 30 €, nakkisuoja 40 € |
+| Sniper rifle | 48 rpm (bolt action), 5 rounds, 90 body / 200 head, 4× scope, hip spread 6° |
 | Inventory check | from the vääpeli every 90–180 s, never in the first 60 s in the match, 20 s to answer; a grenade for the right number, push-ups for none |
 | Typo feed | one line per 1.5 s, at most 4 lines, fades after 6 s |
 | Network | client state 60 Hz, snapshots 30 Hz, interpolation delay 50–250 ms (adaptive), rewind ≤ 200 ms |

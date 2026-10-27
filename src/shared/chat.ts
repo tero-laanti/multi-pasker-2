@@ -4,7 +4,7 @@
  * the right command without ever acting on a guess.
  */
 
-export type CommandId = 'LATAA' | 'KRANAATTI' | 'PUNNERRETTU';
+export type CommandId = 'LATAA' | 'KRANAATTI' | 'PUNNERRETTU' | 'LENNOKKI' | 'TULI';
 
 export type Classified =
   | { kind: 'command'; cmd: CommandId }
@@ -55,8 +55,8 @@ const SWEDISH = new Set(['HEJ', 'TACK', 'JAG', 'VAD', 'DET', 'OCH', 'INTE', 'GÖ
 const GREETINGS = new Set(['MOI', 'MOIKKA', 'MOIKKU', 'HEI', 'HEIPPA', 'HEIPS', 'TERVE', 'TERVEHDYS', 'TERVEPPÄ', 'PÄIVÄÄ', 'HYVÄÄ', 'HUOMENTA', 'ILTAA', 'MORO', 'MOROO', 'MORJENS', 'MORJESTA', 'MORJES', 'TSAU', 'TERVETULOA']);
 const THANKS = new Set(['KIITOS', 'KIITTI', 'KITOS', 'KIITOKSIA', 'KIITOKSET', 'KIITÄN', 'KIITETÄÄN', 'KIITOKSIAPALJON']);
 
-function nearCommand(s: string): CommandId | null {
-  for (const cmd of COMMANDS) {
+function nearCommand(s: string, commands: CommandId[]): CommandId | null {
+  for (const cmd of commands) {
     const d = levenshtein(s, cmd);
     if (d > 0 && d <= (cmd.length >= 8 ? 3 : 2)) return cmd;
   }
@@ -64,19 +64,20 @@ function nearCommand(s: string): CommandId | null {
 }
 
 /**
- * What kind of message this is. `shortcuts` (the Pikavalinta upgrade) makes `L` and `K`
- * work as LATAA and KRANAATTI.
+ * What kind of message this is. `shortcuts` (Pikavalinta) makes `L` and `K` work as LATAA and
+ * KRANAATTI; `abilities` are the Sotku's once-a-round commands this player has (LENNOKKI, TULI).
  */
-export function classify(raw: string, shortcuts = false): Classified {
+export function classify(raw: string, shortcuts = false, abilities: CommandId[] = []): Classified {
   const s = normalize(raw);
   if (!s) return raw.includes('?') ? { kind: 'question' } : { kind: 'empty' };
   const words = s.split(' ');
   if (words.some((w) => SWEARS.some((stem) => w.startsWith(stem)))) return { kind: 'swear' };
-  if ((COMMANDS as string[]).includes(s)) return { kind: 'command', cmd: s as CommandId };
+  const commands = abilities.length ? [...COMMANDS, ...abilities] : COMMANDS;
+  if ((commands as string[]).includes(s)) return { kind: 'command', cmd: s as CommandId };
   if (shortcuts && s === 'L') return { kind: 'command', cmd: 'LATAA' };
   if (shortcuts && s === 'K') return { kind: 'command', cmd: 'KRANAATTI' };
   // Near misses: the whole message, or one word of it, is (almost) a command.
-  const near = nearCommand(s) ?? words.map((w) => ((COMMANDS as string[]).includes(w) ? (w as CommandId) : nearCommand(w))).find((c) => c) ?? null;
+  const near = nearCommand(s, commands) ?? words.map((w) => ((commands as string[]).includes(w) ? (w as CommandId) : nearCommand(w, commands))).find((c) => c) ?? null;
   if (near) return { kind: 'nearMiss', cmd: near };
   if (words.some((w) => w === 'APUA' || w === 'HELP' || w === 'HJÄLP')) return { kind: 'help' };
   if (/^[\d\s]+$/.test(s)) return { kind: 'numbers' };

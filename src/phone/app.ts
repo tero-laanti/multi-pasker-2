@@ -1,16 +1,31 @@
+import { SERVICE, SOTKU } from '../shared/config';
 import { FI } from '../shared/fi';
-import { ACCENTS, PROTOCOL_VERSION, type MsgState, type PhoneConversation, type PhoneMessage, type PhoneServerMsg, type PhoneStatus, type UpgradeOffer } from '../shared/protocol';
+import { ACCENTS, PROTOCOL_VERSION, type MsgState, type PhoneConversation, type PhoneMessage, type PhoneServerMsg, type PhoneStatus } from '../shared/protocol';
+import { CAFE_IDS, PATHS, benefit, canBuy, effects, isCafeId, isShopId, pathItems, payFor, rises, shopItem, type PathId, type ShopId, type StoreState } from '../shared/service';
 import { UI } from '../shared/ui';
 import { Keyboard } from './keyboard';
 import { Media } from './media';
 import { PhoneNet } from './net';
 
 const P = UI.phone;
+const S = UI.sotku;
 const TOKEN_KEY = 'kenttaposti.token';
 const STARTED_KEY = 'kenttaposti.started';
 const CHAT_KEY = 'kenttaposti.chat';
 
-type View = 'connecting' | 'pair' | 'confirm' | 'sound' | 'list' | 'chat' | 'replaced';
+type View = 'connecting' | 'pair' | 'confirm' | 'sound' | 'list' | 'chat' | 'sotku' | 'replaced';
+
+const ICON_CHATS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>';
+const ICON_SOTKU = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>';
+
+/** The paths' short marks on the shop's cards, like unit abbreviations. */
+const PATH_MARK: Record<PathId, string> = { sp: 'SP', ta: 'TA', vm: 'VM', pi: 'PI' };
+
+/** Codes in a message: runs of capitalised words (the commands have chips of their own). */
+export function codesIn(text: string): string[] {
+  const runs = text.match(/[A-ZÅÄÖ0-9]{2,}(?: [A-ZÅÄÖ0-9]{2,})*/gu) ?? [];
+  return runs.filter((r) => r.length >= 3 && !/^\d+$/.test(r) && !/^TJ\b/.test(r));
+}
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -87,6 +102,8 @@ export class PhoneApp {
   private sheet: { number: string } | null = null;
   private screen: HTMLDivElement;
   private msgs: HTMLDivElement | null = null;
+  /** Where the autofill chips go, between the message field and the keyboard. */
+  private chipRow: HTMLDivElement | null = null;
   private field: HTMLDivElement | null = null;
   private sendBtn: HTMLButtonElement | null = null;
   private subtitle: HTMLDivElement | null = null;
@@ -95,10 +112,12 @@ export class PhoneApp {
   private playing: { audio: HTMLAudioElement; bubble: HTMLElement } | null = null;
   /** After sending: the short "Sending…" screen, then back to the chat list. */
   private sending: { rid: string; since: number; timer: number } | null = null;
-  /** The upgrade screen, while a choice is waiting. */
-  private upgrade: UpgradeOffer | null = null;
-  private upgradePick: string | null = null;
-  private upgradeSent = false;
+  /** The Sotku App: the wallet and gear as the server last told us, which path is open, which item's sheet. */
+  private store: StoreState | null = null;
+  private sotkuPath: PathId | null = null;
+  private sotkuItem: string | null = null;
+  /** A Buy sent and not answered yet. */
+  private buying: string | null = null;
 
   constructor(private root: HTMLElement) {
     this.screen = h('div', 'screen', undefined, root);
@@ -176,8 +195,8 @@ export class PhoneApp {
         this.dev = m.dev;
         this.replacedOld = m.replaced;
         this.convs = new Map(m.convs.map((c) => [c.id, c]));
-        this.setUpgrade(m.upgrade);
-        if (this.view === 'chat' || this.view === 'list') {
+        this.store = m.store;
+        if (this.view === 'chat' || this.view === 'list' || this.view === 'sotku') {
           this.render();
           break;
         }
@@ -216,8 +235,8 @@ export class PhoneApp {
         if (this.inventoryEnd) this.inventoryTimer = window.setInterval(() => this.renderBanner(), 250);
         this.renderBanner();
         break;
-      case 'upgrade':
-        this.setUpgrade(m.offer);
+      case 'store':
+        this.setStore(m.s);
         break;
       case 'killed':
         this.killed(m);
@@ -268,8 +287,10 @@ export class PhoneApp {
       this.media.play('phone_in', 0.8);
       if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
     }
-    if (viewing) this.renderMessages(true);
-    else if (this.view === 'list') this.render();
+    if (viewing) {
+      this.renderMessages(true);
+      this.renderChips();
+    } else if (this.view === 'list') this.render();
   }
 
   private setState(convId: string, id: string, state: MsgState): void {
@@ -376,8 +397,8 @@ export class PhoneApp {
   }
 
   /**
-   * The phone is "out" (in the character's hand) while a chat, the number pad or an upgrade is
-   * open; the virtual phone whenever it is on screen.
+   * The phone is "out" (in the character's hand) while a chat, the number pad or the Sotku App
+   * is open; the virtual phone whenever it is on screen.
    */
   private updateOut(): void {
     if (this.virtual) {
@@ -385,7 +406,7 @@ export class PhoneApp {
       return;
     }
     const visible = document.visibilityState === 'visible';
-    this.net.out(visible && (this.view === 'chat' || this.sheetOpen || this.upgrade !== null));
+    this.net.out(visible && (this.view === 'chat' || this.view === 'sotku' || this.sheetOpen));
   }
 
   /** The phone is in front of its player: visible, and (the virtual one) shown in the game. */
@@ -402,63 +423,27 @@ export class PhoneApp {
         this.net.read(c.id);
       }
     }
-    if (this.view === 'chat' || this.view === 'list') this.render();
+    if (this.view === 'chat' || this.view === 'list' || this.view === 'sotku') this.render();
   }
 
-  /** Rank and days left in the list header: "Sotamies · TJ 5". */
+  /** Rank, days left and the wallet in the list header: "Sotamies · TJ 287", "145 €". */
   private renderRank(): void {
     const el = this.screen.querySelector<HTMLElement>('.bar-brand');
     if (!el || !this.status) return;
     const rank = FI.ranks[this.status.rank] ?? FI.ranks[0]!;
     el.textContent = `${rank[0]!.toUpperCase()}${rank.slice(1)} · ${fill(P.tj, { n: this.status.tj })}`;
+    const money = this.screen.querySelector<HTMLElement>('.bar .money');
+    if (money) money.textContent = `${this.store?.money ?? 0} €`;
   }
 
-  private setUpgrade(offer: UpgradeOffer | null): void {
-    this.upgrade = offer;
-    this.upgradePick = null;
-    this.upgradeSent = false;
-    this.renderUpgrade();
-    this.updateOut();
-  }
-
-  /**
-   * "Kokoa ei ole, ota mikä on." Three upgrades with their exact benefit; tap one, then take it.
-   * It sits over whatever the phone shows and comes back after a reconnect until chosen.
-   */
-  private renderUpgrade(): void {
-    this.root.querySelector('.upgrade-wrap')?.remove();
-    const offer = this.upgrade;
-    if (!offer || this.view === 'pair' || this.view === 'confirm' || this.view === 'sound' || this.view === 'replaced') return;
-    const wrap = h('div', 'upgrade-wrap', undefined, this.root);
-    const box = h('div', 'upgrade', undefined, wrap);
-    h('div', 'upgrade-title', offer.title, box);
-    h('div', 'upgrade-sub', P.upgradeChoose, box);
-    let take: HTMLButtonElement | null = null;
-    for (const o of offer.options) {
-      const card = h('div', 'upgrade-card', undefined, box);
-      card.classList.toggle('picked', this.upgradePick === o.id);
-      const head = h('div', 'upgrade-head', undefined, card);
-      h('div', 'upgrade-name', o.name, head);
-      if (o.level > 1) h('div', 'upgrade-level', fill(P.upgradeLevel, { n: o.level }), head);
-      h('div', 'upgrade-benefit', o.benefit, card);
-      card.onclick = () => {
-        if (this.upgradeSent) return;
-        this.upgradePick = o.id;
-        for (const c of box.querySelectorAll('.upgrade-card')) c.classList.remove('picked');
-        card.classList.add('picked');
-        if (take) take.disabled = false;
-      };
+  /** The server's word on the wallet and gear: an answered Buy closes its sheet. */
+  private setStore(st: StoreState): void {
+    this.store = st;
+    if (this.buying) {
+      this.buying = null;
+      this.sotkuItem = null;
     }
-    take = h('button', 'btn primary big', this.upgradeSent ? P.sendingScreen : P.upgradeTake, box);
-    take.disabled = !this.upgradePick || this.upgradeSent;
-    take.onclick = () => {
-      const id = this.upgradePick;
-      if (!id || this.upgradeSent) return;
-      this.upgradeSent = true;
-      take!.disabled = true;
-      take!.textContent = P.sendingScreen;
-      this.net.choose(`${this.token.slice(0, 8)}-u${Date.now().toString(36)}`, id);
-    };
+    if (this.view === 'sotku' || this.view === 'list') this.render();
   }
 
   /**
@@ -473,7 +458,8 @@ export class PhoneApp {
       this.net.draft(conv, '');
     }
     this.sheet = null;
-    if (this.view === 'chat') {
+    this.sotkuItem = null;
+    if (this.view === 'chat' || this.view === 'sotku') {
       this.chat = null;
       store('session')?.removeItem(CHAT_KEY);
       this.show('list');
@@ -507,7 +493,6 @@ export class PhoneApp {
       this.sending = null;
     }
     this.render();
-    this.renderUpgrade();
     this.updateOut();
   }
 
@@ -530,9 +515,12 @@ export class PhoneApp {
 
   private render(): void {
     const s = this.screen;
+    // A re-render (a kill updating the wallet) keeps the list or the shop where it was scrolled.
+    const scrolled = s.querySelector('.convs, .sotku')?.scrollTop ?? 0;
+    const was = `${this.view}|${this.sotkuPath}`;
     s.innerHTML = '';
     s.className = `screen v-${this.view}`;
-    this.msgs = this.field = this.subtitle = this.sheetDisplay = null;
+    this.msgs = this.field = this.subtitle = this.sheetDisplay = this.chipRow = null;
     this.sendBtn = null;
     switch (this.view) {
       case 'connecting':
@@ -554,6 +542,9 @@ export class PhoneApp {
       case 'chat':
         this.renderChat(s);
         break;
+      case 'sotku':
+        this.renderSotku(s);
+        break;
       case 'replaced':
         this.brand(s);
         h('div', 'center-note', fill(P.replaced, { name: this.player?.name ?? '' }), s);
@@ -562,6 +553,10 @@ export class PhoneApp {
           this.show('pair');
         };
         break;
+    }
+    if (`${this.view}|${this.sotkuPath}` === was && scrolled) {
+      const list = s.querySelector('.convs, .sotku');
+      if (list) list.scrollTop = scrolled;
     }
   }
 
@@ -666,7 +661,9 @@ export class PhoneApp {
   private renderList(s: HTMLElement): void {
     const bar = this.bar(s);
     h('div', 'bar-title', P.chats, bar);
-    h('div', 'bar-brand', '', bar);
+    const right = h('div', 'bar-right', undefined, bar);
+    h('div', 'bar-brand', '', right);
+    h('div', 'money', '', right);
     this.renderRank();
     this.banner(s);
     const list = h('div', 'convs', undefined, s);
@@ -691,7 +688,236 @@ export class PhoneApp {
       this.renderSheetView();
       this.updateOut();
     };
+    this.tabs(s);
     if (this.sheet) this.renderSheetView();
+  }
+
+  /** Chats | Sotku at the bottom of the list and the shop. */
+  private tabs(s: HTMLElement): void {
+    const bar = h('div', 'tabs', undefined, s);
+    const tab = (view: 'list' | 'sotku', label: string, icon: string) => {
+      const t = h('button', `tab${this.view === view ? ' on' : ''}`, undefined, bar);
+      t.innerHTML = icon;
+      h('span', '', label, t);
+      t.onclick = () => {
+        if (this.view === view) return;
+        this.sotkuPath = null;
+        this.sotkuItem = null;
+        this.show(view);
+      };
+      return t;
+    };
+    tab('list', P.tabChats, ICON_CHATS);
+    const sotku = tab('sotku', P.tabSotku, ICON_SOTKU);
+    const st = this.store;
+    if (st && !st.open) h('span', 'tab-lock', '🔒', sotku);
+    else if (st && this.affordable(st)) h('span', 'tab-dot', '', sotku);
+  }
+
+  /** Something in the shop that can be bought right now. */
+  private affordable(st: StoreState): boolean {
+    const bought = new Set<string>([...st.owned, ...st.waiting]);
+    return Object.keys(SOTKU.items).some((id) => isShopId(id) && canBuy(id, bought) && (st.voucher || shopItem(id).price <= st.money));
+  }
+
+  // ---- the Sotku App ----
+
+  private renderSotku(s: HTMLElement): void {
+    const st = this.store;
+    const bar = this.bar(s);
+    const path = st?.open ? this.sotkuPath : null;
+    if (path) {
+      const back = h('button', 'back', '‹', bar);
+      back.setAttribute('aria-label', S.title);
+      back.onclick = () => {
+        this.sotkuPath = null;
+        this.render();
+      };
+      h('div', 'bar-title', FI.paths[path] ?? path, bar);
+    } else h('div', 'bar-title', S.title, bar);
+    h('div', 'money', `${st?.money ?? 0} €`, bar);
+    this.banner(s);
+    const body = h('div', 'sotku', undefined, s);
+    if (!st) h('div', 'center-note', P.connecting, body);
+    else if (!st.open) this.renderLocked(body, st);
+    else if (path) this.renderPath(body, st, path);
+    else this.renderShop(body, st);
+    this.tabs(s);
+    if (st && this.sotkuItem) this.renderItem(s, st, this.sotkuItem);
+  }
+
+  /** P-kausi: the shop is shut, with how many days are left; the money is already there. */
+  private renderLocked(body: HTMLElement, st: StoreState): void {
+    const box = h('div', 'lockbox', undefined, body);
+    h('div', 'lock-icon', '🔒', box);
+    h('div', 'lock-title', S.locked, box);
+    const prog = h('div', 'prog', undefined, box);
+    h('i', '', undefined, prog).style.width = `${Math.round((Math.min(st.days, SERVICE.pkausi) / SERVICE.pkausi) * 100)}%`;
+    h('div', 'lock-days', fill(S.lockedDays, { d: st.days, n: SERVICE.pkausi, left: Math.max(0, SERVICE.pkausi - st.days) }), box);
+    h('div', 'lock-note', fill(S.lockedNote, { eur: payFor(Math.max(1, st.days)) }), box);
+    h('div', 'sect', S.paths, body);
+    const grid = h('div', 'paths', undefined, body);
+    for (const p of PATHS) this.pathCard(grid, st, p, true);
+  }
+
+  private renderShop(body: HTMLElement, st: StoreState): void {
+    const wallet = h('div', 'wallet', undefined, body);
+    h('div', 'wallet-sum', `${st.money} €`, wallet);
+    const rate = h('div', 'wallet-rate', undefined, wallet);
+    if (st.days >= SERVICE.days) h('div', '', S.done, rate);
+    else {
+      h('div', '', fill(S.rate, { eur: payFor(st.days + 1) }), rate);
+      const next = rises().find((from) => from > st.days + 1);
+      h('div', '', next ? fill(S.nextRate, { eur: payFor(next), tj: SERVICE.days - next }) : S.lastRate, rate);
+    }
+    if (st.voucher) h('div', 'voucher', S.voucher, body);
+    h('div', 'sect', S.paths, body);
+    const grid = h('div', 'paths', undefined, body);
+    for (const p of PATHS) this.pathCard(grid, st, p, false);
+    if (st.waiting.length) {
+      h('div', 'sect', S.waiting, body);
+      for (const id of st.waiting) {
+        const row = h('div', 'row2', undefined, body);
+        const left = h('div', 'row2-main', undefined, row);
+        h('div', 'row2-name', FI.items[id] ?? id, left);
+        h('div', 'row2-sub', S.waitingNote, left);
+        h('span', 'wait', S.paperwork, row);
+      }
+    }
+    h('div', 'sect', S.cafe, body);
+    for (const id of CAFE_IDS) {
+      const row = h('button', 'row2', undefined, body);
+      const left = h('div', 'row2-main', undefined, row);
+      h('div', 'row2-name', FI.items[id] ?? id, left);
+      h('div', 'row2-sub', benefit(id), left);
+      const right = h('div', 'row2-end', undefined, row);
+      h('span', 'price', `${SOTKU.cafe[id]} €`, right);
+      if (st.cafe[id] > 0) h('span', 'row2-have', fill(S.have, { n: st.cafe[id] }), right);
+      row.onclick = () => this.openItem(id);
+    }
+  }
+
+  private pathCard(grid: HTMLElement, st: StoreState, path: PathId, locked: boolean): void {
+    const items = pathItems(path);
+    const card = h('button', `pcard${locked ? ' locked' : ''}`, undefined, grid);
+    h('div', 'pmark', PATH_MARK[path], card);
+    h('div', 'pname', FI.paths[path] ?? path, card);
+    const owned = items.filter((id) => st.owned.includes(id)).length;
+    const role = h('div', 'prole', S.roles[path] ?? '', card);
+    if (!locked && owned === 0 && !items.some((id) => st.waiting.includes(id))) role.textContent += ` · ${fill(S.from, { eur: shopItem(items[0]!).price })}`;
+    const pips = h('div', 'pips', undefined, card);
+    for (const id of items) h('i', st.owned.includes(id) ? 'f' : st.waiting.includes(id) ? 'w' : '', undefined, pips);
+    if (locked) card.disabled = true;
+    else
+      card.onclick = () => {
+        this.sotkuPath = path;
+        this.render();
+      };
+  }
+
+  /** One path's tree: rows I–IV, a line from each node to what it opens. */
+  private renderPath(body: HTMLElement, st: StoreState, path: PathId): void {
+    const tree = h('div', 'tree', undefined, body);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.classList.add('tree-lines');
+    tree.appendChild(svg);
+    const nodes = new Map<ShopId, HTMLElement>();
+    const items = pathItems(path);
+    const bought = new Set<string>([...st.owned, ...st.waiting]);
+    for (const tier of [1, 2, 3, 4]) {
+      const row = h('div', 'tree-row', undefined, tree);
+      for (const id of items.filter((i) => shopItem(i).tier === tier)) {
+        const it = shopItem(id);
+        const owned = st.owned.includes(id);
+        const waiting = st.waiting.includes(id);
+        const open = canBuy(id, bought);
+        const cls = owned ? 'own' : waiting ? 'waiting' : !open ? 'lock' : st.voucher || it.price <= st.money ? 'buy' : 'short';
+        const node = h('button', `node ${cls}${tier === 4 ? ' cap' : ''}`, undefined, row);
+        h('div', 'node-name', FI.items[id] ?? id, node);
+        h('div', 'node-sub', owned ? `✓ ${S.owned}` : waiting ? S.paperwork : `${cls === 'lock' ? '🔒 ' : ''}${it.price} €`, node);
+        node.onclick = () => this.openItem(id);
+        nodes.set(id, node);
+      }
+    }
+    // The lines go in once the nodes are laid out.
+    requestAnimationFrame(() => {
+      const box = tree.getBoundingClientRect();
+      svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+      for (const [id, node] of nodes) {
+        for (const need of shopItem(id).needs ?? []) {
+          const parent = nodes.get(need);
+          if (!parent) continue;
+          const a = parent.getBoundingClientRect();
+          const b = node.getBoundingClientRect();
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', String(a.left + a.width / 2 - box.left));
+          line.setAttribute('y1', String(a.bottom - box.top));
+          line.setAttribute('x2', String(b.left + b.width / 2 - box.left));
+          line.setAttribute('y2', String(b.top - box.top));
+          if (bought.has(need)) line.classList.add('on');
+          svg.appendChild(line);
+        }
+      }
+    });
+  }
+
+  private openItem(id: string): void {
+    this.sotkuItem = id;
+    this.render();
+  }
+
+  /** The buy sheet: what it does, what it needs, how it is handed over, and one button. */
+  private renderItem(s: HTMLElement, st: StoreState, id: string): void {
+    const wrap = h('div', 'item-wrap', undefined, s);
+    wrap.onclick = (e) => {
+      if (e.target !== wrap) return;
+      this.sotkuItem = null;
+      this.render();
+    };
+    const sheet = h('div', 'item-sheet', undefined, wrap);
+    h('div', 'item-name', FI.items[id] ?? id, sheet);
+    h('div', 'item-benefit', benefit(id), sheet);
+    const meta = h('div', 'item-meta', undefined, sheet);
+    let price = 0;
+    let needs = '';
+    let state: 'buy' | 'owned' | 'waiting' | 'needs' | 'short' = 'buy';
+    if (isCafeId(id)) {
+      price = SOTKU.cafe[id];
+      if (st.cafe[id] > 0) h('div', '', fill(S.have, { n: st.cafe[id] }), meta);
+      h('div', '', S.delivery.none!, meta);
+      if (price > st.money) state = 'short';
+    } else if (isShopId(id)) {
+      const it = shopItem(id);
+      price = st.voucher ? 0 : it.price;
+      const bought = new Set<string>([...st.owned, ...st.waiting]);
+      const names = (it.needs ?? []).map((n) => FI.items[n] ?? n);
+      needs = names.join(' / ');
+      if (names.length) h('div', '', fill(canBuy(id, bought) || bought.has(id) ? S.needs : S.needsMissing, { names: names.join(' / ') }) + (it.needs!.some((n) => bought.has(n)) ? ' ✓' : ''), meta);
+      const kind = it.tier === 1 ? 'none' : id === 'tkiv' ? 'serial' : it.tier === 2 ? 'word' : it.tier === 3 ? 'paper' : 'voice';
+      h('div', '', S.delivery[kind] ?? '', meta);
+      state = st.owned.includes(id) ? 'owned' : st.waiting.includes(id) ? 'waiting' : !canBuy(id, bought) ? 'needs' : price > st.money ? 'short' : 'buy';
+    }
+    const btn = h('button', 'btn primary big', undefined, sheet);
+    if (this.buying === id) {
+      btn.textContent = P.sendingScreen;
+      btn.disabled = true;
+    } else if (state === 'buy') {
+      btn.textContent = isShopId(id) && st.voucher ? S.take : fill(S.buy, { eur: price });
+      btn.onclick = () => {
+        this.buying = id;
+        this.net.buy(`${this.token.slice(0, 8)}-b${Date.now().toString(36)}`, id);
+        this.render();
+      };
+    } else {
+      btn.disabled = true;
+      btn.textContent = state === 'owned' ? S.owned : state === 'waiting' ? S.paperwork : state === 'short' ? fill(S.short, { eur: price - st.money }) : fill(S.needsMissing, { names: needs });
+    }
+    if (state === 'buy') h('div', 'item-note', fill(S.left, { eur: st.money - price }), sheet);
+    h('div', 'item-note', S.phoneOut, sheet);
+    h('button', 'link', S.close, sheet).onclick = () => {
+      this.sotkuItem = null;
+      this.render();
+    };
   }
 
   /** New chat: the number pad as a half-height sheet over the list. */
@@ -778,11 +1004,41 @@ export class PhoneApp {
       e.preventDefault();
       this.sendDraft();
     };
+    this.chipRow = h('div', 'chips hidden', undefined, s);
+    this.renderChips();
     this.kb.setMode('letters');
     s.appendChild(this.kb.root);
     this.renderMessages(true);
     this.renderField();
     this.kb.wantCapital((this.drafts.get(c.id) ?? '').length === 0);
+  }
+
+  /**
+   * Automaattitäyttö: the code in the chat's last message as a tap-to-fill chip above the
+   * keyboard, like a one-time code, and the armoury's two commands in its own chat.
+   */
+  private renderChips(): void {
+    const row = this.chipRow;
+    const c = this.chat ? this.convs.get(this.chat) : undefined;
+    if (!row || !c) return;
+    row.innerHTML = '';
+    const chips: { text: string; from?: string }[] = [];
+    if (effects(this.store?.owned ?? []).autofill) {
+      const last = [...c.messages].reverse().find((m) => m.from === 'them' && m.text);
+      const codes = last ? codesIn(last.text!).filter((x) => x !== 'LATAA' && x !== 'KRANAATTI') : [];
+      chips.push(...codes.slice(-1).map((text) => ({ text, from: c.name })));
+      if (c.id === FI.varusmestari.number) chips.push({ text: 'LATAA' }, { text: 'KRANAATTI' });
+    }
+    row.classList.toggle('hidden', chips.length === 0);
+    for (const chip of chips) {
+      const b = h('button', 'chip-btn', chip.text, row);
+      if (chip.from) h('small', '', fill(P.autofillFrom, { name: chip.from }), b);
+      b.onpointerdown = (e) => {
+        e.preventDefault();
+        this.net.touch();
+        this.setDraft(chip.text);
+      };
+    }
   }
 
   private renderSubtitle(): void {

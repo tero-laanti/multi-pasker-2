@@ -130,7 +130,7 @@ export class TutorialMode implements GameMode {
     g.teleport(TUTORIAL.start.x, TUTORIAL.start.y, TUTORIAL.start.z, TUTORIAL.start.yaw);
     w.owned = ['pistol'];
     w.endlessSpare = false;
-    w.resetLife(['pistol'], { pistol: w.stats('pistol').magazine, rifle: w.stats('rifle').magazine }, { pistol: 0, rifle: 0 });
+    w.resetLife(['pistol'], { pistol: w.stats('pistol').magazine, rifle: w.stats('rifle').magazine, sniper: w.stats('sniper').magazine }, { pistol: 0, rifle: 0, sniper: 0 });
     w.grenades = 0;
     this.set('walk');
   }

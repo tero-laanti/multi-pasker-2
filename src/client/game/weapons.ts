@@ -1,6 +1,6 @@
-import { TUNING, type WeaponId, type WeaponTuning } from '../../shared/config';
+import { GEAR, TUNING, type WeaponId, type WeaponTuning } from '../../shared/config';
 import { DEG, clamp, damp, makeRng, viewDir, type Vec3 } from '../../shared/math';
-import { WEAPONS, recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
+import { recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
 import { weaponStats, type Upgrades, type WeaponStats } from '../../shared/upgrades';
 
 export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'priming' | 'holding' | 'throwing' | 'stabbing';
@@ -70,9 +70,9 @@ export class WeaponController {
   owned: WeaponId[] = ['pistol'];
   current: WeaponId = 'pistol';
   private next: WeaponId | null = null;
-  ammo: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
+  ammo: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine, sniper: TUNING.sniper.magazine };
   /** Spare rounds (the spare magazine) per gun. */
-  reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
+  reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine, sniper: TUNING.sniper.magazine };
   /** The practice range: reloads never run out. */
   endlessSpare = false;
   state: WeaponState = 'drawing';
@@ -134,12 +134,24 @@ export class WeaponController {
   private time = 0;
   private rng = makeRng(Date.now() >>> 0);
   private kick: RecoilKick = { pitch: 0, yaw: 0 };
+  /** Sounds due a moment after a shot (the sniper rifle's bolt), in weapon time. */
+  private later: { at: number; sound: string }[] = [];
 
-  /** Ladder upgrades (matches): bigger magazines, faster bolt, less recoil. */
+  /** The Sotku's gear (matches): bigger magazines, faster bolt, less recoil, a quicker pistol. */
   upgrades: Upgrades = {};
 
   get t(): WeaponTuning {
     return TUNING[this.current];
+  }
+
+  /** The grenade fuse (s): Lyhyt sytytin shortens it. */
+  get fuse(): number {
+    return this.upgrades.sytytin ? GEAR.shortFuse : TUNING.grenade.fuse;
+  }
+
+  /** Drawing a gun (s), quicker with Pistoolikoulutus. */
+  private drawTime(id: WeaponId = this.current): number {
+    return TUNING[id].drawTime * this.stats(id).drawMul;
   }
 
   /** Magazine, fire rate and recoil of a weapon with the upgrades. */
@@ -232,8 +244,9 @@ export class WeaponController {
     this.cookedOff = false;
     this.stabNow = false;
     this.pinAt = -1;
+    this.later = [];
     this.sounds.push({ name: `${this.current}_draw`, volume: 0.8 });
-    this.enter('drawing', TUNING[this.current].drawTime, []);
+    this.enter('drawing', this.drawTime(), []);
   }
 
   /** A reload the server started: R with a spare, or the varusmestari's LATAA (`full`). */
@@ -256,7 +269,7 @@ export class WeaponController {
 
   /** Seconds left on the fuse of the grenade in hand (or just thrown); null when there is none. */
   get fuseLeft(): number | null {
-    return this.pinAt < 0 ? null : TUNING.grenade.fuse - (this.time - this.pinAt);
+    return this.pinAt < 0 ? null : this.fuse - (this.time - this.pinAt);
   }
 
   /** The pin is out and the grenade is still in the hand. */
@@ -270,7 +283,7 @@ export class WeaponController {
   dropGrenade(): void {
     if (this.state !== 'priming' && this.state !== 'holding') return;
     this.droppedGrenade = true;
-    this.enter('drawing', this.t.drawTime * 0.6, []);
+    this.enter('drawing', this.drawTime() * 0.6, []);
   }
 
   /** The pin is spent: the grenade was thrown, dropped or went off. */
@@ -307,7 +320,7 @@ export class WeaponController {
       return;
     }
     this.next = id;
-    this.enter('holstering', this.t.holsterTime, []);
+    this.enter('holstering', this.t.holsterTime * this.stats().drawMul, []);
   }
 
   cycleWeapon(dir: number): void {
@@ -342,7 +355,7 @@ export class WeaponController {
     if (this.cooking && (this.fuseLeft ?? 1) <= 0) {
       this.cookedOff = true;
       this.pinAt = -1;
-      this.enter('drawing', this.t.drawTime, []);
+      this.enter('drawing', this.drawTime(), []);
     }
 
     // Timed states.
@@ -380,7 +393,7 @@ export class WeaponController {
           this.current = this.next ?? this.current;
           this.next = null;
           this.sounds.push({ name: `${this.current}_draw`, volume: 0.8 });
-          this.enter('drawing', TUNING[this.current].drawTime, []);
+          this.enter('drawing', this.drawTime(), []);
         } else {
           this.state = 'ready';
         }
@@ -395,7 +408,9 @@ export class WeaponController {
     const phoneRate = dt / Math.max(0.01, TUNING.phoneOut.raiseTime);
     this.phone = inp.phone ? Math.min(1, this.phone + phoneRate) : Math.max(0, this.phone - phoneRate);
     const wantAds = inp.adsHeld && this.canAds && !inp.sprinting && !inp.phone;
-    this.ads = wantAds ? Math.min(1, this.ads + dt / Math.max(0.01, t.adsTime)) : Math.max(0, this.ads - dt / Math.max(0.01, t.adsOutTime));
+    const adsMul = this.stats().adsMul;
+    this.ads = wantAds ? Math.min(1, this.ads + dt / Math.max(0.01, t.adsTime * adsMul)) : Math.max(0, this.ads - dt / Math.max(0.01, t.adsOutTime * adsMul));
+    while (this.later.length && this.time >= this.later[0]!.at) this.sounds.push({ name: this.later.shift()!.sound, volume: 0.8 });
     if (this.state === 'inspecting' && inp.adsHeld) this.state = 'ready';
 
     // Bloom and recoil recovery.
@@ -417,14 +432,14 @@ export class WeaponController {
     // Trigger.
     this.cooldown -= dt;
     if (this.buffered > 0) this.buffered -= dt;
-    const info = WEAPONS[this.current];
+    const auto = this.stats().auto;
     if (inp.firePressed) {
       // A click during sprint fires as soon as the gun is up.
       this.buffered = t.fireBuffer + (this.sprintPose > 0 || inp.sprinting ? t.sprintToFire + 0.05 : 0);
       this.dryArmed = true;
     }
     if (!inp.fireHeld && !inp.firePressed) this.dryArmed = true;
-    const trigger = info.auto ? inp.fireHeld || this.buffered > 0 : this.buffered > 0;
+    const trigger = auto ? inp.fireHeld || this.buffered > 0 : this.buffered > 0;
     const up = this.sprintPose <= 0.001 && !inp.sprinting;
     if (trigger && this.state === 'ready' && up && this.cooldown <= 0) {
       if (this.ammo[this.current] > 0) {
@@ -458,8 +473,11 @@ export class WeaponController {
       crouched: inp.crouched,
       bloom: this.bloom,
       phone: this.phone,
+      hipMul: st.hipMul,
     });
     const shotIdx = this.shotIndex;
+    // The sniper rifle's bolt is worked by hand after every shot.
+    if (this.current === 'sniper') this.later.push({ at: this.time + 0.42, sound: 'rifle_bolt_back' }, { at: this.time + 0.7, sound: 'rifle_bolt_fwd' });
     // Aim = view + punch; spread is a cone around it.
     const yaw = aim.yaw - this.punchY * DEG;
     const pitch = aim.pitch + this.punchP * DEG;

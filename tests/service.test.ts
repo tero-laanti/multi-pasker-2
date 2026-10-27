@@ -1,0 +1,461 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { normalize } from '../src/shared/chat';
+import { SERVICE, SOTKU } from '../src/shared/config';
+import { FI } from '../src/shared/fi';
+import { MapBuilder } from '../src/shared/map/builder';
+import { PROTOCOL_VERSION, type GameEvent, type PhoneServerMsg } from '../src/shared/protocol';
+import { canBuy, earn, payFor, rankFor, SHOP_IDS } from '../src/shared/service';
+import { weaponStats } from '../src/shared/upgrades';
+import { damageFor } from '../src/shared/weapons';
+import { Evening } from '../src/server/game/awards';
+import { Room } from '../src/server/game/room';
+import type { ServerPlayer } from '../src/server/game/player';
+import { eveningFile } from '../src/server/storage';
+
+const V = FI.varusmestari;
+const C = FI.commander;
+
+class FakeSocket {
+  readonly OPEN = 1;
+  readyState = 1;
+  sent: unknown[] = [];
+  send(data: unknown) {
+    this.sent.push(typeof data === 'string' ? JSON.parse(data) : data);
+  }
+  close() {
+    this.readyState = 3;
+  }
+  phone(): PhoneServerMsg[] {
+    return this.sent as PhoneServerMsg[];
+  }
+  events(): GameEvent[] {
+    return this.sent.flatMap((m) => ((m as { t?: string }).t === 'events' ? (m as { e: GameEvent[] }).e : []));
+  }
+}
+
+function arena() {
+  const m = new MapBuilder();
+  m.box(-60, -1, -60, 60, 0, 60, 'grass');
+  for (let i = 0; i < 8; i++) m.spawn(-40 + i * 10, 0, 0, 0);
+  return m.build('test', { minX: -60, minZ: -60, maxX: 60, maxZ: 60 }, [0, 1, 0]);
+}
+
+function setup(players = 3, evening?: Evening) {
+  let t = 1000;
+  const clock = { now: () => t, advance: (ms: number) => (t += ms) };
+  const room = new Room(arena(), { dev: false, now: clock.now, evening });
+  const join = (name: string) => {
+    const ws = new FakeSocket();
+    const p = room.join(ws as never, { t: 'hello', v: PROTOCOL_VERSION, name })!;
+    const phone = new FakeSocket();
+    room.phoneJoin(phone as never, { t: 'phoneHello', v: PROTOCOL_VERSION, pair: p.phone.pairToken }, false);
+    return { p, ws, phone };
+  };
+  const all = Array.from({ length: players }, (_, i) => join(`P${i}`));
+  /** Players who glance at their phones: whatever comes in is read (so what waits behind it comes too). */
+  const readAll = () => {
+    for (const { p } of all) for (const c of p.phone.convs.values()) if (c.unread > 0) room.onPhoneMessage(p, { t: 'read', conv: c.id });
+  };
+  const run = (ms: number) => {
+    for (let i = 0; i < ms / 20; i++) {
+      clock.advance(20);
+      room.tick(0.02);
+      readAll();
+    }
+  };
+  let rid = 0;
+  const send = (p: ServerPlayer, text: string, conv: string = V.number) =>
+    room.onPhoneMessage(p, { t: 'send', rid: `r${++rid}`, conv, text, life: p.life, round: room.round.n });
+  const kill = (a: ServerPlayer, v: ServerPlayer) => {
+    v.protectedUntil = 0;
+    room.damage(v, a, 1000, 'body', 'rifle', [0, 1, 0]);
+    run(3000);
+  };
+  const buy = (p: ServerPlayer, id: string) => room.onPhoneMessage(p, { t: 'buy', rid: `b${++rid}`, id });
+  const texts = (phone: FakeSocket, conv?: string) =>
+    phone
+      .phone()
+      .filter((m): m is Extract<PhoneServerMsg, { t: 'msg' }> => m.t === 'msg' && m.m.from === 'them' && (!conv || m.conv === conv))
+      .map((m) => m.m);
+  const store = (phone: FakeSocket) => phone.phone().filter((m): m is Extract<PhoneServerMsg, { t: 'store' }> => m.t === 'store').pop()?.s;
+  /** Serves days straight away (as kills would), for getting somewhere in the service quickly. */
+  const serve = (p: ServerPlayer, days: number) => room.service.serve(p, days, 'kill');
+  /** Does whatever paperwork is open: opens the contact's chat, waits for the task, sends the code. */
+  const paperwork = (p: ServerPlayer) => {
+    const c = p.service.open!;
+    if (c.conv !== V.number) room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    run(15000);
+    send(p, c.code, c.conv);
+  };
+  return { room, clock, all, join, run, send, kill, buy, texts, store, serve, paperwork };
+}
+
+describe('päiväraha and ranks', () => {
+  it('pays 5, 10 and 15 € a day in the three bands: 3,105 € for the whole service', () => {
+    expect(payFor(1)).toBe(5);
+    expect(payFor(165)).toBe(5);
+    expect(payFor(166)).toBe(10);
+    expect(payFor(255)).toBe(10);
+    expect(payFor(256)).toBe(15);
+    expect(payFor(347)).toBe(15);
+    expect(earn(0, 3)).toBe(15);
+    // A kill across a band boundary pays each day at its own rate.
+    expect(earn(164, 3)).toBe(5 + 10 + 10);
+    expect(earn(0, SERVICE.days)).toBe(3105);
+    // Nothing after TJ 0.
+    expect(earn(346, 3)).toBe(15);
+  });
+
+  it('ranks follow the days: alokas, sotamies after P-kausi, a promotion with each pay rise', () => {
+    expect(rankFor(0)).toBe(0);
+    expect(rankFor(41)).toBe(0);
+    expect(rankFor(42)).toBe(1);
+    expect(rankFor(165)).toBe(1);
+    expect(rankFor(166)).toBe(2);
+    expect(rankFor(256)).toBe(3);
+    expect(rankFor(347)).toBe(3);
+    expect(rankFor(347, true)).toBe(4);
+    expect(FI.ranks[rankFor(347, true)]).toBe('kersantti');
+  });
+
+  it('every node of the tree can be reached, and the tree costs more than a service pays', () => {
+    const all = new Set<string>();
+    let left = [...SHOP_IDS];
+    for (let round = 0; round < 5 && left.length; round++) {
+      for (const id of left.filter((id) => canBuy(id, all))) all.add(id);
+      left = left.filter((id) => !all.has(id));
+    }
+    expect(left).toEqual([]);
+    const total = SHOP_IDS.reduce((sum, id) => sum + SOTKU.items[id].price, 0);
+    expect(total).toBeGreaterThan(earn(0, SERVICE.days) * 2);
+  });
+});
+
+describe('the service', () => {
+  it('a kill serves 3 days and pays the killer, shown under the kill; the victim serves a day', () => {
+    const { all, kill } = setup();
+    const [a, b] = all;
+    kill(a!.p, b!.p);
+    expect(a!.p.service.days).toBe(3);
+    expect(a!.p.service.money).toBe(15);
+    expect(a!.p.service.tj).toBe(344);
+    expect(a!.ws.events().find((e) => e.k === 'pay')).toEqual({ k: 'pay', eur: 15, days: 3, senior: false });
+    expect(b!.p.service.days).toBe(1);
+    expect(b!.p.service.money).toBe(5);
+  });
+
+  it('suicides serve nothing', () => {
+    const { all, room } = setup();
+    const [a] = all;
+    a!.p.protectedUntil = 0;
+    room.damage(a!.p, a!.p, 1000, 'body', 'grenade', [0, 1, 0]);
+    expect(a!.p.service.days).toBe(0);
+  });
+
+  it('killing someone who outranks you serves two extra days', () => {
+    const { all, kill, serve } = setup();
+    const [a, b] = all;
+    serve(b!.p, SERVICE.pkausi);
+    expect(b!.p.rank).toBe(1);
+    kill(a!.p, b!.p);
+    expect(a!.p.service.days).toBe(SERVICE.killDays + SERVICE.seniorDays);
+    expect(a!.ws.events().find((e) => e.k === 'pay')).toMatchObject({ days: 5, senior: true });
+  });
+
+  it('the first kill brings the rifle as paperwork; it stays for the rest of the evening', () => {
+    const { all, kill, send, run, texts, room } = setup();
+    const [a, b] = all;
+    kill(a!.p, b!.p);
+    const c = a!.p.service.open!;
+    expect(c.due).toBe('rifle');
+    expect(c.conv).toBe(V.number);
+    expect(FI.ladder.stage1Codes).toContain(c.code);
+    // The victim's day brings theirs too.
+    expect(b!.p.service.open?.due).toBe('rifle');
+    run(4000);
+    expect(texts(a!.phone, V.number).some((m) => m.text?.includes(c.code))).toBe(true);
+    send(a!.p, c.code.toLowerCase() + '!');
+    expect(a!.p.owned).toContain('rifle');
+    expect(a!.p.service.owned.has('rifle')).toBe(true);
+    room.startRound();
+    expect(a!.p.owned).toContain('rifle');
+    expect(a!.p.service.days).toBe(3);
+  });
+
+  it('codes are unique between players while the pool lasts', () => {
+    const { all, kill } = setup(4);
+    const [a, b, c, d] = all;
+    kill(a!.p, b!.p);
+    kill(c!.p, d!.p);
+    const codes = [a, b, c, d].map((x) => x!.p.service.open!.code);
+    expect(new Set(codes).size).toBe(4);
+  });
+
+  it('P-kausi gear comes due on its days, one paperwork at a time, in order', () => {
+    const { all, serve, send } = setup();
+    const p = all[0]!.p;
+    serve(p, 25);
+    expect(p.service.waiting).toEqual(['rifle', 'lipas', 'puukko']);
+    expect(p.service.open?.due).toBe('rifle');
+    expect(p.phoneStatus(1).queued).toBe(2);
+    send(p, p.service.open!.code);
+    expect(p.service.open?.due).toBe('lipas');
+    expect(p.service.open?.kind).toBe('phrase');
+    send(p, p.service.open!.code);
+    expect(p.service.upgrades.lipas).toBe(1);
+    expect(p.gun('rifle').magazine).toBe(40);
+    expect(p.service.open?.due).toBe('puukko');
+    expect(p.service.open?.kind).toBe('office');
+  });
+
+  it('the office needs its number opened by hand; the code elsewhere is the wrong chat', () => {
+    const { all, serve, send, room, run, texts, paperwork } = setup();
+    const [a] = all;
+    const p = a!.p;
+    serve(p, 20);
+    paperwork(p);
+    paperwork(p);
+    const c = p.service.open!;
+    expect(c.due).toBe('puukko');
+    expect(/^[2-9]\d{3}$/.test(c.conv)).toBe(true);
+    run(4000);
+    // Nothing from the office yet: we never open the chat for the player.
+    expect(texts(a!.phone, c.conv).length).toBe(0);
+    send(p, c.code);
+    expect(p.service.open).toBe(c);
+    room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    run(6000);
+    expect(texts(a!.phone, c.conv).some((m) => normalize(m.text ?? '').includes(c.answer))).toBe(true);
+    send(p, c.code, c.conv);
+    expect(p.service.owned.has('puukko')).toBe(true);
+  });
+
+  it('the grenade belt comes as the supply chief’s voice note from a 17-digit number', () => {
+    const { all, serve, room, run, texts, paperwork, send } = setup();
+    const [a] = all;
+    const p = a!.p;
+    serve(p, 30);
+    paperwork(p);
+    paperwork(p);
+    paperwork(p);
+    const c = p.service.open!;
+    expect(c.due).toBe('vyo');
+    expect(c.conv.replace('+', '').length).toBe(17);
+    room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    run(15000);
+    const voice = texts(a!.phone, c.conv).find((m) => m.voice);
+    expect(voice?.voice?.url).toMatch(/^\/voicenote\/[0-9a-f]{16}\.wav$/);
+    send(p, c.code, c.conv);
+    expect(p.maxGrenades).toBe(2);
+  });
+
+  it('P-kausi ends at day 42: the company commander opens the Sotku App and alokas is sotamies', () => {
+    const { all, serve, run, texts, store } = setup();
+    const [a] = all;
+    serve(a!.p, 41);
+    expect(store(a!.phone)?.open).toBe(false);
+    expect(a!.p.rank).toBe(0);
+    serve(a!.p, 1);
+    run(4000);
+    expect(store(a!.phone)?.open).toBe(true);
+    expect(store(a!.phone)?.money).toBe(210);
+    expect(a!.p.rank).toBe(1);
+    const msg = texts(a!.phone, C.number).pop()?.text ?? '';
+    expect(msg).toContain('Sotku');
+    expect(msg).toContain(a!.p.name);
+    expect(a!.p.phone.convs.get(C.number)?.name).toBe(C.name);
+  });
+
+  it('the pay rises are texted (to you only) and promote you', () => {
+    const { all, serve, run, texts } = setup();
+    const [a, b] = all;
+    serve(a!.p, 166);
+    run(20000);
+    const rise = texts(a!.phone, C.number).find((m) => m.text?.includes('10 €'));
+    expect(rise?.text).toContain('TJ 181');
+    expect(rise?.text).toContain('korpraaliksi');
+    expect(a!.p.rank).toBe(2);
+    expect(texts(b!.phone, C.number).length).toBe(0);
+    serve(a!.p, 90);
+    run(20000);
+    expect(texts(a!.phone, C.number).some((m) => m.text?.includes('15 €') && m.text.includes('alikersantiksi'))).toBe(true);
+    expect(a!.p.rank).toBe(3);
+  });
+
+  it('the shop: row I at once, the rest after paperwork; needs, money and P-kausi are checked', () => {
+    const { all, serve, buy, store, send } = setup();
+    const [a] = all;
+    const p = a!.p;
+    serve(p, 10);
+    p.service.money = 1000;
+    buy(p, 'suujarru');
+    // The shop is shut in P-kausi.
+    expect(p.service.owned.has('suujarru')).toBe(false);
+    serve(p, SERVICE.pkausi - 10);
+    // Clear the P-kausi gear's paperwork out of the way.
+    Object.assign(p.service, { waiting: [], open: null, money: 330 });
+    buy(p, 'lukko');
+    expect(p.service.waiting).toEqual([]);
+    buy(p, 'suujarru');
+    expect(p.service.owned.has('suujarru')).toBe(true);
+    expect(p.service.money).toBe(210);
+    expect(weaponStats('rifle', p.service.upgrades).recoilMul).toBeCloseTo(0.75);
+    buy(p, 'lukko');
+    expect(p.service.money).toBe(10);
+    expect(p.service.waiting).toEqual(['lukko']);
+    expect(store(a!.phone)?.waiting).toEqual(['lukko']);
+    expect(p.service.open?.kind).toBe('word');
+    send(p, p.service.open!.code);
+    expect(p.gun('rifle').rpm).toBe(700);
+    // Not enough money: refused, and the phone is told how things are.
+    const sent = a!.phone.sent.length;
+    buy(p, 'rumpu');
+    expect(p.service.owned.has('rumpu')).toBe(false);
+    expect(a!.phone.sent.length).toBeGreaterThan(sent);
+  });
+
+  it('the café: munkki does the next paperwork with KIITOS, nakkisuoja skips an inventory check', () => {
+    const { all, serve, buy, send, run, room, texts } = setup();
+    const [a] = all;
+    const p = a!.p;
+    serve(p, SERVICE.pkausi);
+    p.service.money = 100;
+    buy(p, 'munkki');
+    buy(p, 'nakkisuoja');
+    expect(p.service.cafe).toEqual({ munkki: 1, nakkisuoja: 1 });
+    expect(p.service.money).toBe(30);
+    expect(p.service.open?.due).toBe('rifle');
+    send(p, 'Kiitos');
+    expect(p.service.owned.has('rifle')).toBe(true);
+    expect(p.service.cafe.munkki).toBe(0);
+    p.inventoryAt = 0;
+    room.onPhoneMessage(p, { t: 'read', conv: V.number });
+    p.phone.conv(FI.inventory.number, FI.inventory.name);
+    // The vääpeli's note comes after the asevarasto's messages already on their way.
+    run(20000);
+    expect(p.inventory).toBeNull();
+    expect(p.service.cafe.nakkisuoja).toBe(0);
+    expect(texts(a!.phone, FI.inventory.number).some((m) => FI.abilities.nakkisuoja.includes(m.text ?? ''))).toBe(true);
+  });
+
+  it('TJ 0: Nylands brigad in Swedish, then the star and a free pick from the Sotku', () => {
+    const { all, serve, send, room, run, texts, buy } = setup();
+    const [a, b] = all;
+    const p = a!.p;
+    void b;
+    p.service.days = SERVICE.days - 1;
+    serve(p, 3);
+    expect(p.service.tj).toBe(0);
+    // Serving more pays nothing.
+    expect(serve(p, 3)).toBe(0);
+    const c = p.service.open!;
+    expect(c.kind).toBe('nylands');
+    run(8000);
+    expect(texts(a!.phone, C.number).some((m) => m.text?.includes(c.conv))).toBe(true);
+    room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    run(15000);
+    expect(texts(a!.phone, c.conv).some((m) => m.voice?.url.includes('ruotsi_'))).toBe(true);
+    send(p, FI.ladder.swedishInFinnish[c.code]!.toLowerCase(), c.conv);
+    run(8000);
+    expect(p.service.discharged).toBe(false);
+    expect(texts(a!.phone, c.conv).some((m) => FI.ladder.nylandsFinnish.includes(m.text ?? ''))).toBe(true);
+    send(p, c.code, c.conv);
+    expect(p.service.discharged).toBe(true);
+    expect(p.rank).toBe(4);
+    expect(p.info().star).toBe(true);
+    expect(p.service.voucher).toBe(true);
+    p.service.money = 0;
+    buy(p, 'pikavalinta');
+    expect(p.service.owned.has('pikavalinta')).toBe(true);
+    expect(p.service.voucher).toBe(false);
+  });
+
+  it('kept all evening by name: leaving and joining again, and over a server restart', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mp2-service-'));
+    const file = path.join(dir, 'evening.json');
+    const first = setup(2, new Evening(eveningFile(file)));
+    const [a, b] = first.all;
+    first.kill(a!.p, b!.p);
+    first.send(a!.p, a!.p.service.open!.code);
+    first.serve(a!.p, 50);
+    first.run(6000);
+    const days = a!.p.service.days;
+    expect(days).toBe(53);
+    // A new server with the same evening file: the same name finds its service again.
+    const second = setup(0, new Evening(eveningFile(file)));
+    const again = second.join('P0').p;
+    expect(again.service.days).toBe(days);
+    expect(again.service.money).toBe(a!.p.service.money);
+    expect(again.owned).toContain('rifle');
+    expect(again.rank).toBe(1);
+    // The P-kausi gear still waiting gets its paperwork again.
+    expect(again.service.open?.due).toBe('lipas');
+    // A new evening (the host's dev command) starts everyone again.
+    again.isHost = true;
+    second.room.onMessage(again, { t: 'dev', cmd: 'newEvening' });
+    expect(again.service.days).toBe(0);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('the Sotku’s gear at work', () => {
+  it('pistol, knife and grenade gear change what the server checks', () => {
+    expect(weaponStats('pistol', { plipas: 1 }).magazine).toBe(18);
+    expect(weaponStats('pistol', { sarja: 1 })).toMatchObject({ auto: true, rpm: 1000 });
+    expect(weaponStats('pistol', { pveto: 1 }).drawMul).toBeCloseTo(0.5);
+    expect(damageFor('pistol', 'body', 10, 'cod', { ontelo: 1 })).toBe(34);
+    expect(damageFor('pistol', 'body', 10, 'cod')).toBe(25);
+    expect(damageFor('sniper', 'head', 300, 'cod')).toBeGreaterThanOrEqual(100);
+    expect(weaponStats('rifle', { lipas: 2 }).magazine).toBe(50);
+    expect(weaponStats('rifle', { rumpu: 1 }).magazine).toBe(75);
+  });
+
+  it('the one-stab knife kills from full health', () => {
+    const { all, room } = setup();
+    const [a, b] = all;
+    a!.p.service.give('puukko');
+    b!.p.protectedUntil = 0;
+    b!.p.history.push(room.now(), 0.5, 0, -40, false, true);
+    b!.p.x = a!.p.x;
+    b!.p.z = a!.p.z - 1;
+    b!.p.history.clear();
+    b!.p.history.push(room.now(), b!.p.x, b!.p.y, b!.p.z, false, true);
+    a!.p.lastMeleeAt = -1e9;
+    room.melee(a!.p, [a!.p.x, a!.p.eyeY(), a!.p.z], [0, -0.3, -1], room.now(), b!.p.id);
+    expect(b!.p.alive).toBe(false);
+  });
+
+  it('LENNOKKI and TULI work once a round, and only for those who bought them', () => {
+    const { all, send, run, room } = setup();
+    const [a, b] = all;
+    const p = a!.p;
+    send(p, 'LENNOKKI');
+    run(1000);
+    expect(a!.ws.events().some((e) => e.k === 'drone')).toBe(false);
+    p.service.give('lennokki');
+    p.service.give('tuli');
+    send(p, 'Lennokki');
+    run(1000);
+    expect(a!.ws.events().filter((e) => e.k === 'drone').length).toBe(1);
+    send(p, 'LENNOKKI');
+    run(1000);
+    expect(a!.ws.events().filter((e) => e.k === 'drone').length).toBe(1);
+    // Look down at the ground a few metres ahead of the other player and call it in.
+    b!.p.x = p.x;
+    b!.p.z = p.z - 8;
+    p.yaw = 0;
+    p.pitch = Math.atan2(-p.eyeY(), 8);
+    b!.p.protectedUntil = 0;
+    send(p, 'TULI');
+    run(500);
+    const rounds = b!.ws.events().filter((e) => e.k === 'mortar');
+    expect(rounds.length).toBe(3);
+    run(14000);
+    expect(b!.ws.events().filter((e) => e.k === 'boom').length).toBeGreaterThanOrEqual(3);
+    room.startRound();
+    expect(p.service.used.size).toBe(0);
+  });
+});

@@ -1,17 +1,19 @@
-import { TUNING, type KillSpeedPreset, type WeaponId, type WeaponTuning } from './config';
+import { GEAR, TUNING, type KillSpeedPreset, type WeaponId, type WeaponTuning } from './config';
 import type { HitZone } from './hitbox';
 import { clamp, lerp } from './math';
+import type { Upgrades } from './upgrades';
 
 export interface WeaponInfo {
   id: WeaponId;
   auto: boolean;
-  /** Slot key: 1 = rifle (primary), 2 = pistol (sidearm). */
-  slot: 1 | 2;
+  /** Number key: 1 = pistol (sidearm), 2 = rifle, 3 = sniper rifle (from the Sotku). */
+  key: 1 | 2 | 3;
 }
 
 export const WEAPONS: Record<WeaponId, WeaponInfo> = {
-  rifle: { id: 'rifle', auto: true, slot: 1 },
-  pistol: { id: 'pistol', auto: false, slot: 2 },
+  pistol: { id: 'pistol', auto: false, key: 1 },
+  rifle: { id: 'rifle', auto: true, key: 2 },
+  sniper: { id: 'sniper', auto: false, key: 3 },
 };
 
 export function weaponTuning(id: WeaponId): WeaponTuning {
@@ -22,11 +24,16 @@ export function fireInterval(t: WeaponTuning): number {
   return 60 / t.rpm;
 }
 
-/** Damage for one hit, using the active kill-speed preset and distance falloff. */
-export function damageFor(id: WeaponId, zone: HitZone, distance: number, preset: KillSpeedPreset): number {
+/** Damage for one hit, using the active kill-speed preset, distance falloff and the shooter's gear. */
+export function damageFor(id: WeaponId, zone: HitZone, distance: number, preset: KillSpeedPreset, u: Upgrades = {}): number {
   const d = TUNING.killSpeed[preset];
   const t = TUNING[id];
-  if (id === 'pistol') return zone === 'head' ? d.pistolHead : d.pistolBody;
+  if (id === 'pistol') {
+    if (zone === 'head') return d.pistolHead;
+    // Ontelokärjet: the same share more than the plain round, whatever the preset.
+    return u.ontelo ? Math.round((d.pistolBody * GEAR.pistolBody) / TUNING.killSpeed.cod.pistolBody) : d.pistolBody;
+  }
+  if (id === 'sniper') return zone === 'head' ? d.sniperHead : d.sniperBody;
   if (zone === 'head') return d.rifleHead;
   const k = clamp((distance - t.falloffStart) / Math.max(0.001, t.falloffEnd - t.falloffStart), 0, 1);
   return Math.round(lerp(d.rifleBodyNear, d.rifleBodyFar, k));
@@ -66,6 +73,8 @@ export interface SpreadInput {
   bloom: number;
   /** 0..1: how far the phone is up (one-handed shooting). */
   phone?: number;
+  /** Gear that steadies hip fire (Lonkalta): multiplies the hip spread. */
+  hipMul?: number;
 }
 
 /** Cone half-angle in degrees for the next shot. */
@@ -74,6 +83,7 @@ export function spreadFor(t: WeaponTuning, s: SpreadInput): number {
   let hip = t.spreadHip + t.spreadMove * moveK + s.bloom;
   if (s.airborne) hip += t.spreadAir;
   if (s.crouched) hip *= t.spreadCrouchMul;
+  if (s.hipMul) hip *= s.hipMul;
   hip = Math.min(hip, t.spreadMax + (s.airborne ? t.spreadAir : 0));
   const ph = s.phone ?? 0;
   if (ph > 0) hip = hip * (1 + (TUNING.phoneOut.spreadMul - 1) * ph) + TUNING.phoneOut.spreadAdd * ph;

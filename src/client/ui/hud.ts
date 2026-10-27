@@ -26,6 +26,7 @@ export class Hud {
   private prompt: HTMLDivElement;
   private fuseEl: HTMLDivElement;
   private grenadeEl: HTMLDivElement;
+  private scopeEl: HTMLDivElement;
   private last = new Map<string, string | number | boolean>();
   private bannerTimer = 0;
   private hitTimer = 0;
@@ -51,6 +52,14 @@ export class Hud {
     this.centerNote = el('div', 'center-note', this.root);
     this.prompt = el('div', 'prompt', this.root);
     this.fuseEl = el('div', 'fuse', this.root);
+    this.scopeEl = el('div', 'scope hidden', this.root);
+    el('div', 'scope-ring', this.scopeEl);
+    for (const d of ['h', 'v']) el('div', `scope-line scope-${d}`, this.scopeEl);
+  }
+
+  /** The sniper rifle's scope over the whole view, while aiming down it. */
+  scope(on: boolean): void {
+    if (this.changed('scope', on)) this.scopeEl.classList.toggle('hidden', !on);
   }
 
   /** The fuse of the grenade in hand (seconds), or null when there is none. */

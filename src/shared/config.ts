@@ -168,6 +168,64 @@ export const TUNING = {
     bob: 1,
     moveSpeedMul: 0.96,
   },
+  /** Tarkkuuskivääri: the Sotku's sniper rifle (key 3), bolt action, scoped. */
+  sniper: {
+    rpm: 48,
+    magazine: 5,
+    range: 400,
+    falloffStart: 400,
+    falloffEnd: 401,
+    adsTime: 0.3,
+    adsOutTime: 0.2,
+    adsZoom: 4,
+    sprintInTime: 0.24,
+    sprintToFire: 0.24,
+    drawTime: 0.55,
+    holsterTime: 0.22,
+    reloadTime: 2.2,
+    reloadEmptyTime: 2.5,
+    reloadRefill: 0.6,
+    inspectTime: 1.6,
+    fireBuffer: 0.05,
+    spreadHip: 6,
+    spreadMove: 4,
+    spreadAir: 8,
+    spreadCrouchMul: 0.8,
+    spreadAds: 0,
+    spreadAdsMove: 1.2,
+    spreadPerShot: 0,
+    spreadMax: 10,
+    spreadRecover: 8,
+    recoilPitchStart: 3.2,
+    recoilPitchEnd: 3.2,
+    recoilRampShots: 1,
+    recoilYawAmp: 0.4,
+    recoilYawPeriod: 2,
+    recoilYawBias: 0.1,
+    recoilRandPitch: 0.3,
+    recoilRandYaw: 0.3,
+    recoilAimShare: 0.2,
+    recoilReturn: 6,
+    recoilRise: 45,
+    recoilAdsMul: 0.9,
+    recoilCrouchMul: 0.85,
+    recoilReset: 0.5,
+    kickBack: 0.09,
+    kickUp: 0.02,
+    kickPitch: 9,
+    kickYaw: 1.2,
+    kickRoll: 2.5,
+    kickAdsMul: 0.5,
+    kickStiffness: 200,
+    kickDamping: 18,
+    vmHipX: 0.14,
+    vmHipY: -0.15,
+    vmHipZ: -0.4,
+    vmAdsZ: -0.2,
+    swayLook: 1.2,
+    bob: 1,
+    moveSpeedMul: 0.9,
+  },
   // Damage per hit. "cod" is the fast default; "scramble" gives ~0.75 s body kills.
   killSpeed: {
     cod: {
@@ -176,6 +234,8 @@ export const TUNING = {
       rifleBodyNear: 20,
       rifleBodyFar: 17,
       rifleHead: 30,
+      sniperBody: 90,
+      sniperHead: 200,
     },
     scramble: {
       pistolBody: 17,
@@ -183,6 +243,8 @@ export const TUNING = {
       rifleBodyNear: 13,
       rifleBodyFar: 11,
       rifleHead: 20,
+      sniperBody: 75,
+      sniperHead: 200,
     },
   },
   /** Spare magazines per gun at spawn; R takes one, the armourer's LATAA fills them again. */
@@ -231,7 +293,7 @@ export const TUNING = {
 // TUNING-END
 
 export type Tuning = typeof TUNING;
-export type WeaponId = 'pistol' | 'rifle';
+export type WeaponId = 'pistol' | 'rifle' | 'sniper';
 export type WeaponTuning = Tuning['pistol'];
 export type KillSpeedPreset = keyof Tuning['killSpeed'];
 
@@ -295,14 +357,102 @@ export const INVENTORY = {
   retry: 8,
 };
 
-export const LADDER = {
-  /** An offer every this many kills, and separately every this many deaths. */
-  offerEvery: 3,
-  /** With more players than this, the thresholds grow by one per `scaleEvery` extra players. */
-  scaleFrom: 6,
-  scaleEvery: 4,
-  /** Stages in the ladder (TJ 6 → 0). */
-  stages: 6,
+/**
+ * The service: one per player for the whole evening, TJ 347 → 0, kept by name across rounds and
+ * server restarts. Every day served pays the päiväraha; the Sotku App opens after P-kausi.
+ */
+export const SERVICE = {
+  /** Days in the service: TJ at the start. */
+  days: 347,
+  /** Days served for a kill, for being killed by someone else, and extra when the victim outranks the killer. */
+  killDays: 3,
+  deathDays: 1,
+  seniorDays: 2,
+  /** Päiväraha in € a day, from the day given on (days count from 1). Each rise is also a promotion. */
+  pay: [
+    [1, 5],
+    [166, 10],
+    [256, 15],
+  ] as [number, number][],
+  /** P-kausi (six weeks): the Sotku App opens after this many days, and alokas becomes sotamies. */
+  pkausi: 42,
+  /** P-kausi's gear, handed out by text on the day given. */
+  gear: [
+    [1, 'rifle'],
+    [10, 'lipas'],
+    [20, 'puukko'],
+    [30, 'vyo'],
+  ] as [number, string][],
+  /** How often (s) a changed service is written to the evening file. */
+  saveEvery: 5,
+};
+
+/**
+ * The Sotku App's shop: four paths of rows I–IV. A node `needs` one of the listed nodes first
+ * (bought counts, even before its paperwork is done). Prices in €.
+ */
+export const SOTKU = {
+  items: {
+    pveto: { path: 'sp', tier: 1, price: 120 },
+    plipas: { path: 'sp', tier: 2, price: 200, needs: ['pveto'] },
+    lonkka: { path: 'sp', tier: 2, price: 200, needs: ['pveto'] },
+    ontelo: { path: 'sp', tier: 3, price: 350, needs: ['plipas', 'lonkka'] },
+    kevyt: { path: 'sp', tier: 3, price: 300, needs: ['plipas', 'lonkka'] },
+    sarja: { path: 'sp', tier: 4, price: 600, needs: ['ontelo', 'kevyt'] },
+    suujarru: { path: 'ta', tier: 1, price: 120 },
+    lipas2: { path: 'ta', tier: 2, price: 200, needs: ['suujarru'] },
+    lukko: { path: 'ta', tier: 2, price: 200, needs: ['suujarru'] },
+    rumpu: { path: 'ta', tier: 3, price: 350, needs: ['lipas2'] },
+    vaimennin: { path: 'ta', tier: 3, price: 350, needs: ['lukko'] },
+    tkiv: { path: 'ta', tier: 4, price: 700, needs: ['rumpu', 'vaimennin'] },
+    pikavalinta: { path: 'vm', tier: 1, price: 100 },
+    autofill: { path: 'vm', tier: 2, price: 200, needs: ['pikavalinta'] },
+    tutka: { path: 'vm', tier: 2, price: 200, needs: ['pikavalinta'] },
+    tumma: { path: 'vm', tier: 3, price: 300, needs: ['autofill', 'tutka'] },
+    kannykka: { path: 'vm', tier: 3, price: 300, needs: ['tutka'] },
+    lennokki: { path: 'vm', tier: 4, price: 600, needs: ['tumma', 'kannykka'] },
+    tihea: { path: 'pi', tier: 1, price: 100 },
+    heitto: { path: 'pi', tier: 2, price: 200, needs: ['tihea'] },
+    sytytin: { path: 'pi', tier: 2, price: 200, needs: ['tihea'] },
+    kolmas: { path: 'pi', tier: 3, price: 300, needs: ['heitto', 'sytytin'] },
+    raskas: { path: 'pi', tier: 3, price: 350, needs: ['heitto', 'sytytin'] },
+    tuli: { path: 'pi', tier: 4, price: 650, needs: ['kolmas', 'raskas'] },
+  },
+  /** The café: consumables, bought as often as you like. */
+  cafe: { munkki: 30, nakkisuoja: 40 },
+};
+
+/** What the Sotku's gear does: the numbers behind the shop's nodes. */
+export const GEAR = {
+  /** Pistoolikoulutus: draw and aim times are multiplied by this. */
+  pistolDrawMul: 0.5,
+  pistolMagazine: 18,
+  /** Lonkalta: the pistol's hip spread (also on the move) is multiplied by this. */
+  pistolHipMul: 0.5,
+  /** Ontelokärjet: pistol body hits. */
+  pistolBody: 34,
+  /** Kevyt varustus: movement with the pistol out. */
+  pistolMoveMul: 1.1,
+  /** Sarjatulipistooli. */
+  pistolAutoRpm: 1000,
+  /** Tutka: minimap range (m) and how much longer shots stay on it. */
+  radarRange: 70,
+  radarShotMul: 2,
+  /** Tiedustelulennokki: every enemy on the minimap for this long (s), once a round. */
+  droneTime: 15,
+  /** Tiheä huolto: seconds between KRANAATTI deliveries. */
+  grenadeCooldown: 5,
+  /** Pitkä heitto: throw speed multiplier. */
+  throwMul: 1.3,
+  /** Lyhyt sytytin: the fuse (s). */
+  shortFuse: 1.8,
+  /** Raskas panos: blast radius (m). */
+  heavyRadius: 8,
+  /** Tulitoimitus: mortar rounds, landing this long (s) after TULI, scattered this far (m), once a round. */
+  mortarRounds: 3,
+  mortarDelay: 10,
+  mortarSpread: 5,
+  mortarGap: 0.8,
 };
 
 /** The minimap in the match HUD: the garrison from above, turned so your view points up. */

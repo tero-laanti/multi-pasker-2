@@ -128,9 +128,9 @@ export class PhoneNet {
     this.raw({ t: 'out', on });
   }
 
-  /** Upgrade choice; the request id makes a resend after a reconnect harmless. */
-  choose(rid: string, id: string): void {
-    this.raw({ t: 'choose', rid, id: id as Extract<PhoneClientMsg, { t: 'choose' }>['id'] });
+  /** The Sotku App's Buy; the request id makes a resend after a reconnect harmless. */
+  buy(rid: string, id: string): void {
+    this.raw({ t: 'buy', rid, id });
   }
 
   /** Unconfirmed sends. */
