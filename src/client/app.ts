@@ -184,6 +184,7 @@ export class App {
       killMe: () => this.devCommand('killMe'),
       offer: () => this.devCommand('offer'),
       advance: () => this.devCommand('advance'),
+      inventory: () => this.devCommand('inventory'),
       endRound: () => this.devCommand('endRound'),
       newEvening: () => this.devCommand('newEvening'),
       openSimulator: () => this.openSimulator(),

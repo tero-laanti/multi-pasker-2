@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 118 passing
+## Automated tests (`npm test`): 123 passing
 
 | Area | What the tests check |
 |---|---|
@@ -17,6 +17,7 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 | Training | A first-timer stays out of the match (no spawn, no snapshots, not counted, no awards or evening) until they deploy; the radio check sent when the phone is picked up (or right away if already paired), only YK answers it, then LATAA and KRANAATTI work for the range's guns |
 | Interpolation | Per-player timelines with state age, extrapolation cap, no blending across respawns, held states taking server-side changes, the adaptive delay and its render clock |
 | Phone and varusmestari | Pairing by QR token and code, replacement with a notice on both, token resume, the simulator refused outside development; LATAA refills only the sender, refuses when everything is full and never stacks; KRANAATTI carry limit and cooldown; duplicate request ids act once; requests from the dead, a previous life or an old round do nothing; a round restart; the PUNNERRETTU lockout; the typo feed's one-line-per-1.5 s rate limit preferring longer messages and keeping valid commands private; kill-feed drafts; the phone-in-hand flag exactly while a chat is open; command matching (case, spacing, punctuation, near misses, swearing, languages, greetings, numbers) |
+| Inventory check | Asked only of the living with a connected phone during a round; the answer time starts when the question arrives; the number when asked or when answered counts; a right answer gives a grenade and closes it, a wrong one keeps it open, a timeout locks the phone until PUNNERRETTU; bots answer (mostly right) and report their push-ups |
 | TJ ladder | First offer on the first kill or death, every 3rd kill and every 3rd death on separate counters, self-kills don't count; codes unique between players; one open task with a queue; every stage 1–6 including the office number opened by hand, the 17-digit number and its voice note, the serial number, the Swedish stage and "svara på svenska"; TJ 0; munkkikahvit; upgrade choice applied once; round reset; upgrade weapon numbers |
 | Awards and evening | Each award to the right player, nothing for nothing, the evening scoreboard adding rounds, surviving a restart (file), leaving bots out |
 | First-person hands | No glove vertex inside either weapon, no crossing triangles, in every held and reload pose (exact mesh test) |
@@ -35,6 +36,9 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   screen freeing the mouse without the pause menu, the QR pairing, the radio check on the phone,
   YK typed on its keyboard filling magazine and spare (12 + 12), *Go to the match* spawning the
   player; a second first-timer skipping the phone gets the no-phone texts in the match.
+- `tools/e2e/inventory-flow.ts`: an inventory check on a desktop and an emulated phone: the
+  countdown on both, a wrong answer in the typo feed, the right one earning a grenade, and a
+  timed-out check in the typo feed with the push-ups.
 - The dev panel from Esc and F2, in a browser on the server machine using its LAN address: *Add
   bot* adds a bot (before the fix the server ignored it).
 - `tools/e2e/ladder-flow.ts`: all six ladder stages through the phone's own keyboard: codes read
@@ -94,5 +98,6 @@ compiles mid-fight (earlier hitches came from the test tool's screenshots, not t
 | Phone in hand | hip spread ×1.8 + 3.5°, recoil ×1.5, speed ×0.92, no ADS, raise 0.3 s |
 | Rounds | 4 minutes, 12 s intermission; outer-ring gate opens above 8 players |
 | Ladder | offer every 3 kills and every 3 deaths, +1 per 4 players above 6 |
+| Inventory check | every 60–120 s per player, 20 s to answer; a grenade for the right number, push-ups for none |
 | Typo feed | one line per 1.5 s, at most 4 lines, fades after 6 s |
 | Network | client state 60 Hz, snapshots 30 Hz, interpolation delay 50–250 ms (adaptive), rewind ≤ 200 ms |

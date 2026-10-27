@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { NET, PHONE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { INVENTORY, NET, PHONE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
 import { blastReaches, explosionDamage, GRENADE_RADIUS, stepGrenade, type Grenade } from '../../shared/grenade';
 import { rayPlayer, type HitZone } from '../../shared/hitbox';
 import type { MapData, SpawnPoint } from '../../shared/map/types';
@@ -24,7 +24,7 @@ import {
 } from '../../shared/protocol';
 import { damageFor } from '../../shared/weapons';
 import { Bot } from './bot';
-import { ServerPlayer } from './player';
+import { ServerPlayer, type InventoryKind } from './player';
 import { Varusmestari } from './varusmestari';
 import { LadderService } from './ladder';
 import { VoiceNotes } from '../voicenotes';
@@ -34,6 +34,10 @@ import type { UpgradeOffer } from '../../shared/protocol';
 import { FI } from '../../shared/fi';
 
 const FI_NUMBER = FI.varusmestari.number;
+
+function randomBetween([a, b]: readonly [number, number]): number {
+  return a + Math.random() * (b - a);
+}
 
 export const ROUND_TIME = 240_000;
 export const INTERMISSION = 12_000;
@@ -136,6 +140,7 @@ export class Room {
       p.newSerials();
       p.phone.pairCode = this.freePairCode();
       p.training = !!msg.train;
+      p.inventoryAt = this.now() + randomBetween(INVENTORY.interval) * 1000;
       this.chirps(p);
       this.players.set(p.id, p);
       if (!p.training) this.respawn(p);
@@ -379,6 +384,7 @@ export class Room {
     const name = BOT_NAMES.find((n) => !used.has(`${n}`)) ?? `Botti${this.bots.length + 1}`;
     const p = new ServerPlayer(this.freeId(), randomUUID(), name, this.freeColor(), true);
     p.newSerials();
+    p.inventoryAt = this.now() + randomBetween(INVENTORY.interval) * 1000;
     this.chirps(p);
     this.players.set(p.id, p);
     const bot = new Bot(p, this);
@@ -575,6 +581,10 @@ export class Room {
       case 'advance':
         this.ladder.advance(p);
         break;
+      case 'inventory':
+        if (p.inventory) p.inventory.expires = this.now();
+        else p.inventoryAt = 0;
+        break;
       case 'newEvening':
         this.evening.reset();
         this.broadcast({ t: 'evening', rows: this.evening.list() });
@@ -622,6 +632,43 @@ export class Room {
     p.outbox.push({ k: 'give', w });
     this.sendAmmo(p, w);
     if (p.bot) p.weapon = w;
+  }
+
+  /** The number an inventory check asks about, as it is right now. */
+  inventoryValue(p: ServerPlayer, kind: InventoryKind): number {
+    switch (kind) {
+      case 'mag':
+        return p.ammo[p.weapon];
+      case 'spare':
+        return p.reserve[p.weapon];
+      case 'grenades':
+        return p.grenades;
+      case 'kills':
+        return p.kills;
+      case 'deaths':
+        return p.deaths;
+      case 'players':
+        return this.activeCount();
+    }
+  }
+
+  /** The armourer's surprise inventory checks: players in the match with a phone (or bots). */
+  private inventoryChecks(now: number): void {
+    if (this.round.state !== 'playing') return;
+    for (const p of this.players.values()) {
+      if (p.inventory) {
+        if (now >= p.inventory.expires) this.varusmestari.inventoryTimeout(p);
+        continue;
+      }
+      if (now < p.inventoryAt) continue;
+      const reachable = p.bot || (p.phone.online && p.connected);
+      if (!reachable || p.training || !p.alive || p.phone.locked || !p.phone.convs.has(FI_NUMBER)) {
+        p.inventoryAt = now + INVENTORY.retry * 1000;
+        continue;
+      }
+      this.varusmestari.inventory(p);
+      p.inventoryAt = now + randomBetween(INVENTORY.interval) * 1000;
+    }
   }
 
   /** Off the shooting range and into the match (a bot makes room if the server is full). */
@@ -870,6 +917,12 @@ export class Room {
       this.ladder.notify(p);
       p.outbox.push({ k: 'upgrades', u: {} });
       p.phone.resetRound();
+      if (p.inventory) {
+        p.outbox.push({ k: 'inventory', until: 0 });
+        p.phone.send({ t: 'inventory', left: 0 });
+      }
+      p.inventory = null;
+      p.inventoryAt = this.now() + randomBetween(INVENTORY.interval) * 1000;
       if (p.phone.paired) {
         p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: `#round ${this.round.n}`, at: Date.now() });
         this.varusmestari.greet(p);
@@ -898,6 +951,7 @@ export class Room {
 
     for (const bot of this.bots) bot.update(dt, now);
     for (const p of this.players.values()) p.phone.tick(now);
+    this.inventoryChecks(now);
     if (this.tickCount % 3 === 0) {
       for (const p of this.players.values()) if (p.phone.online) p.phone.sendStatus(p.phoneStatus(this.round.n));
     }

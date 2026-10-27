@@ -107,6 +107,7 @@ export const UI = {
     kill1: '1 kill',
     taskQueued: '{n} more queued',
     upgradeWaiting: '📱 Upgrade waiting on your phone',
+    inventory: '📱 Inventory check: answer with a number on your phone · {s} s',
     upgradeTaken: '{name} — {benefit}',
   },
 
@@ -234,6 +235,7 @@ export const UI = {
     killMe: 'Kill me (test respawn)',
     offer: 'Trigger an offer',
     advance: 'Advance the ladder',
+    inventory: 'Inventory check (now / time out)',
     endRound: 'End the round now',
     newEvening: 'New evening (clear totals)',
     tuning: 'Tuning (F4)',
@@ -302,6 +304,7 @@ export const UI = {
     connecting: 'Connecting…',
     offline: 'No connection. Reconnecting…',
     desktopOff: 'Your computer is not in the game.',
+    inventory: 'Inventory check: answer with a number · {s} s',
     dead: 'You are dead. The armourer serves the living.',
     simTitle: 'Phone simulator (development)',
     simHint: 'Type on your keyboard. Enter sends.',

@@ -67,6 +67,9 @@ export class PhoneApp {
   private player: { id: number; name: string; color: number } | null = null;
   private convs = new Map<string, PhoneConversation>();
   private status: PhoneStatus | null = null;
+  /** An inventory check's deadline (performance.now() ms; 0: none) and its banner ticker. */
+  private inventoryEnd = 0;
+  private inventoryTimer = 0;
   private chat: string | null = null;
   private drafts = new Map<string, string>();
   private typing = new Set<string>();
@@ -181,6 +184,12 @@ export class PhoneApp {
         this.status = m.s;
         this.renderBanner();
         this.renderRank();
+        break;
+      case 'inventory':
+        this.inventoryEnd = m.left > 0 ? performance.now() + m.left * 1000 : 0;
+        window.clearInterval(this.inventoryTimer);
+        if (this.inventoryEnd) this.inventoryTimer = window.setInterval(() => this.renderBanner(), 250);
+        this.renderBanner();
         break;
       case 'upgrade':
         this.setUpgrade(m.offer);
@@ -542,9 +551,15 @@ export class PhoneApp {
   private renderBanner(): void {
     const b = this.screen.querySelector<HTMLElement>('.banner');
     if (!b) return;
-    const text = !this.net.connected ? P.offline : this.status && !this.status.desktop ? P.desktopOff : '';
+    const left = this.inventoryEnd ? Math.ceil((this.inventoryEnd - performance.now()) / 1000) : 0;
+    if (this.inventoryEnd && left <= 0) {
+      this.inventoryEnd = 0;
+      window.clearInterval(this.inventoryTimer);
+    }
+    const text = !this.net.connected ? P.offline : this.status && !this.status.desktop ? P.desktopOff : left > 0 ? fill(P.inventory, { s: left }) : '';
     b.textContent = text;
     b.classList.toggle('hidden', !text);
+    b.classList.toggle('urgent', left > 0 && this.net.connected);
   }
 
   private sortedConvs(): PhoneConversation[] {

@@ -58,6 +58,9 @@ export class Bot {
   private task: object | null = null;
   private taskAt = 0;
   private choiceAt = 0;
+  /** When the bot answers the pending inventory check, and reports its push-ups. */
+  private countAt = 0;
+  private unlockAt = 0;
 
   constructor(
     readonly p: ServerPlayer,
@@ -272,6 +275,37 @@ export class Bot {
     this.p.phone.out = true;
   }
 
+  /**
+   * The armourer's inventory check: count (a few seconds), then answer, mostly right. After
+   * push-ups (a missed check), report PUNNERRETTU.
+   */
+  private inventory(now: number): void {
+    const p = this.p;
+    const inv = p.inventory;
+    if (!inv) this.countAt = 0;
+    else if (!this.typing) {
+      if (!this.countAt) this.countAt = now + 3000 + Math.random() * 13000;
+      else if (now >= this.countAt) {
+        this.countAt = 0;
+        const right = this.room.inventoryValue(p, inv.kind);
+        const off = (Math.random() < 0.5 ? -1 : 1) * (1 + Math.floor(Math.random() * 3));
+        const n = Math.random() < 0.8 ? right : Math.max(0, right + off);
+        this.typing = { text: String(n), shown: 0, nextAt: now + 300, conv: ASEVARASTO };
+        p.phone.out = true;
+      }
+    }
+    if (!p.phone.locked || inv || this.typing) {
+      if (!p.phone.locked) this.unlockAt = 0;
+      return;
+    }
+    if (!this.unlockAt) this.unlockAt = now + 5000 + Math.random() * 9000;
+    else if (now >= this.unlockAt) {
+      this.unlockAt = 0;
+      this.typing = { text: Math.random() < 0.3 ? 'punnerrettu' : 'PUNNERRETTU', shown: 0, nextAt: now + 400, conv: ASEVARASTO };
+      p.phone.out = true;
+    }
+  }
+
   /** The ladder: answer tasks after a while (in quiet moments), and take an upgrade. */
   private ladder(now: number): void {
     const p = this.p;
@@ -306,6 +340,7 @@ export class Bot {
       if (p.ammo[w] < p.gun(w).magazine * 0.4 && p.reserve[w] > 0 && Math.random() < 0.02) this.room.startReload(p, 'spare');
       else if (p.reserve[w] < p.spare(w) && Math.random() < 0.01) this.textReload(now);
     }
+    this.inventory(now);
     this.ladder(now);
     const t = this.typing;
     if (!t) {

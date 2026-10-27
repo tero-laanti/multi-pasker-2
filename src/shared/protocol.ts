@@ -276,7 +276,9 @@ export type GameEvent =
   /** On the range: the radio check answered (YK), or a LATAA / KRANAATTI for the range's guns. */
   | { k: 'training'; what: 'radioCheck' | 'ammo' | 'grenade' }
   /** On the range (no snapshots of ourselves there): a chat opened or closed on our phone. */
-  | { k: 'phoneOut'; on: boolean };
+  | { k: 'phoneOut'; on: boolean }
+  /** The armourer's inventory check: answer by this server time (0: over). */
+  | { k: 'inventory'; until: number };
 
 export type AwardId = 'winner' | 'deathsTyping' | 'longestDraft' | 'typos' | 'phoneTime' | 'pushups' | 'swedish';
 
@@ -395,4 +397,6 @@ export type PhoneServerMsg =
   | { t: 'conv'; c: PhoneConversation }
   | { t: 'status'; s: PhoneStatus }
   | { t: 'replaced' }
-  | { t: 'pong'; id: number; st: number };
+  | { t: 'pong'; id: number; st: number }
+  /** An inventory check: seconds left to answer (0: answered or over). */
+  | { t: 'inventory'; left: number };

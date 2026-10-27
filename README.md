@@ -114,6 +114,12 @@ Ammo and grenades come from the armourer, *varusmestari*, by text message from y
    punctuation don't matter; anything else gets a reply from the armourer, and typos, swearing
    and chatter are shown to everyone.
 
+**Inventory checks** (*inventaario*): a few times a round the armourer texts a question about
+your own kit or the round: rounds in your magazine or spare, grenades, your kills or deaths, or
+how many soldiers are on the field. Both screens count down from 20 seconds. The right number
+earns a grenade; wrong answers go to everyone's typo feed, and no right answer in time means
+push-ups (no service until you report `PUNNERRETTU`).
+
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
 away. Messages you type on the phone use the app's own keyboard (no autocorrect or paste).
@@ -321,8 +327,9 @@ runs a scripted scenario against a running server and saves screenshots, and
 `npx tsx tools/e2e/phone-flow.ts <outDir> --url=http://localhost:8088/ --phone=390x844` joins a
 desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow,
 `tools/e2e/ladder-flow.ts` climbs the TJ ladder through the phone (codes typed on its keyboard,
-the upgrade screen, the office number, the voice note), and `tools/e2e/tutorial-flow.ts` runs the
-training from the first step to the match, once with a phone and once skipping it.
+the upgrade screen, the office number, the voice note), `tools/e2e/tutorial-flow.ts` runs the
+training from the first step to the match, once with a phone and once skipping it, and
+`tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out.
 
 ### Measured performance
 

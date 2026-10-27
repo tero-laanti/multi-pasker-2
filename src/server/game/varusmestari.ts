@@ -1,9 +1,9 @@
-import { PHONE, TUNING } from '../../shared/config';
+import { INVENTORY, PHONE, TUNING } from '../../shared/config';
 import { classify, normalize, type Classified } from '../../shared/chat';
 import { FI } from '../../shared/fi';
 import { level } from '../../shared/upgrades';
 import type { PhoneMessage } from '../../shared/protocol';
-import type { ServerPlayer } from './player';
+import type { InventoryKind, ServerPlayer } from './player';
 import type { Room } from './room';
 
 const V = FI.varusmestari;
@@ -62,12 +62,12 @@ export class Varusmestari {
 
   /**
    * A message from the asevarasto (or a contact's number) into the player's chat, after a
-   * typing pause; messages queue so they arrive one at a time.
+   * typing pause; messages queue so they arrive one at a time. Returns when it arrives.
    */
-  post(p: ServerPlayer, from: string, text: string, voice?: { url: string; duration: number }): void {
+  post(p: ServerPlayer, from: string, text: string, voice?: { url: string; duration: number }): number {
     const phone = p.phone;
     if (from === V.number && !phone.convs.has(V.number)) this.greet(p);
-    if (!phone.convs.has(from)) return;
+    if (!phone.convs.has(from)) return this.room.now();
     const now = this.room.now();
     const typing = voice ? 1400 : Math.min(PHONE.typingMax, Math.max(PHONE.typingMin, text.length / PHONE.typingCps)) * 1000;
     const start = Math.max(now + 300, phone.busyUntil);
@@ -77,6 +77,46 @@ export class Varusmestari {
       phone.send({ t: 'typing', conv: from, on: false });
       phone.add(from, { id: phone.newId(), from: 'them', text: voice ? undefined : text, voice, at: Date.now() });
     });
+    return start + typing;
+  }
+
+  /**
+   * A surprise inventory check: a question about the player's own kit or the round. The
+   * answer time starts when the question arrives on the phone.
+   */
+  inventory(p: ServerPlayer): void {
+    const kinds: InventoryKind[] = ['mag', 'spare', 'grenades', 'kills', 'deaths', 'players'];
+    const kind = kinds[Math.floor(Math.random() * kinds.length)]!;
+    const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
+    const text = pick(FI.inventory.ask[kind]!).replace(/\{s\}/g, String(INVENTORY.answerTime)).replace(/\{rank\}/g, rank);
+    const arrives = this.post(p, V.number, text);
+    const expires = arrives + INVENTORY.answerTime * 1000;
+    p.inventory = { kind, asked: this.room.inventoryValue(p, kind), expires };
+    p.outbox.push({ k: 'inventory', until: expires });
+    p.phone.schedule(arrives, () => p.phone.send({ t: 'inventory', left: INVENTORY.answerTime }));
+  }
+
+  /** No right answer in time: push-ups, and everyone gets to read about it. */
+  inventoryTimeout(p: ServerPlayer): void {
+    p.inventory = null;
+    p.outbox.push({ k: 'inventory', until: 0 });
+    p.phone.send({ t: 'inventory', left: 0 });
+    p.phone.locked = true;
+    p.stats.pushups++;
+    const reply = capitalize(pick(FI.inventory.timeout));
+    this.post(p, V.number, reply);
+    this.room.offerTypo(p, V.name, '…', reply);
+  }
+
+  /** A number while an inventory check waits: right (a grenade) or wrong (try again). */
+  private inventoryAnswer(p: ServerPlayer, n: number, say: (list: readonly string[]) => string): Decision {
+    const inv = p.inventory!;
+    if (n !== inv.asked && n !== this.room.inventoryValue(p, inv.kind)) return { reply: say(FI.inventory.wrong), public: true, command: false };
+    p.inventory = null;
+    p.outbox.push({ k: 'inventory', until: 0 });
+    p.phone.send({ t: 'inventory', left: 0 });
+    const reply = this.room.giveGrenade(p) ? say(FI.inventory.right) : say(FI.inventory.rightFull);
+    return { reply, public: false, command: true };
   }
 
   /** A message sent from a phone (or a bot pretending to have one). */
@@ -162,6 +202,10 @@ export class Varusmestari {
     phone.recent = phone.recent.filter((r) => now - r.at < PHONE.spamWindow * 1000).slice(-10);
     const last = phone.recent.slice(-PHONE.spamRepeat);
     const spam = phone.recent.length >= PHONE.spamCount || (last.length === PHONE.spamRepeat && last.every((r) => r.text === last[0]!.text));
+
+    // An inventory check waiting: a number is the answer (even during the push-up lock).
+    const digits = normalize(text).replace(/\s+/g, '');
+    if (p.inventory && /^\d{1,3}$/.test(digits)) return this.inventoryAnswer(p, Number(digits), say);
 
     // On the range: the radio check first, then LATAA and KRANAATTI for the range's own guns.
     if (p.training) {

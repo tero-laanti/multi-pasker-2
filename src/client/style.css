@@ -1375,6 +1375,30 @@ input[type='range'] {
   font-weight: 600;
   color: #9fd7ff;
 }
+.inventory-line {
+  position: absolute;
+  top: 136px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #1b1a12;
+  background: var(--accent);
+  border-radius: 3px;
+  white-space: nowrap;
+  animation: inventory-pulse 1s ease-in-out infinite;
+}
+.inventory-line.urgent {
+  background: var(--danger);
+  color: #fff;
+}
+@keyframes inventory-pulse {
+  50% {
+    opacity: 0.75;
+  }
+}
 .feed-rank {
   color: var(--fg-dim);
   font-size: 15px;

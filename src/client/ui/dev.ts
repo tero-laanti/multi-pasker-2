@@ -22,6 +22,7 @@ export interface DevActions {
   killMe(): void;
   offer(): void;
   advance(): void;
+  inventory(): void;
   endRound(): void;
   newEvening(): void;
   openSimulator(): void;
@@ -93,6 +94,7 @@ export class DevPanel {
     btn(this.matchBox, UI.dev.killMe, () => a.killMe());
     btn(this.matchBox, UI.dev.offer, () => a.offer());
     btn(this.matchBox, UI.dev.advance, () => a.advance());
+    btn(this.matchBox, UI.dev.inventory, () => a.inventory());
     btn(this.matchBox, UI.dev.endRound, () => a.endRound());
     btn(this.matchBox, UI.dev.newEvening, () => {
       if (window.confirm(UI.dev.newEvening + '?')) a.newEvening();

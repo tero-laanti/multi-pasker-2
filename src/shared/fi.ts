@@ -152,6 +152,25 @@ export const FI = {
    * The TJ ladder. Placeholders: {rank} {name} the player, {code} what to send, {office} and
    * {number} a contact to write to, {n} a count, {tj} days left, {upgrade} an upgrade's name.
    */
+  /**
+   * Surprise inventory checks: a question about your own kit or the round, answered with a
+   * number. {s} is the seconds to answer, {rank} the player's rank.
+   */
+  inventory: {
+    ask: {
+      mag: ['Inventaario! Montako patruunaa lippaassasi on nyt? Vastaa numerolla, {s} sekuntia.', 'Inventaario. Lippaan patruunat, montako? Numerolla. Aikaa {s} sekuntia.'],
+      spare: ['Inventaario! Montako patruunaa varalippaassasi on? Numerolla, {s} sekuntia.', 'Inventaario. Varalipas, montako patruunaa? Aikaa {s} sekuntia.'],
+      grenades: ['Inventaario! Montako kranaattia sinulla on mukana? Numerolla, {s} sekuntia.', 'Inventaario. Kranaatit, montako kappaletta? Aikaa {s} sekuntia.'],
+      kills: ['Tilastointi! Montako kaatoa sinulla on tällä kierroksella? Numerolla, {s} sekuntia.', 'Tilastointi. Kaadot tältä kierrokselta, montako? Aikaa {s} sekuntia.'],
+      deaths: ['Tilastointi! Montako kertaa sinut on kaadettu tällä kierroksella? Rehellisesti, {s} sekuntia.', 'Tilastointi. Montako kertaa olet kaatunut tällä kierroksella? Aikaa {s} sekuntia.'],
+      players: ['Vahvuusilmoitus! Montako sotilasta kentällä on, sinut mukaan lukien? {s} sekuntia.', 'Vahvuusilmoitus. Kentän vahvuus, itsesi mukaan lukien? Aikaa {s} sekuntia.'],
+    } as Record<string, string[]>,
+    right: ['Täsmää. Kranaatti tulee.', 'Oikein. Ota kranaatti, ansaitsit sen.', 'Täsmää. Harvinaista. Kranaatti mukaan.'],
+    rightFull: ['Täsmää. Vyö on jo täynnä, joten saat kiitoksen.', 'Oikein. Kranaatille ei ole tilaa, pelkkä kiitos.'],
+    wrong: ['Ei täsmää. Laske uudestaan.', 'Väärin. Kello käy.', 'Ei pidä paikkaansa, {rank}. Uusi yritys.'],
+    timeout: ['Inventaario jäi tekemättä. Kaksikymmentä punnerrusta. Kuittaa PUNNERRETTU.', 'Aika loppui. Punnerrusasentoon, ja kuittaa PUNNERRETTU kun olet valmis.'],
+  },
+
   /** The tutorial on the range: Asevarasto's first text is a radio check, answered with YK. */
   training: {
     radioCheck: ['Asevarasto, yhteyskoe. Jos tämä viesti tuli perille, vastaa YK. Jos ei tullut, älä vastaa mitään.'],

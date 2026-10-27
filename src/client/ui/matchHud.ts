@@ -45,6 +45,7 @@ export class MatchHud {
   private timerRound: HTMLDivElement;
   private timerText: HTMLDivElement;
   private ladderLine: HTMLDivElement;
+  private inventoryLine: HTMLDivElement;
   private taskLine: HTMLDivElement;
   private kills = 0;
   private lastLadder: [number, number, boolean, number, boolean] = [0, 6, false, 0, false];
@@ -89,6 +90,7 @@ export class MatchHud {
     this.timerText = el('div', 'round-time', this.timer);
     this.ladderLine = el('div', 'ladder-line', this.root);
     this.taskLine = el('div', 'task-line', this.ladderLine);
+    this.inventoryLine = el('div', 'inventory-line hidden', this.root);
     this.board = el('div', 'scoreboard hidden', this.root);
     this.death = el('div', 'death hidden', this.root);
     this.deathTitle = el('div', 'death-title', this.death);
@@ -181,6 +183,15 @@ export class MatchHud {
       this.ladderLine.appendChild(this.taskLine);
       this.taskLine.classList.toggle('hidden', !task);
     }
+  }
+
+  /** The armourer's inventory check: seconds left to answer (0: none). */
+  inventory(left: number): void {
+    const s = Math.ceil(left);
+    if (!this.changed('inventory', s)) return;
+    this.inventoryLine.textContent = fill(UI.hud.inventory, { s });
+    this.inventoryLine.classList.toggle('hidden', s <= 0);
+    this.inventoryLine.classList.toggle('urgent', s > 0 && s <= 5);
   }
 
   /** Our own phone: connected, offline, or not paired yet. */

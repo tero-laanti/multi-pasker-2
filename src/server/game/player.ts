@@ -6,6 +6,16 @@ import { Phone } from './phone';
 import { Ladder } from './ladder';
 import { maxGrenades, weaponStats } from '../../shared/upgrades';
 
+/** What the armourer asks in an inventory check. */
+export type InventoryKind = 'mag' | 'spare' | 'grenades' | 'kills' | 'deaths' | 'players';
+
+export interface InventoryCheck {
+  kind: InventoryKind;
+  /** The right answer when asked (an answer matching the moment it arrives counts too). */
+  asked: number;
+  expires: number;
+}
+
 export interface Reload {
   w: WeaponId;
   start: number;
@@ -61,6 +71,9 @@ export class ServerPlayer {
   training = false;
   /** The tutorial's radio check: armed when the phone is picked up, sent once one is paired. */
   radioCheck: 'none' | 'armed' | 'waiting' | 'done' = 'none';
+  /** An inventory check waiting for an answer, and when the next one is due (server ms). */
+  inventory: InventoryCheck | null = null;
+  inventoryAt = 0;
   /** Round-trip time reported by the client (ms). */
   rtt = 0;
   /** Sequence number of the last fire message received. */

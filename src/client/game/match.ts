@@ -72,6 +72,8 @@ export class MatchMode implements GameMode {
   devAllowed = false;
   /** Still on the range: the match's sounds and feeds stay quiet. */
   training = false;
+  /** An inventory check to answer by this server time (0: none). */
+  inventoryUntil = 0;
   onPairInfo: (info: PairInfo) => void = () => {};
   /** Asevarasto's answers on the range (the radio check, LATAA, KRANAATTI). */
   onTraining: (what: 'radioCheck' | 'ammo' | 'grenade') => void = () => {};
@@ -215,6 +217,9 @@ export class MatchMode implements GameMode {
         break;
       case 'phoneOut':
         this.phoneOut = e.on;
+        break;
+      case 'inventory':
+        this.inventoryUntil = e.until;
         break;
       case 'shot':
         if (e.p !== this.myId) this.remoteShot(e);
@@ -499,6 +504,7 @@ export class MatchMode implements GameMode {
     this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut);
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);
+    this.hud.inventory(this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0);
     const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';
     this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);

@@ -287,6 +287,11 @@ p {
   padding: 7px 14px;
   text-align: center;
 }
+.banner.urgent {
+  background: #c8412b;
+  color: #fff;
+  font-weight: 600;
+}
 .avatar {
   flex: none;
   width: 44px;
