@@ -1,7 +1,7 @@
 import type { Socket } from '../socket';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { GEAR, INVENTORY, NET, PHONE, SERVICE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { GEAR, INVENTORY, MATCH, NET, PHONE, SERVICE, TUNING, type KillSpeedPreset, type WeaponId } from '../../shared/config';
 import { blastReaches, explosionDamage, GRENADE_RADIUS, stepGrenade, type Grenade } from '../../shared/grenade';
 import { rayPlayer, type HitZone } from '../../shared/hitbox';
 import type { MapData, SpawnPoint } from '../../shared/map/types';
@@ -13,11 +13,14 @@ import {
   PROTOCOL_VERSION,
   WEAPON_IDS,
   cleanName,
+  cleanSettings,
+  defaultSettings,
   decodeState,
   encodeSnapshot,
   type ClientMsg,
   type GameEvent,
   type KillWeapon,
+  type MatchSettings,
   type PhoneClientMsg,
   type PlayerSnap,
   type RoundInfo,
@@ -29,7 +32,7 @@ import { ServerPlayer, type InventoryKind } from './player';
 import { Varusmestari } from './varusmestari';
 import { ServiceDesk } from './service';
 import { VoiceNotes } from '../voicenotes';
-import { Evening, roundAwards } from './awards';
+import { Evening, matchAwards } from './awards';
 import { level, maxGrenades } from '../../shared/upgrades';
 import { FI } from '../../shared/fi';
 
@@ -39,8 +42,9 @@ function randomBetween([a, b]: readonly [number, number]): number {
   return a + Math.random() * (b - a);
 }
 
-export const ROUND_TIME = 240_000;
-export const INTERMISSION = 12_000;
+/** A round and the break after it with the default settings (the host can change the round). */
+export const ROUND_TIME = MATCH.roundMinutes * 60_000;
+export const INTERMISSION = MATCH.intermission * 1000;
 /** More players than this open the outer-ring gate. */
 export const GATE_PLAYERS = 8;
 const BOT_NAMES = ['Virtanen', 'Korhonen', 'Mäkinen', 'Nieminen', 'Mäkelä', 'Hämäläinen', 'Laine', 'Heikkinen', 'Koskinen', 'Järvinen', 'Lehtonen', 'Lehtinen', 'Saarinen', 'Salminen', 'Heinonen'];
@@ -52,8 +56,10 @@ export interface RoomOptions {
   publicUrl?: string;
   /** Spliced phonetic-alphabet voice notes (tests run without). */
   voiceNotes?: VoiceNotes;
-  /** The evening scoreboard (saved to a file by the server). */
+  /** The evening: match winners, the match under way and the settings (saved to a file by the server). */
   evening?: Evening;
+  /** Bots to start with, unless the evening's settings say otherwise. */
+  bots?: number;
 }
 
 interface TypoCandidate {
@@ -73,7 +79,9 @@ export class Room {
   readonly players = new Map<number, ServerPlayer>();
   readonly bots: Bot[] = [];
   round: RoundInfo;
-  killSpeed: KillSpeedPreset = 'cod';
+  /** The host's settings for matches. */
+  settings: MatchSettings;
+  killSpeed: KillSpeedPreset;
   /** Dev: R reloads directly instead of messaging the varusmestari. */
   directReload: boolean;
   tickMs = 0;
@@ -102,11 +110,39 @@ export class Room {
     this.voiceNotes = opts.voiceNotes ?? new VoiceNotes(null);
     this.evening = opts.evening ?? new Evening(null);
     this.world = new CollisionWorld(map.brushes);
-    this.round = { n: 1, state: 'playing', endsAt: this.now() + ROUND_TIME, gateOpen: false };
+    this.settings = cleanSettings(this.evening.settings, defaultSettings(opts.bots ?? 0));
+    this.killSpeed = this.settings.killSpeed;
+    this.round = { n: 1, match: 1, round: 1, of: this.settings.rounds, state: 'playing', matchOver: false, endsAt: this.now() + this.roundMs, gateOpen: false };
     this.setGate(true);
     this.navOpen = buildNavGraph(this.world, map.nav ?? []);
     this.setGate(false);
     this.navShut = buildNavGraph(this.world, map.nav ?? []);
+    this.fitBots();
+  }
+
+  /** How long a round is with the host's settings (ms). */
+  get roundMs(): number {
+    return this.settings.roundMinutes * 60_000;
+  }
+
+  /**
+   * The host changed the match settings: kill speed, days per kill and bots apply now, the round
+   * length from the next round, and a match with fewer rounds ends after the current one.
+   */
+  setSettings(raw: Partial<MatchSettings>): void {
+    this.settings = cleanSettings(raw, this.settings);
+    this.killSpeed = this.settings.killSpeed;
+    this.round = { ...this.round, of: this.settings.rounds };
+    this.fitBots();
+    this.evening.settings = this.settings;
+    this.broadcast({ t: 'settings', s: this.settings });
+    this.emit({ k: 'round', round: this.round });
+  }
+
+  /** As many bots as the settings ask for, as long as there is room (people come first). */
+  private fitBots(): void {
+    while (this.bots.length > this.settings.bots) this.removeBot();
+    while (this.bots.length < this.settings.bots && this.activeCount() < MATCH.maxPlayers && this.addBot());
   }
 
   // ---- membership ----
@@ -169,6 +205,7 @@ export class Room {
       map: this.map.id,
       players: this.playerList(),
       round: this.round,
+      settings: this.settings,
       serverTime: this.now(),
       snapshotHz: NET.snapshotHz,
       dev: this.opts.dev,
@@ -178,7 +215,7 @@ export class Room {
     this.broadcastPlayers();
     this.sendSpawnState(p);
     this.sendPairInfo(p);
-    p.send({ t: 'evening', rows: this.evening.list() });
+    p.send({ t: 'evening', matches: this.evening.matches() });
     this.service.notify(p);
     p.outbox.push({ k: 'upgrades', u: { ...p.service.upgrades } });
     p.phone.sendStatus(p.phoneStatus(this.round.n));
@@ -426,14 +463,22 @@ export class Room {
     return [...this.players.values()].map((p) => p.info());
   }
 
-  /** Round over: awards for everyone, and the round goes into the evening scoreboard. */
-  private endRound(): void {
+  /** Time's up: a break before the next round, or the match's results after its last one. */
+  private endRound(now: number): void {
+    const over = this.round.round >= this.settings.rounds;
+    this.round = { ...this.round, state: 'ended', matchOver: over, endsAt: now + (over ? MATCH.matchIntermission : MATCH.intermission) * 1000 };
+    this.emit({ k: 'round', round: this.round });
+    if (over) this.endMatch();
+  }
+
+  /** The match is over: awards for the whole match, and its winner goes on the evening's list. */
+  private endMatch(): void {
     const players = [...this.players.values()].filter((p) => !p.training);
-    const list = roundAwards(players);
+    const list = matchAwards(players);
     this.emit({ k: 'awards', list });
-    this.evening.addRound(players, list);
-    this.evening.keepServices([...this.players.values()]);
-    this.broadcast({ t: 'evening', rows: this.evening.list() });
+    const winner = list.find((a) => a.id === 'winner');
+    if (winner) this.evening.addMatch({ match: this.round.match, winner: winner.playerName, kills: Number(winner.value), bot: !!this.players.get(winner.player)?.bot });
+    this.broadcast({ t: 'evening', matches: this.evening.matches() });
   }
 
   broadcast(msg: object): void {
@@ -562,6 +607,9 @@ export class Room {
       case 'leave':
         this.disconnect(p);
         break;
+      case 'settings':
+        if ((this.opts.dev || p.isHost) && msg.s && typeof msg.s === 'object') this.setSettings(msg.s);
+        break;
       case 'deploy':
         this.deploy(p);
         break;
@@ -599,10 +647,10 @@ export class Room {
   private dev(p: ServerPlayer, cmd: string, arg: unknown): void {
     switch (cmd) {
       case 'addBot':
-        this.addBot();
+        this.setSettings({ bots: this.bots.length + 1 });
         break;
       case 'removeBot':
-        this.removeBot();
+        this.setSettings({ bots: Math.max(0, this.bots.length - 1) });
         break;
       case 'serve':
         this.service.serve(p, typeof arg === 'number' ? arg : SERVICE.pkausi, 'kill');
@@ -621,15 +669,12 @@ export class Room {
         break;
       case 'newEvening':
         this.evening.reset();
-        for (const q of this.players.values()) {
-          q.service.reset();
-          this.equip(q);
-          if (q.weapon !== 'pistol' && !q.owned.includes(q.weapon)) q.weapon = 'pistol';
-          q.outbox.push({ k: 'upgrades', u: {} });
-          this.service.notify(q);
-        }
-        this.broadcast({ t: 'evening', rows: this.evening.list() });
-        this.broadcastPlayers();
+        this.round = { ...this.round, match: 0 };
+        this.startRound(true);
+        this.broadcast({ t: 'evening', matches: this.evening.matches() });
+        break;
+      case 'newMatch':
+        this.startRound(true);
         break;
       case 'endRound':
         this.round = { ...this.round, endsAt: this.now() };
@@ -638,13 +683,13 @@ export class Room {
         if (p.alive) this.kill(p, p, 'grenade', false);
         break;
       case 'fillBots':
-        while (this.activeCount() < 16 && this.addBot());
+        this.setSettings({ bots: MATCH.maxPlayers - 1 });
         break;
       case 'restartRound':
         this.startRound();
         break;
       case 'killSpeed':
-        if (arg === 'cod' || arg === 'scramble') this.killSpeed = arg;
+        if (arg === 'cod' || arg === 'scramble') this.setSettings({ killSpeed: arg });
         break;
       case 'giveRifle':
         for (const q of arg === 'all' ? [...this.players.values()] : [p]) this.giveWeapon(q, 'rifle');
@@ -914,7 +959,8 @@ export class Room {
   }
 
   damage(v: ServerPlayer, a: ServerPlayer | null, amount: number, zone: HitZone, w: KillWeapon, from: [number, number, number]): void {
-    if (!v.alive || amount <= 0) return;
+    // Between rounds (and over the match's results) nobody gets hurt: the scores stand.
+    if (!v.alive || amount <= 0 || this.round.state !== 'playing') return;
     const now = this.now();
     if (now < v.protectedUntil) return;
     v.hp = Math.max(0, v.hp - amount);
@@ -1079,22 +1125,44 @@ export class Room {
 
   // ---- rounds ----
 
-  startRound(): void {
+  /**
+   * The next round, or round 1 of a new match (`newMatch`): then everything starts again, the
+   * service (TJ, money, gear), kills, deaths and the awards' counters, and the chats the match
+   * started are gone. Within a match only the once-a-round commands come back.
+   */
+  startRound(newMatch = false): void {
     // Players who left more than a minute ago are dropped from the new round.
     for (const p of [...this.players.values()]) {
       if (!p.bot && !p.connected && this.now() - p.leftAt > 60_000) this.players.delete(p.id);
     }
-    this.round = { n: this.round.n + 1, state: 'playing', endsAt: this.now() + ROUND_TIME, gateOpen: this.activeCount() > GATE_PLAYERS };
+    const r = this.round;
+    this.round = {
+      n: r.n + 1,
+      match: newMatch ? r.match + 1 : r.match,
+      round: newMatch ? 1 : r.round + 1,
+      of: this.settings.rounds,
+      state: 'playing',
+      matchOver: false,
+      endsAt: this.now() + this.roundMs,
+      gateOpen: this.activeCount() > GATE_PLAYERS,
+    };
+    if (newMatch) this.evening.clearServices();
+    this.fitBots();
     this.service.resetRound();
     this.setGate(this.round.gateOpen);
     this.grenades = [];
     this.mortars = [];
     for (const p of this.players.values()) {
-      p.kills = 0;
-      p.deaths = 0;
-      // The service goes on: gear, TJ and the wallet stay, the once-a-round commands come back.
+      if (newMatch) {
+        p.kills = 0;
+        p.deaths = 0;
+        p.stats = ServerPlayer.freshStats();
+        p.service.reset();
+        this.equip(p);
+        p.outbox.push({ k: 'upgrades', u: {} });
+        this.dropMatchChats(p);
+      }
       p.service.used.clear();
-      p.stats = ServerPlayer.freshStats();
       this.service.notify(p);
       p.phone.resetRound();
       if (p.inventory) {
@@ -1105,7 +1173,8 @@ export class Room {
       p.inventoryAt = 0;
       this.settleInventory(p);
       // A divider in the armoury chat (the services list was sent once, when the phone paired).
-      if (p.phone.paired && p.phone.convs.has(FI_NUMBER)) p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: `#round ${this.round.n}`, at: Date.now() });
+      const divider = newMatch ? `#match ${this.round.match}` : `#round ${this.round.round}`;
+      if (p.phone.paired && p.phone.convs.has(FI_NUMBER)) p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: divider, at: Date.now() });
       p.newSerials();
       p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle, sniper: p.serials.sniper });
       if ((p.connected && !p.training) || p.bot) this.respawn(p);
@@ -1114,19 +1183,31 @@ export class Room {
     this.broadcastPlayers();
   }
 
+  /** A new match: only the asevarasto's and the vääpeli's chats stay; the offices, the commander and the rest go. */
+  private dropMatchChats(p: ServerPlayer): void {
+    const keep = new Set([FI_NUMBER, FI.inventory.number]);
+    const phone = p.phone;
+    let dropped = false;
+    for (const id of [...phone.convs.keys()]) {
+      if (keep.has(id)) continue;
+      phone.convs.delete(id);
+      phone.inFlight.delete(id);
+      dropped = true;
+    }
+    if (dropped) {
+      phone.send({ t: 'convs', convs: [...phone.convs.values()] });
+      phone.onUnread();
+    }
+  }
+
   // ---- tick ----
 
   tick(dt: number): void {
     const t0 = performance.now();
     const now = this.now();
     this.tickCount++;
-    if (this.round.state === 'playing' && now >= this.round.endsAt) {
-      this.round = { ...this.round, state: 'ended', endsAt: now + INTERMISSION };
-      this.emit({ k: 'round', round: this.round });
-      this.endRound();
-    } else if (this.round.state === 'ended' && now >= this.round.endsAt) {
-      this.startRound();
-    }
+    if (this.round.state === 'playing' && now >= this.round.endsAt) this.endRound(now);
+    else if (this.round.state === 'ended' && now >= this.round.endsAt) this.startRound(this.round.matchOver);
 
     for (const bot of this.bots) bot.update(dt, now);
     for (const p of this.players.values()) p.phone.tick(now);

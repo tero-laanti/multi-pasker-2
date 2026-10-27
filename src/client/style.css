@@ -1633,22 +1633,17 @@ input[type='range'] {
 }
 .ev-row {
   display: grid;
-  grid-template-columns: 1fr repeat(5, 56px);
+  grid-template-columns: 90px 1fr auto;
+  gap: 8px;
   align-items: center;
   height: 26px;
   font-size: 17px;
   border-top: 1px solid rgba(241, 238, 228, 0.07);
 }
-.ev-row.ev-cols {
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.ev-match {
   color: var(--fg-dim);
-  border-top: none;
-}
-.ev-row.ev-cols > div:not(:first-child) {
-  text-align: right;
-  padding-right: 8px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
 }
 .ev-name {
   overflow: hidden;

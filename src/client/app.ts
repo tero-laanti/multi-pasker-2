@@ -94,6 +94,9 @@ export class App {
       toggleTuning: () => this.tuning.toggle(),
       toggleStats: () => this.stats.toggle(),
       toggleDev: () => this.dev.toggle(),
+      matchSettings: () => (this.mode === 'match' && this.match?.devAllowed && !this.match.training ? this.match.settings : null),
+      setMatchSettings: (s) => this.match?.send({ t: 'settings', s }),
+      newMatch: () => this.devCommand('newMatch'),
     });
     const pairPanel = () => new PairPanel(() => this.openSimulator(), () => this.openVirtualPhone());
     this.pairPanels = [pairPanel(), pairPanel()];

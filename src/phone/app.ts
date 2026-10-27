@@ -238,6 +238,16 @@ export class PhoneApp {
       case 'store':
         this.setStore(m.s);
         break;
+      case 'convs':
+        // A new match: the chats it started are gone.
+        this.convs = new Map(m.convs.map((c) => [c.id, c]));
+        for (const id of [...this.drafts.keys()]) if (!this.convs.has(id)) this.drafts.delete(id);
+        if (this.view === 'chat' && this.chat && !this.convs.has(this.chat)) {
+          this.chat = null;
+          store('session')?.removeItem(CHAT_KEY);
+          this.show('list');
+        } else if (this.view === 'list') this.render();
+        break;
       case 'killed':
         this.killed(m);
         break;
@@ -1073,8 +1083,8 @@ export class PhoneApp {
     const lastMine = [...c.messages].reverse().find((m) => m.from === 'me');
     for (const m of c.messages) {
       if (m.from === 'system') {
-        const round = m.text?.match(/^#round (\d+)$/);
-        h('div', round ? 'divider' : 'sys', round ? fill(P.round, { n: round[1]! }) : (m.text ?? ''), list);
+        const mark = m.text?.match(/^#(round|match) (\d+)$/);
+        h('div', mark ? 'divider' : 'sys', mark ? fill(mark[1] === 'match' ? P.match : P.round, { n: mark[2]! }) : (m.text ?? ''), list);
         prevAt = m.at;
         continue;
       }

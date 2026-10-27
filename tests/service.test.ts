@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { normalize } from '../src/shared/chat';
-import { SERVICE, SOTKU } from '../src/shared/config';
+import { MATCH, SERVICE, SOTKU } from '../src/shared/config';
 import { FI } from '../src/shared/fi';
 import { MapBuilder } from '../src/shared/map/builder';
 import { PROTOCOL_VERSION, type GameEvent, type PhoneServerMsg } from '../src/shared/protocol';
@@ -11,7 +11,7 @@ import { canBuy, earn, payFor, rankFor, SHOP_IDS } from '../src/shared/service';
 import { weaponStats } from '../src/shared/upgrades';
 import { damageFor } from '../src/shared/weapons';
 import { Evening } from '../src/server/game/awards';
-import { Room } from '../src/server/game/room';
+import { ROUND_TIME, Room } from '../src/server/game/room';
 import type { ServerPlayer } from '../src/server/game/player';
 import { eveningFile } from '../src/server/storage';
 
@@ -457,5 +457,93 @@ describe('the Sotku’s gear at work', () => {
     expect(b!.ws.events().filter((e) => e.k === 'boom').length).toBeGreaterThanOrEqual(3);
     room.startRound();
     expect(p.service.used.size).toBe(0);
+  });
+});
+
+describe('matches', () => {
+  it('a match is the host’s number of rounds; after the last one everything starts again', () => {
+    const { all, room, clock, kill, run, send, texts } = setup();
+    const [a, b] = all;
+    room.setSettings({ rounds: 2 });
+    kill(a!.p, b!.p);
+    send(a!.p, a!.p.service.open!.code);
+    room.service.serve(a!.p, 60, 'kill');
+    run(8000);
+    expect(a!.p.owned).toContain('rifle');
+    expect(a!.p.phone.convs.has(C.number)).toBe(true);
+    // Round 1 ends: a short break, no awards, and round 2 carries everything on.
+    clock.advance(ROUND_TIME);
+    run(100);
+    expect(room.round).toMatchObject({ state: 'ended', round: 1, of: 2, matchOver: false });
+    expect(a!.ws.events().some((e) => e.k === 'awards')).toBe(false);
+    run(MATCH.intermission * 1000 + 100);
+    expect(room.round).toMatchObject({ state: 'playing', round: 2, match: 1 });
+    expect(a!.p.kills).toBe(1);
+    expect(a!.p.service.days).toBe(63);
+    // The last round ends: the match's awards and its winner.
+    clock.advance(room.roundMs);
+    run(100);
+    expect(room.round.matchOver).toBe(true);
+    expect(a!.ws.events().find((e) => e.k === 'awards')).toBeTruthy();
+    expect(room.evening.matches()).toEqual([{ match: 1, winner: a!.p.name, kills: 1, bot: false }]);
+    // The next match: TJ, money, gear, kills and the match's chats are gone.
+    run(MATCH.matchIntermission * 1000 + 100);
+    expect(room.round).toMatchObject({ state: 'playing', round: 1, match: 2 });
+    expect(a!.p.kills).toBe(0);
+    expect(a!.p.service.days).toBe(0);
+    expect(a!.p.service.money).toBe(0);
+    expect(a!.p.owned).toEqual(['pistol']);
+    expect(a!.p.service.owned.size).toBe(0);
+    expect([...a!.p.phone.convs.keys()].sort()).toEqual([V.number]);
+    const convs = a!.phone.phone().filter((m) => m.t === 'convs').pop() as Extract<PhoneServerMsg, { t: 'convs' }>;
+    expect(convs.convs.map((c) => c.id)).toEqual([V.number]);
+    expect(texts(a!.phone, V.number).length).toBeGreaterThan(0);
+    // The asevarasto chat gets a divider for the new match.
+    expect(a!.phone.phone().some((m) => m.t === 'msg' && m.m.from === 'system' && m.m.text === '#match 2')).toBe(true);
+  });
+
+  it('the host’s settings: only offered choices, bots kept at the number, days per kill used at once', () => {
+    const { all, room, kill } = setup();
+    const [a, b] = all;
+    room.setSettings({ bots: 3 });
+    expect(room.bots.length).toBe(3);
+    room.setSettings({ rounds: 99, roundMinutes: 7, killDays: 5 } as never);
+    expect(room.settings).toMatchObject({ rounds: MATCH.rounds, roundMinutes: MATCH.roundMinutes, killDays: 5, bots: 3 });
+    kill(a!.p, b!.p);
+    expect(a!.p.service.days).toBe(5);
+    // Only the host may change them.
+    room.onMessage(a!.p, { t: 'settings', s: { bots: 0 } });
+    expect(room.bots.length).toBe(3);
+    a!.p.isHost = true;
+    room.onMessage(a!.p, { t: 'settings', s: { bots: 0, rounds: 3 } });
+    expect(room.bots.length).toBe(0);
+    expect(room.round.of).toBe(3);
+    expect(a!.ws.sent.some((m) => (m as { t?: string }).t === 'settings')).toBe(true);
+  });
+
+  it('nobody gets hurt between rounds, so the match’s results stand', () => {
+    const { all, room, clock, run } = setup();
+    const [a, b] = all;
+    clock.advance(room.roundMs);
+    run(100);
+    expect(room.round.state).toBe('ended');
+    b!.p.protectedUntil = 0;
+    room.damage(b!.p, a!.p, 1000, 'body', 'rifle', [0, 1, 0]);
+    expect(b!.p.alive).toBe(true);
+    expect(a!.p.kills).toBe(0);
+  });
+
+  it('fewer rounds than played so far end the match after the current round', () => {
+    const { room, clock, run } = setup(2);
+    room.setSettings({ rounds: 3 });
+    for (let i = 0; i < 2; i++) {
+      clock.advance(room.roundMs);
+      run(MATCH.intermission * 1000 + 200);
+    }
+    expect(room.round.round).toBe(3);
+    room.setSettings({ rounds: 2 });
+    clock.advance(room.roundMs);
+    run(100);
+    expect(room.round.matchOver).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import type { WeaponId } from './config';
+import { MATCH, SERVICE, type KillSpeedPreset, type WeaponId } from './config';
 import type { HitZone } from './hitbox';
 import type { StoreState } from './service';
 import type { Upgrades } from './upgrades';
@@ -8,7 +8,7 @@ import type { Upgrades } from './upgrades';
  * binary; everything else is JSON. Times are server milliseconds since the server started.
  */
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 export const BIN = { STATE: 1, SNAPSHOT: 2 } as const;
 
@@ -213,6 +213,42 @@ export interface ShotClaim {
   at: [number, number, number];
 }
 
+/** The host's settings for matches. */
+export interface MatchSettings {
+  rounds: number;
+  roundMinutes: number;
+  /** Days a kill serves (a death serves 1, a kill of a higher rank 2 more). */
+  killDays: number;
+  /** Bots to keep in the match (they make room for people). */
+  bots: number;
+  killSpeed: KillSpeedPreset;
+}
+
+export function defaultSettings(bots = 0): MatchSettings {
+  return { rounds: MATCH.rounds, roundMinutes: MATCH.roundMinutes, killDays: SERVICE.killDays, bots, killSpeed: 'cod' };
+}
+
+/** Settings from the host (or a file) made safe: only the offered choices, the rest as they were. */
+export function cleanSettings(raw: Partial<MatchSettings> | undefined, base: MatchSettings): MatchSettings {
+  const pick = (v: unknown, choices: number[], fallback: number) => (typeof v === 'number' && choices.includes(v) ? v : fallback);
+  const r = raw ?? {};
+  return {
+    rounds: pick(r.rounds, MATCH.roundChoices, base.rounds),
+    roundMinutes: pick(r.roundMinutes, MATCH.minuteChoices, base.roundMinutes),
+    killDays: pick(r.killDays, MATCH.killDayChoices, base.killDays),
+    bots: typeof r.bots === 'number' && Number.isInteger(r.bots) ? Math.max(0, Math.min(MATCH.maxPlayers - 1, r.bots)) : base.bots,
+    killSpeed: r.killSpeed === 'cod' || r.killSpeed === 'scramble' ? r.killSpeed : base.killSpeed,
+  };
+}
+
+/** Who won a match tonight: the most kills over its rounds. */
+export interface MatchResult {
+  match: number;
+  winner: string;
+  kills: number;
+  bot: boolean;
+}
+
 export type ClientMsg =
   /** `train`: start on the shooting range (the tutorial) instead of in the match. */
   | { t: 'hello'; v: number; token?: string; name: string; train?: boolean }
@@ -230,25 +266,35 @@ export type ClientMsg =
   | { t: 'grenade'; o: [number, number, number]; v: [number, number, number] }
   /** A knife stab landing now (render time `rt`), on the player it reached (`hit`), if any. */
   | { t: 'melee'; rt: number; o: [number, number, number]; d: [number, number, number]; hit?: number }
+  /** The host changes the match settings. */
+  | { t: 'settings'; s: Partial<MatchSettings> }
   | { t: 'dev'; cmd: string; arg?: unknown };
 
 export type ServerMsg =
   /** `host`: this client may use dev commands (a dev server, or a browser on the server machine). */
-  | { t: 'welcome'; id: number; token: string; map: string; players: PlayerInfo[]; round: RoundInfo; serverTime: number; snapshotHz: number; dev: boolean; host: boolean; training: boolean }
+  | { t: 'welcome'; id: number; token: string; map: string; players: PlayerInfo[]; round: RoundInfo; settings: MatchSettings; serverTime: number; snapshotHz: number; dev: boolean; host: boolean; training: boolean }
   | { t: 'pong'; id: number; st: number }
   | { t: 'stats'; tickMs: number; tickMaxMs: number; tickHz: number }
   | { t: 'players'; players: PlayerInfo[] }
   /** `st`: server time the events happened. */
   | { t: 'events'; e: GameEvent[]; st: number }
-  /** The evening scoreboard (after each round, and on joining). */
-  | { t: 'evening'; rows: EveningRow[] }
+  /** Who won each match this evening (after each match, and on joining). */
+  | { t: 'evening'; matches: MatchResult[] }
+  /** The host changed the match settings. */
+  | { t: 'settings'; s: MatchSettings }
   /** How to pair a phone to this player: QR link and the short code for typing in. */
   | { t: 'pairInfo'; url: string; token: string; code: string; phone: 'none' | 'online' | 'offline'; virtual: boolean };
 
 export interface RoundInfo {
-  /** Round number this evening. */
+  /** Rounds played this evening: requests from an earlier round do nothing. */
   n: number;
+  /** The match this evening (1, 2, …), the round in it, and how many rounds it has. */
+  match: number;
+  round: number;
+  of: number;
   state: 'playing' | 'ended';
+  /** The match ended with this round: its results show, then a new match starts. */
+  matchOver: boolean;
   /** Server time the current phase ends. */
   endsAt: number;
   gateOpen: boolean;
@@ -311,18 +357,6 @@ export interface AwardInfo {
   playerName: string;
   /** What won it: a count, seconds, or the unsent draft. */
   value: string;
-}
-
-/** One line of the evening scoreboard: totals over tonight's rounds. */
-export interface EveningRow {
-  name: string;
-  rounds: number;
-  wins: number;
-  kills: number;
-  deaths: number;
-  awards: number;
-  /** Days left in their service (TJ) at the end of their last round. */
-  tj: number;
 }
 
 /** Accent colours for name tags and caps: 8 strong hues, also told apart by the name tag. */
@@ -406,6 +440,8 @@ export type PhoneServerMsg =
       store: StoreState;
     }
   | { t: 'store'; s: StoreState }
+  /** A new match: the chats it started (offices, the commander) are gone; these remain. */
+  | { t: 'convs'; convs: PhoneConversation[] }
   | { t: 'pairFailed'; reason: 'code' | 'version' | 'sim' | 'token' }
   | { t: 'msg'; conv: string; m: PhoneMessage }
   | { t: 'state'; conv: string; id: string; state: MsgState }

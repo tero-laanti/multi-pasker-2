@@ -110,7 +110,8 @@ export class Bot {
     let wantPitch = 0;
     const eyeY = p.eyeY();
     const t = this.target;
-    if (t && t.alive && now - this.lastSeen < 1500) {
+    // Between rounds the bots stroll about without fighting.
+    if (t && t.alive && now - this.lastSeen < 1500 && this.room.round.state === 'playing') {
       // Combat: face the target, strafe, fire when the aim settles.
       const aim = this.aimPoint(t);
       const dx = aim.x - p.x;

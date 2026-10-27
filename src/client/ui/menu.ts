@@ -1,4 +1,5 @@
-import { cleanName } from '../../shared/protocol';
+import { MATCH } from '../../shared/config';
+import { cleanName, type MatchSettings } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { DEFAULT_SETTINGS, type Quality, type Settings } from '../settings';
 import { REPO_URL, WEB } from '../web';
@@ -40,6 +41,10 @@ export interface MenuActions {
   toggleTuning(): void;
   toggleStats(): void;
   toggleDev(): void;
+  /** The match settings, for the host in a match (null for everyone else). */
+  matchSettings(): MatchSettings | null;
+  setMatchSettings(s: Partial<MatchSettings>): void;
+  newMatch(): void;
 }
 
 /** Main menu, settings, click-to-play and pause screens. */
@@ -62,6 +67,7 @@ export class Menu {
   private joinNote!: HTMLDivElement;
   private overlayRow: HTMLDivElement;
   private pauseRow: HTMLDivElement;
+  private hostButton: HTMLButtonElement;
   private settingsReturn: 'main' | 'pause' = 'main';
 
   constructor(
@@ -119,6 +125,8 @@ export class Menu {
     this.resumeButton.onclick = () => actions.resume();
     const ps = h('button', 'btn', UI.menu.settings, pb);
     ps.onclick = () => this.showSettings('pause');
+    this.hostButton = h('button', 'btn hidden', UI.host.open, pb);
+    this.hostButton.onclick = () => this.showMatchSettings();
     const dev = h('div', 'dev-row', undefined, pb);
     for (const [label, fn] of [
       [UI.dev.title + ' (F2)', () => actions.toggleDev()],
@@ -237,6 +245,7 @@ export class Menu {
 
   showPause(): void {
     this.hideAll();
+    this.hostButton.classList.toggle('hidden', !this.actions.matchSettings());
     this.pause.classList.remove('hidden');
   }
 
@@ -254,6 +263,50 @@ export class Menu {
 
   overlayElement(): HTMLElement {
     return this.overlay;
+  }
+
+  /** The host's match settings: each change goes to the server at once. */
+  private showMatchSettings(): void {
+    const s = this.actions.matchSettings();
+    if (!s) {
+      this.showPause();
+      return;
+    }
+    this.hideAll();
+    const root = this.settingsScreen;
+    root.innerHTML = '';
+    h('div', 'title small', UI.host.title, root);
+    const form = h('div', 'settings-form', undefined, root);
+    const fill = (t: string, n: number) => t.replace('{n}', String(n));
+    const choice = <K extends keyof MatchSettings>(label: string, key: K, values: MatchSettings[K][], text: (v: MatchSettings[K]) => string) => {
+      const row = h('label', 'row', undefined, form);
+      h('span', 'label', label, row);
+      const sel = h('select', '', undefined, row);
+      for (const v of values) {
+        const o = h('option', '', text(v), sel);
+        o.value = String(v);
+        o.selected = s[key] === v;
+      }
+      h('span', 'value', '', row);
+      sel.onchange = () => {
+        const v = values.find((x) => String(x) === sel.value);
+        if (v !== undefined) this.actions.setMatchSettings({ [key]: v } as Partial<MatchSettings>);
+      };
+    };
+    choice(UI.host.rounds, 'rounds', MATCH.roundChoices, (v) => String(v));
+    choice(UI.host.roundMinutes, 'roundMinutes', MATCH.minuteChoices, (v) => fill(UI.host.minutes, v));
+    choice(UI.host.killDays, 'killDays', MATCH.killDayChoices, (v) => fill(UI.host.days, v));
+    choice(UI.host.bots, 'bots', Array.from({ length: MATCH.maxPlayers }, (_, i) => i), (v) => String(v));
+    choice(UI.host.killSpeed, 'killSpeed', ['cod', 'scramble'], (v) => (v === 'cod' ? UI.dev.killSpeedCod : UI.dev.killSpeedScramble));
+    h('div', 'note', UI.host.note, form);
+    const btns = h('div', 'buttons row-buttons', undefined, root);
+    h('button', 'btn primary', UI.menu.back, btns).onclick = () => this.showPause();
+    h('button', 'btn', UI.host.newMatch, btns).onclick = () => {
+      if (!window.confirm(`${UI.host.newMatch}?`)) return;
+      this.actions.newMatch();
+      this.showPause();
+    };
+    root.classList.remove('hidden');
   }
 
   private showSettings(from: 'main' | 'pause'): void {

@@ -455,6 +455,23 @@ export const GEAR = {
   mortarGap: 0.8,
 };
 
+/**
+ * Matches: a set number of rounds, after which everything starts again (TJ, money, gear, kills
+ * and awards). The host changes these in the pause menu; these are the defaults and the choices.
+ */
+export const MATCH = {
+  rounds: 6,
+  roundMinutes: 4,
+  /** Seconds between rounds, and after a match's last round (its results). */
+  intermission: 12,
+  matchIntermission: 20,
+  roundChoices: [1, 2, 3, 4, 5, 6, 7, 8, 10, 12],
+  minuteChoices: [2, 3, 4, 5, 6, 8, 10],
+  killDayChoices: [2, 3, 4, 5, 6],
+  /** Players in all (people and bots); bots make room for people. */
+  maxPlayers: 16,
+};
+
 /** The minimap in the match HUD: the garrison from above, turned so your view points up. */
 export const MINIMAP = {
   /** Metres from your position to the edge of the map circle. */

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { FI } from '../src/shared/fi';
 import { MapBuilder } from '../src/shared/map/builder';
 import { PROTOCOL_VERSION, type GameEvent, type ServerMsg } from '../src/shared/protocol';
-import { Evening, roundAwards } from '../src/server/game/awards';
+import { Evening, matchAwards } from '../src/server/game/awards';
 import { ROUND_TIME, Room } from '../src/server/game/room';
 import { eveningFile } from '../src/server/storage';
 
@@ -57,7 +57,7 @@ describe('awards', () => {
     c.stats.pushups = 2;
     a.stats.swedishAt = 5000;
     b.stats.swedishAt = 3000;
-    const list = roundAwards([a, b, c]);
+    const list = matchAwards([a, b, c]);
     const by = (id: string) => list.find((x) => x.id === id);
     expect(by('winner')?.playerName).toBe('Bertta');
     expect(by('winner')?.name).toBe(FI.awards.winner);
@@ -72,28 +72,30 @@ describe('awards', () => {
   it('nobody gets an award for nothing', () => {
     const { join } = setup();
     const a = join('Aapo').p;
-    expect(roundAwards([a])).toEqual([]);
+    expect(matchAwards([a])).toEqual([]);
   });
 });
 
-describe('the evening scoreboard', () => {
-  it('adds up rounds, survives a restart, and leaves bots out', () => {
+describe('the evening', () => {
+  it('keeps who won each match over a restart, with the host’s settings; a new evening clears the winners', () => {
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pasker-')), 'evening.json');
     const { room, clock, join } = setup(file);
+    room.setSettings({ rounds: 1, killDays: 4 });
     const a = join('Aapo');
     join('Bertta');
-    room.addBot();
     a.p.kills = 4;
     clock.advance(ROUND_TIME + 10);
     room.tick(1 / 60);
     expect(a.ws.events().some((e) => e.k === 'awards')).toBe(true);
     const sent = a.ws.sent.filter((m): m is Extract<ServerMsg, { t: 'evening' }> => (m as { t?: string }).t === 'evening').pop()!;
-    expect(sent.rows.map((r) => r.name).sort()).toEqual(['Aapo', 'Bertta']);
+    expect(sent.matches).toEqual([{ match: 1, winner: 'Aapo', kills: 4, bot: false }]);
     // A server restart reads the same evening back.
     const again = new Evening(eveningFile(file));
-    const row = again.list().find((r) => r.name === 'Aapo')!;
-    expect(row).toMatchObject({ rounds: 1, wins: 1, kills: 4 });
+    expect(again.matches().map((m) => m.winner)).toEqual(['Aapo']);
+    expect(again.settings).toMatchObject({ rounds: 1, killDays: 4 });
     again.reset();
-    expect(new Evening(eveningFile(file)).list()).toEqual([]);
+    const reread = new Evening(eveningFile(file));
+    expect(reread.matches()).toEqual([]);
+    expect(reread.settings?.rounds).toBe(1);
   });
 });

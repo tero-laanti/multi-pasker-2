@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 151 passing
+## Automated tests (`npm test`): 155 passing
 
 | Area | What the tests check |
 |---|---|
@@ -23,7 +23,8 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 | Messages | One new message per chat: an unasked-for message waits until the one before has been read (a piece of gear and its paperwork arrive as one message; the radio check waits behind an unread welcome); replies are never held back |
 | Service | Päiväraha 5 / 10 / 15 € a day in its bands (3,105 € for the whole service, a kill across a band boundary paid day by day, nothing after TJ 0); ranks by days served; a kill serves 3 days and pays the killer (shown under the kill), the victim serves 1, suicides nothing, killing a higher rank 2 more; the rifle's paperwork on the first kill or death, kept over a new round; codes unique between players; P-kausi's gear on days 1, 10, 20 and 30, one paperwork at a time in order; the office opened by hand and the code in the wrong chat; the supply chief's voice note from a 17-digit number; day 42's text from the company commander opening the shop with 210 €; the pay rises texted only to that player, with the promotions; the shop's checks (shut in P-kausi, needs, money), row I at once and the rest after paperwork; the café's munkki (KIITOS does the paperwork) and nakkisuoja (skips an inventory check); TJ 0 through Nylands brigad in Swedish, the star and a free pick; the service kept by name in the evening file over a server restart, and reset by a new evening; every node of the tree reachable, the tree costing more than two services |
 | Sotku gear | Pistol magazine, full auto, quicker draw and hollow points (34 per body hit, 25 without); the sniper rifle's headshot kills; rifle magazines and drum; the one-stab knife kills from full health; LENNOKKI and TULI only for those who bought them, once a round, the mortar's three rounds landing and blasting |
-| Awards and evening | Each award to the right player, nothing for nothing, the evening scoreboard adding rounds, surviving a restart (file), leaving bots out |
+| Matches | The host's number of rounds: a break with no awards between rounds, kills and the service carried over, then the match's awards and its winner on the evening's list; the next match resets TJ, money, gear, kills and the match's chats (only the asevarasto's and the vääpeli's stay, with a divider); nobody hurt between rounds; fewer rounds set mid-match end it after the current round; the host's settings take only offered choices, keep the bots at the number, use the days per kill at once, and only the host may change them |
+| Awards and evening | Each award to the right player, nothing for nothing, ties broken as on the scoreboard; who won each match and the host's settings surviving a restart (file); a new evening clearing the winners but not the settings |
 | First-person hands | Every pose builds; fingers bend only towards the palm and within joint limits; no wrist bends more than 28°; left hands are true mirror images; no glove sinks more than 2.5 mm into the gun or phone it holds (exact mesh distance) |
 
 ## End-to-end, in real browsers
@@ -59,6 +60,10 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   timed-out check in the typo feed with the push-ups.
 - The dev panel from Esc and F2, in a browser on the server machine using its LAN address: *Add
   bot* adds a bot (before the fix the server ignored it).
+- `tools/e2e/match-flow.ts`: a match from the host's seat: *Match settings* in the pause menu (2
+  rounds, 5 bots, applied at once), "Round 1/2" on the HUD, the break after round 1 with the
+  leader, *Match over* with the winner, the awards and the evening's list after round 2 (the
+  winner line matching the awards), and the next match at TJ 347 with "Round 1/2".
 - `tools/e2e/service-flow.ts`: the service through a desktop and an emulated phone: the Chats |
   Sotku tab bar, the shop locked in P-kausi (day 0 of 42), the rifle's code read from the chat and
   typed, the company commander's text on day 42 and the shop opening with 210 €, the Tarkka-ampuja
@@ -119,7 +124,7 @@ compiles mid-fight (earlier hitches came from the test tool's screenshots, not t
 | Player | 100 health, regeneration after 4.5 s at 40/s, respawn 2.5 s, spawn protection 1 s |
 | Grenade | 2.5 s fuse from the G press (it can go off in the hand), pin pull 0.28 s, carry 1 (2 with Kranaattivyö, 3 with Kolmas kranaatti), supply cooldown 15 s |
 | Phone in hand | hip spread ×1.8 + 3.5°, recoil ×1.5, speed ×0.92, no ADS, raise 0.3 s |
-| Rounds | 4 minutes, 12 s intermission; outer-ring gate opens above 8 players |
+| Matches | 6 rounds of 4 minutes, 12 s between rounds, 20 s of results; the host can pick 1–12 rounds, 2–10 minutes, 2–6 days per kill, 0–15 bots and the kill speed; outer-ring gate opens above 8 players |
 | Service | TJ 347; a kill 3 days, a death 1, killing a higher rank +2; päiväraha 5 € (days 1–165), 10 € (166–255), 15 € (256–347); P-kausi 42 days, gear on days 1, 10, 20, 30 |
 | Sotku | four paths of six nodes, 7,190 € in all; row I at once, rows II–IV after paperwork; munkkikahvit 30 €, nakkisuoja 40 € |
 | Sniper rifle | 48 rpm (bolt action), 5 rounds, 90 body / 200 head, 4× scope, hip spread 6° |

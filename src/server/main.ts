@@ -102,9 +102,8 @@ async function main(): Promise<void> {
   // The evening scoreboard lives in data/ (not in git) and survives restarts. A server on another
   // port (a second instance for testing) keeps its own.
   const evening = new Evening(eveningFile(path.join(ROOT, 'data', args.port === NET.defaultPort ? 'evening.json' : `evening-${args.port}.json`)));
-  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined, voiceNotes, evening });
-  const bots = Number(process.env.PASKER_BOTS ?? 0);
-  for (let i = 0; i < bots; i++) room.addBot();
+  room = new Room(buildGarrison(), { dev: args.dev, publicUrl: lan ? `http://${lan}:${args.port}/` : undefined, voiceNotes, evening, bots: Number(process.env.PASKER_BOTS ?? 0) });
+
   loop = new TickLoop(room);
 
   server.listen(args.port, '0.0.0.0', () => {

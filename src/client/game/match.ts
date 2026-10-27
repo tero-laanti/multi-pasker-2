@@ -13,7 +13,8 @@ import {
   encodeState,
   type AwardInfo,
   type ClientMsg,
-  type EveningRow,
+  type MatchResult,
+  type MatchSettings,
   type GameEvent,
   type KillWeapon,
   type PlayerInfo,
@@ -67,9 +68,11 @@ export class MatchMode implements GameMode {
   joined = false;
   players = new Map<number, PlayerInfo>();
   round: RoundInfo | null = null;
-  /** This round's awards (between rounds) and the evening scoreboard. */
+  /** The match's awards (after its last round) and who won each match tonight. */
   awards: AwardInfo[] = [];
-  evening: EveningRow[] = [];
+  evening: MatchResult[] = [];
+  /** The host's match settings (shown to the host in the pause menu). */
+  settings: MatchSettings | null = null;
   /** How to pair a phone with us; null until the server says. */
   pairInfo: PairInfo | null = null;
   dev = false;
@@ -158,9 +161,13 @@ export class MatchMode implements GameMode {
         this.dev = msg.dev;
         this.devAllowed = msg.host;
         this.training = msg.training;
+        this.settings = msg.settings;
         break;
       case 'evening':
-        this.evening = msg.rows;
+        this.evening = msg.matches;
+        break;
+      case 'settings':
+        this.settings = msg.s;
         break;
       case 'pairInfo':
         this.pairInfo = { url: msg.url, token: msg.token, code: msg.code, phone: msg.phone, virtual: msg.virtual };

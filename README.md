@@ -167,10 +167,24 @@ The dev panel's match controls (bots, rounds, the service) work in a browser on 
 For development, F2 → *Open phone simulator* opens the phone app in a window that you type into
 with the computer's keyboard (only on `npm run dev` servers or the host machine).
 
+## Matches
+
+A match is a set number of rounds: 6 rounds of 4 minutes by default, with a 12-second break
+between rounds and the match's results after the last one. Everything lasts one match: TJ,
+money, gear, kills, deaths and awards. The next match starts everyone again at TJ 347 with a
+pistol. The scoreboard counts kills and deaths over the match, and its winner is whoever has the
+most kills (then the fewest deaths). Nobody gets hurt between rounds, so the scores stand.
+
+The host sets the match in the pause menu (*Match settings*, shown only on the host): rounds per
+match, round length, how many days a kill serves, the number of bots and the kill speed. Changes
+apply at once (the round length from the next round), and *Start a new match now* restarts. The
+settings and who won each match tonight are saved in `data/evening.json`, with the services of the
+match under way, so restarting the server keeps them.
+
 ## The service and the Sotku App
 
-Your service lasts the whole evening: TJ counts down from 347, kept by name across rounds and
-server restarts until the host starts a new evening. A kill serves 3 days, being killed by someone
+Your service lasts the match: TJ counts down from 347, kept by name over rounds, a rejoin and a
+server restart. A kill serves 3 days (the host can change it), being killed by someone
 else 1 (a day in the veksi counts too), and killing someone who outranks you 2 more. Every day
 served pays the päiväraha: 5 € a day for days 1–165, 10 € for days 166–255 and 15 € after that,
 3,105 € for the whole service. The money shows only on the phone; the game shows what a kill paid
@@ -211,17 +225,15 @@ feed and the scoreboard, and one Sotku item of your choice free. Nothing is paid
 Every price and rule is in `SERVICE`, `SOTKU` and `GEAR` in `src/shared/config.ts`. F2 → *Serve 42
 days*, *Do the paperwork (or serve 10 days)* and *Add 500 €* skip the waiting while testing.
 
-## Awards and the evening scoreboard
+## Awards and the evening
 
-When a round ends, the scoreboard shows the awards: *Lomille ensimmäisenä* (most kills),
-*Kaatui kesken viestin* (died mid-message most often), *Pisin keskeneräinen viesti* (the longest
-unsent message, quoted), *Kirjoitusvirheiden kuningas* (most messages the armourer didn't
+When a match ends, the scoreboard shows its winner and the awards: *Lomille ensimmäisenä* (most
+kills), *Kaatui kesken viestin* (died mid-message most often), *Pisin keskeneräinen viesti* (the
+longest unsent message, quoted), *Kirjoitusvirheiden kuningas* (most messages the armourer didn't
 accept), *Kiire odottamaan* (most time on the phone), *Punnerruskuningas* (most push-ups) and
-*Pakkoruotsin sankari* (first through Nylands brigad); and the evening scoreboard: wins, kills,
-deaths and awards over every round tonight and where each player's TJ stands, by player name. It
-is saved to `data/evening.json` with everyone's service, so restarting the server keeps both.
-Start a new evening (everyone back to TJ 347) with F2 → *New evening* on the host (or delete the
-file). Bots don't count.
+*Pakkoruotsin sankari* (first through Nylands brigad); and, the only thing kept from one match to
+the next, who won each match tonight. Start a new evening (that list cleared, a new match) with
+F2 → *New evening* on the host (or delete the file).
 
 The dev panel's match controls (bots, round restart, gate, kill speed, giving weapons) work from
 the host machine, or from any machine on a `npm run dev` server. The *network conditioner*

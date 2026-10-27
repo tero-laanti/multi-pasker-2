@@ -125,14 +125,17 @@ describe('the shooting range tutorial', () => {
     for (const t of ['yj', 'ok', 'kyllä', 'y']) expect(isRadioCheckReply(t)).toBe(false);
   });
 
-  it('a recruit on the range is left out of the round and the evening', () => {
+  it('a recruit on the range is left out of the match and its results', () => {
     const { room, clock, join } = setup();
+    room.setSettings({ rounds: 1 });
     const a = join('Aapo');
     const b = join('Bertta', true);
     a.p.kills = 2;
+    b.p.kills = 5;
     clock.advance(ROUND_TIME + 10);
     room.tick(1 / 60);
-    expect(room.evening.list().map((r) => r.name)).toEqual(['Aapo']);
+    expect(room.round.matchOver).toBe(true);
+    expect(room.evening.matches().map((m) => m.winner)).toEqual(['Aapo']);
     expect(b.p.alive).toBe(false);
   });
 });

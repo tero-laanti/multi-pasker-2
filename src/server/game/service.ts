@@ -222,10 +222,10 @@ export class ServiceDesk {
     };
   }
 
-  /** A kill of someone else: three days, two more if the victim outranks the killer. */
+  /** A kill of someone else: the host's days per kill (3), two more if the victim outranks the killer. */
   onKill(a: ServerPlayer, v: ServerPlayer): void {
     const senior = v.rank > a.rank;
-    const days = SERVICE.killDays + (senior ? SERVICE.seniorDays : 0);
+    const days = this.room.settings.killDays + (senior ? SERVICE.seniorDays : 0);
     const eur = this.serve(a, days, 'kill');
     if (eur > 0) a.outbox.push({ k: 'pay', eur, days, senior });
   }

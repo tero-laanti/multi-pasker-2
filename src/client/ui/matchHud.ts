@@ -1,6 +1,6 @@
 import { PHONE, SERVICE } from '../../shared/config';
 import { FI } from '../../shared/fi';
-import { ACCENTS, type AwardInfo, type EveningRow, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
+import { ACCENTS, type AwardInfo, type MatchResult, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { wrapAngle } from '../../shared/math';
 import { Minimap } from './minimap';
@@ -256,9 +256,9 @@ export class MatchHud {
   roundTimer(round: RoundInfo | null, serverNow: number): void {
     if (!round) return;
     const left = Math.max(0, Math.ceil((round.endsAt - serverNow) / 1000));
-    const text = round.state === 'playing' ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : fill(UI.hud.nextRound, { s: left });
+    const text = round.state === 'playing' ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : fill(round.matchOver ? UI.hud.nextMatch : UI.hud.nextRound, { s: left });
     if (this.changed('timer', text)) this.timerText.textContent = text;
-    const rn = fill(UI.hud.round, { n: round.n });
+    const rn = round.state === 'ended' && round.matchOver ? UI.hud.matchOver : fill(UI.hud.round, { n: round.round, of: round.of });
     if (this.changed('roundN', rn)) this.timerRound.textContent = rn;
     const urgent = round.state === 'playing' && left <= 30;
     if (this.changed('urgent', urgent)) this.timer.classList.toggle('urgent', urgent);
@@ -274,29 +274,40 @@ export class MatchHud {
     if (this.changed('death', false)) this.death.classList.add('hidden');
   }
 
-  /** Scoreboard (Tab, and automatically between rounds with the awards and the evening). */
-  scoreboard(show: boolean, players: PlayerInfo[], myId: number, round: RoundInfo | null, serverNow: number, awards: AwardInfo[] = [], evening: EveningRow[] = []): void {
+  /**
+   * Scoreboard (Tab, and automatically between rounds). Kills and deaths count over the match;
+   * after its last round come the match's winner, its awards and who won each match tonight.
+   */
+  scoreboard(show: boolean, players: PlayerInfo[], myId: number, round: RoundInfo | null, serverNow: number, awards: AwardInfo[] = [], evening: MatchResult[] = []): void {
     this.boardVisible = show;
     this.board.classList.toggle('hidden', !show);
     if (!show) return;
     const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
     const ended = round?.state === 'ended';
+    const results = ended && !!round?.matchOver;
     const key = JSON.stringify([
-      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank, p.training]),
+      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank, p.training, p.star]),
       ended,
       round?.n,
+      round?.of,
       ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0,
-      ended ? awards : 0,
-      ended ? evening : 0,
+      results ? awards : 0,
+      results ? evening : 0,
     ]);
     if (!this.changed('board', key)) return;
     this.board.innerHTML = '';
-    this.board.classList.toggle('wide', ended);
-    const main = ended ? el('div', 'sb-col', this.board) : this.board;
+    this.board.classList.toggle('wide', results);
+    const main = results ? el('div', 'sb-col', this.board) : this.board;
     const head = el('div', 'sb-head', main);
-    el('div', 'sb-title', head, ended ? UI.hud.roundOver : UI.scoreboard.title);
-    if (round) el('div', 'sb-round', head, ended ? fill(UI.hud.nextRound, { s: Math.max(0, Math.ceil((round.endsAt - serverNow) / 1000)) }) : fill(UI.hud.round, { n: round.n }));
-    if (ended && sorted[0]) el('div', 'sb-winner', main, fill(UI.hud.roundWinner, { name: sorted[0].name }));
+    const roundText = round ? fill(UI.hud.round, { n: round.round, of: round.of }) : '';
+    el('div', 'sb-title', head, results ? UI.hud.matchOver : ended && round ? fill(UI.hud.roundOver, { n: round.round, of: round.of }) : UI.scoreboard.title);
+    if (round) {
+      const left = Math.max(0, Math.ceil((round.endsAt - serverNow) / 1000));
+      el('div', 'sb-round', head, ended ? fill(results ? UI.hud.nextMatch : UI.hud.nextRound, { s: left }) : roundText);
+    }
+    // The match's winner is the server's (its awards); between rounds, whoever leads now.
+    const winner = results ? awards.find((a) => a.id === 'winner')?.playerName : sorted[0] && sorted[0].kills > 0 ? sorted[0].name : undefined;
+    if (ended && winner) el('div', 'sb-winner', main, fill(results ? UI.hud.matchWinner : UI.hud.leading, { name: winner }));
     const table = el('div', 'sb-table', main);
     const row = (cls: string) => el('div', `sb-row ${cls}`, table);
     const h = row('sb-cols');
@@ -326,7 +337,7 @@ export class MatchHud {
       el('div', 'sb-num', r, String(p.deaths));
       el('div', 'sb-num dim', r, p.bot ? '–' : String(p.ping));
     });
-    if (!ended) return;
+    if (!results) return;
     const side = el('div', 'sb-col side', this.board);
     if (awards.length) {
       el('div', 'sb-sub', side, UI.awards.title);
@@ -346,12 +357,11 @@ export class MatchHud {
       el('div', 'sb-sub', side, UI.evening.title);
       const t = el('div', 'ev-table', side);
       const E = UI.evening;
-      const h = el('div', 'ev-row ev-cols', t);
-      for (const c of ['', E.wins, E.kills, E.deaths, E.awards, E.tj]) el('div', '', h, c);
-      for (const r of evening.slice(0, 10)) {
+      for (const m of evening.slice(-10)) {
         const row = el('div', 'ev-row', t);
-        el('div', 'ev-name', row, r.name);
-        for (const v of [r.wins, r.kills, r.deaths, r.awards, r.tj ?? SERVICE.days]) el('div', 'sb-num', row, String(v));
+        el('div', 'ev-match', row, fill(E.match, { n: m.match }));
+        el('div', 'ev-name', row, m.bot ? `${m.winner} (${UI.scoreboard.bot})` : m.winner);
+        el('div', 'sb-num', row, fill(m.kills === 1 ? E.kill1 : E.kills, { n: m.kills }));
       }
     }
   }

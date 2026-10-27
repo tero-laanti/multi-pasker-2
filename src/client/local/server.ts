@@ -1,39 +1,30 @@
 import { FI } from '../../shared/fi';
 import { buildGarrison } from '../../shared/map/garrison';
-import type { EveningRow } from '../../shared/protocol';
-import { Evening, type EveningStore } from '../../server/game/awards';
-import type { ServiceRecord } from '../../server/game/service';
+import { Evening, type EveningData, type EveningStore } from '../../server/game/awards';
 import { Room } from '../../server/game/room';
 import { Connection } from '../../server/connection';
 import { TickLoop } from '../../server/loop';
 import { VoiceNotes, type VoiceSource } from '../../server/voicenotes';
 import { ClientEnd } from './socket';
 
-const EVENING_KEY = 'pasker.evening';
-const SERVICE_KEY = 'pasker.service';
+const EVENING_KEY = 'pasker.evening.v2';
 
-function read<T>(key: string, empty: T): T {
-  try {
-    return (JSON.parse(localStorage.getItem(key) ?? 'null') as T | null) ?? empty;
-  } catch {
-    return empty;
-  }
-}
-
-function write(key: string, value: unknown): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Storage blocked: the evening lasts as long as the page.
-  }
-}
-
-/** The evening (scoreboard and the player's service) in this browser's storage. */
+/** The evening (match winners, the match under way, the settings) in this browser's storage. */
 const eveningStore: EveningStore = {
-  load: () => read<EveningRow[]>(EVENING_KEY, []),
-  save: (rows) => write(EVENING_KEY, rows),
-  loadServices: () => read<Record<string, ServiceRecord>>(SERVICE_KEY, {}),
-  saveServices: (services) => write(SERVICE_KEY, services),
+  load: () => {
+    try {
+      return JSON.parse(localStorage.getItem(EVENING_KEY) ?? 'null') as Partial<EveningData> | null;
+    } catch {
+      return null;
+    }
+  },
+  save: (data) => {
+    try {
+      localStorage.setItem(EVENING_KEY, JSON.stringify(data));
+    } catch {
+      // Storage blocked: the evening lasts as long as the page.
+    }
+  },
 };
 
 /**
@@ -87,8 +78,7 @@ export class LocalServer {
   private loop: TickLoop;
 
   constructor(bots: number) {
-    this.room = new Room(buildGarrison(), { dev: false, voiceNotes: new VoiceNotes(new FetchedVoice()), evening: new Evening(eveningStore) });
-    for (let i = 0; i < bots; i++) this.room.addBot();
+    this.room = new Room(buildGarrison(), { dev: false, voiceNotes: new VoiceNotes(new FetchedVoice()), evening: new Evening(eveningStore), bots });
     this.loop = new TickLoop(this.room);
   }
 
