@@ -110,12 +110,12 @@ export class Service {
   }
 
   get rank(): number {
-    return rankFor(this.days, this.discharged);
+    return rankFor(this.days, this.discharged, this.shopOpen);
   }
 
-  /** P-kausi is over: the Sotku App is open. */
+  /** P-kausi is passed, its days served and its gear signed for: the Sotku App is open. */
   get shopOpen(): boolean {
-    return this.days >= SERVICE.pkausi;
+    return this.days >= SERVICE.pkausi && GEAR_IDS.every((id) => this.owned.has(id));
   }
 
   /** What the gear does, as upgrade levels. */
@@ -210,10 +210,13 @@ export class ServiceDesk {
 
   storeState(p: ServerPlayer): StoreState {
     const s = p.service;
+    const c = s.open;
+    const where = c ? (c.conv === V.number ? V.name : (s.contacts.get(c.conv)?.name ?? c.conv)) : '';
     return {
       days: s.days,
       money: s.money,
       open: s.shopOpen,
+      paper: c ? { item: c.due, where } : null,
       owned: [...s.owned],
       waiting: s.waiting.filter((d): d is ItemId => d !== 'discharge'),
       discharged: s.discharged,
@@ -222,9 +225,9 @@ export class ServiceDesk {
     };
   }
 
-  /** A kill of someone else: the host's days per kill (3), two more if the victim outranks the killer. */
+  /** A kill of someone else: the host's days per kill (3), one more if the victim has a lower TJ than the killer. */
   onKill(a: ServerPlayer, v: ServerPlayer): void {
-    const senior = v.rank > a.rank;
+    const senior = v.service.tj < a.service.tj;
     const days = this.room.settings.killDays + (senior ? SERVICE.seniorDays : 0);
     const eur = this.serve(a, days, 'kill');
     if (eur > 0) a.outbox.push({ k: 'pay', eur, days, senior });
@@ -244,6 +247,7 @@ export class ServiceDesk {
     const before = s.days;
     const after = Math.min(SERVICE.days, before + Math.max(0, Math.floor(add)));
     if (after === before) return 0;
+    const wasOpen = s.shopOpen;
     const eur = earn(before, after - before);
     s.days = after;
     s.money += eur;
@@ -255,8 +259,8 @@ export class ServiceDesk {
         s.why = why;
       }
     }
-    if (passed(SERVICE.pkausi)) this.commander(p, C.pkausi);
-    for (const from of rises()) if (passed(from)) this.commander(p, C.rise, { eur: payFor(from) });
+    this.pkausiPassed(p, wasOpen);
+    for (const from of rises()) if (passed(from)) this.commander(p, s.shopOpen ? C.rise : C.raise, { eur: payFor(from), rank: FI.ranks[s.rank] ?? '' });
     if (passed(SERVICE.days)) s.waiting.push('discharge');
     const promoted = p.rank !== s.rank;
     p.rank = s.rank;
@@ -264,6 +268,32 @@ export class ServiceDesk {
     this.notify(p);
     if (promoted) this.room.broadcastPlayers();
     return eur;
+  }
+
+  /** P-kausi was just passed (its days and its gear): the company commander opens the Sotku App. */
+  private pkausiPassed(p: ServerPlayer, wasOpen: boolean): void {
+    if (wasOpen || !p.service.shopOpen) return;
+    this.commander(p, C.pkausi);
+  }
+
+  /**
+   * Dev: P-kausi done in one go, its days served and its gear handed over without paperwork,
+   * so the Sotku App opens.
+   */
+  skipPkausi(p: ServerPlayer): void {
+    const s = p.service;
+    if (s.days < SERVICE.pkausi) this.serve(p, SERVICE.pkausi - s.days, 'kill');
+    const wasOpen = s.shopOpen;
+    if (s.open && (GEAR_IDS as string[]).includes(s.open.due)) s.open = null;
+    for (const id of GEAR_IDS) {
+      s.waiting = s.waiting.filter((d) => d !== id);
+      if (!s.owned.has(id)) this.hand(p, id, null);
+    }
+    this.pkausiPassed(p, wasOpen);
+    p.rank = s.rank;
+    this.room.broadcastPlayers();
+    this.next(p);
+    this.notify(p);
   }
 
   /** A text from the company commander, in its own chat. */
@@ -445,6 +475,7 @@ export class ServiceDesk {
     const s = p.service;
     const c = s.open;
     if (!c) return;
+    const wasOpen = s.shopOpen;
     s.open = null;
     if (s.waiting[0] === c.due) s.waiting.shift();
     else s.waiting = s.waiting.filter((d) => d !== c.due);
@@ -459,6 +490,12 @@ export class ServiceDesk {
       p.rank = s.rank;
       this.room.broadcastPlayers();
     } else this.hand(p, c.due, c.conv);
+    // The last piece of P-kausi's gear may be what passes it.
+    this.pkausiPassed(p, wasOpen);
+    if (p.rank !== s.rank) {
+      p.rank = s.rank;
+      this.room.broadcastPlayers();
+    }
     this.next(p);
     this.notify(p);
   }

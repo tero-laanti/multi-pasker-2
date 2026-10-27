@@ -86,8 +86,12 @@ describe('the shooting range tutorial', () => {
     expect(a.p.radioCheck).toBe('armed');
     const phone = pair(a.p);
     run(4000);
-    expect(phone.texts()).toEqual(FI.training.radioCheck);
+    // The first text is just "YK"; anything else gets the explanation, then the tellings-off.
+    expect(phone.texts()).toEqual(['YK']);
     send(a.p, 'moi');
+    run(4000);
+    expect(phone.texts().at(-1)).toBe(FI.training.radioCheckExplain[0]);
+    send(a.p, 'mitä?');
     run(4000);
     expect(FI.training.radioCheckWrong.map((s) => s.replace('{rank}', 'alokas'))).toContain(phone.texts().at(-1));
     expect(a.ws.events().some((e) => e.k === 'training')).toBe(false);

@@ -1,8 +1,8 @@
 /**
  * The service and the Sotku App through a real desktop and phone, end to end: the tab bar,
- * the shop locked through P-kausi, the company commander's text on day 42, the rifle's
- * paperwork typed on the phone's keyboard, the shop and a path's tree, a purchase, the
- * autofill chips, the pay line under a kill, and the sniper rifle's scope.
+ * the shop locked through P-kausi, the rifle's paperwork typed on the phone's keyboard, the
+ * company commander's text once P-kausi's gear is signed for, the shop and a path's tree, a
+ * purchase, the autofill chips, the pay line under a kill, and the sniper rifle's scope.
  *
  *   npx tsx tools/e2e/service-flow.ts <outDir> [--url=http://localhost:8088/]
  *
@@ -36,8 +36,10 @@ await desktop.waitForFunction(() => (window as any).__pasker.match?.pairInfo, nu
 await desktop.evaluate(() => (window as any).__pasker.play());
 const token = await desktop.evaluate(() => (window as any).__pasker.match.pairInfo.token as string);
 const dev = (cmd: string, arg?: unknown) => desktop.evaluate(([c, a]) => (window as any).__pasker.match.send({ t: 'dev', cmd: c, arg: a }), [cmd, arg] as const);
-// A fresh evening, so an earlier run's service doesn't carry over.
+// A fresh evening, so an earlier run's service doesn't carry over, and no bots to shoot the
+// player while the phone is out.
 await dev('newEvening');
+await desktop.evaluate(() => (window as any).__pasker.match.send({ t: 'settings', s: { bots: 0 } }));
 
 await phone.goto(`${base}phone#${token}`);
 await phone.waitForSelector('.v-confirm');
@@ -122,20 +124,24 @@ async function run(): Promise<void> {
   result.locked = await phone.evaluate(() => document.querySelector('.lockbox')?.textContent);
   await shot(phone, 'service_2_locked');
 
-  // Day 42: the rifle's paperwork and the company commander's text.
+  // Day 42: the rifle's paperwork, the rest of P-kausi's gear (magazine, knife, grenade belt)
+  // through the dev shortcut, and then the company commander's text: the shop is open.
   await dev('serve', 42);
   await openChat('Asevarasto');
   const rifle = await waitIncoming((t) => codeIn(t).length > 0);
   result.rifleMessage = rifle;
   await sendInChat(codeIn(rifle));
+  await wait(800);
+  result.stillLocked = (await store())?.open;
+  for (let i = 0; i < 3; i++) {
+    await dev('advance');
+    await wait(400);
+  }
   await openChat('Komppanian päällikkö');
   result.commander = await waitIncoming((t) => /Sotku/.test(t));
   await shot(phone, 'service_3_commander');
   await wait(1000);
   result.afterPkausi = { desk: await desk(), store: await store() };
-  // The rest of P-kausi's gear (magazine, knife, grenade belt) through the dev shortcut.
-  for (let i = 0; i < 3; i++) await dev('advance');
-  await wait(800);
 
   // The shop, a path, and a row I buy (handed over at once).
   await openSotku();
@@ -163,15 +169,22 @@ async function run(): Promise<void> {
   await shot(desktop, 'service_7_hud');
 
   // Automaattitäyttö: the code shows above the keyboard.
-  await dev('money', 2000);
+  await dev('money', 3500);
   await wait(500);
   await phone.tap('.back');
   await phone.tap('.pcard:has-text("Viestimies")');
+  await buy('Tumma tila');
   await buy('Pikavalinta');
   await buy('Automaattitäyttö');
+  // Pikavalinta's word typed; Automaattitäyttö's paperwork (a phrase, or another office's
+  // number: row III draws one) through the dev shortcut.
   await openChat('Asevarasto');
-  const auto = await waitIncoming((t) => /Automaattitäyttö/.test(t) && codeIn(t).length > 0);
-  await sendInChat(codeIn(auto));
+  const pika = await waitIncoming((t) => /Pikavalinta/.test(t) && codeIn(t).length > 0);
+  await sendInChat(codeIn(pika));
+  await wait(800);
+  await dev('advance');
+  await wait(800);
+  result.afterViestimies = (await store())?.owned;
   await openSotku();
   await phone.tap('.pcard:has-text("Viestimies")');
   await buy('Tutka');
@@ -188,9 +201,9 @@ async function run(): Promise<void> {
 
   // The sniper rifle: doughnut coffee skips the paperwork on the way.
   await openSotku();
-  for (let i = 0; i < 4; i++) await buy('Munkkikahvit');
+  for (let i = 0; i < 5; i++) await buy('Munkkikahvit');
   await phone.tap('.pcard:has-text("Tarkka-ampuja")');
-  for (const name of ['Kevennetty lukko', 'Vaimennin', 'Tarkkuuskivääri']) {
+  for (const name of ['Punapistetähtäin', 'Vaimennin', 'Pidennetty lipas II', 'Rumpulipas', 'Tarkkuuskivääri']) {
     await buy(name);
     await openChat('Asevarasto');
     await sendInChat('Kiitos');

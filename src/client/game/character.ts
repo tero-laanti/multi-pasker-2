@@ -383,6 +383,7 @@ export class Character {
   private phone: THREE.Group;
   private suppressors: THREE.Mesh[] = [];
   private drum: THREE.Mesh;
+  private redDot: THREE.Mesh;
   private silenced = false;
   private weapon: WeaponId = 'pistol';
   /** 0 alive, rising to 1 while falling over. */
@@ -444,14 +445,20 @@ export class Character {
     this.drum.visible = false;
     this.drum.castShadow = true;
     this.bones[B.rifle]!.add(this.drum);
+    this.redDot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.045, 0.06), ATTACHMENT);
+    this.redDot.position.set(0, 0.065, -0.3);
+    this.redDot.visible = false;
+    this.redDot.castShadow = true;
+    this.bones[B.rifle]!.add(this.redDot);
     this.setWeapon('pistol');
   }
 
-  /** Visible upgrades: suppressors (no flash either) and the drum magazine. */
+  /** Visible upgrades: suppressors (no flash either), the drum magazine and the red dot sight. */
   setUpgrades(u: Upgrades): void {
     this.silenced = (u.vaimennin ?? 0) > 0;
     for (const s of this.suppressors) s.visible = this.silenced;
     this.drum.visible = (u.rumpu ?? 0) > 0;
+    this.redDot.visible = (u.punapiste ?? 0) > 0;
   }
 
   setName(name: string): void {

@@ -1,4 +1,4 @@
-import { GEAR, TUNING, type WeaponId, type WeaponTuning } from '../../shared/config';
+import { TUNING, type WeaponId, type WeaponTuning } from '../../shared/config';
 import { DEG, clamp, damp, makeRng, viewDir, type Vec3 } from '../../shared/math';
 import { recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
 import { weaponStats, type Upgrades, type WeaponStats } from '../../shared/upgrades';
@@ -144,9 +144,9 @@ export class WeaponController {
     return TUNING[this.current];
   }
 
-  /** The grenade fuse (s): Lyhyt sytytin shortens it. */
+  /** The grenade fuse (s). */
   get fuse(): number {
-    return this.upgrades.sytytin ? GEAR.shortFuse : TUNING.grenade.fuse;
+    return TUNING.grenade.fuse;
   }
 
   /** Drawing a gun (s), quicker with Pistoolikoulutus. */

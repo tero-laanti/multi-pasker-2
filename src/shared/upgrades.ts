@@ -18,7 +18,7 @@ export type UpgradeId =
   | 'kevyt'
   | 'sarja'
   | 'suujarru'
-  | 'lukko'
+  | 'punapiste'
   | 'rumpu'
   | 'vaimennin'
   | 'pikavalinta'
@@ -29,7 +29,7 @@ export type UpgradeId =
   | 'lennokki'
   | 'tihea'
   | 'heitto'
-  | 'sytytin'
+  | 'sirpale'
   | 'raskas'
   | 'tuli';
 
@@ -37,9 +37,8 @@ export type Upgrades = Partial<Record<UpgradeId, number>>;
 
 export const level = (u: Upgrades, id: UpgradeId): number => u[id] ?? 0;
 
-/** Rifle magazine growth per long-magazine level, and fire rate per lightened bolt. */
+/** Rifle magazine growth per long-magazine level. */
 export const MAG_STEP = 10;
-export const RPM_STEP = 100;
 /** Recoil multiplier by muzzle-brake level. */
 export const BRAKE = [1, 0.75, 0.6];
 export const DRUM_ROUNDS = 75;
@@ -52,10 +51,11 @@ export interface WeaponStats {
   /** Multiplier on recoil (kick and camera). */
   recoilMul: number;
   silenced: boolean;
-  /** Multipliers on drawing and aiming times, and on hip-fire spread. */
+  /** Multipliers on drawing and aiming times, on hip-fire spread, and on aimed spread on the move. */
   drawMul: number;
   adsMul: number;
   hipMul: number;
+  adsMoveMul: number;
   /** Movement speed with this gun out, on top of its own moveSpeedMul. */
   moveMul: number;
 }
@@ -72,6 +72,7 @@ export function weaponStats(id: WeaponId, u: Upgrades): WeaponStats {
     drawMul: 1,
     adsMul: 1,
     hipMul: 1,
+    adsMoveMul: 1,
     moveMul: 1,
   };
   if (id === 'pistol') {
@@ -90,7 +91,8 @@ export function weaponStats(id: WeaponId, u: Upgrades): WeaponStats {
   }
   if (id === 'rifle') {
     const magazine = level(u, 'rumpu') > 0 ? DRUM_ROUNDS : t.magazine + MAG_STEP * level(u, 'lipas');
-    return { ...base, magazine, rpm: t.rpm + RPM_STEP * level(u, 'lukko') };
+    const dot = level(u, 'punapiste') > 0;
+    return { ...base, magazine, adsMul: dot ? GEAR.redDotAdsMul : 1, adsMoveMul: dot ? GEAR.redDotAdsMoveMul : 1 };
   }
   return base;
 }

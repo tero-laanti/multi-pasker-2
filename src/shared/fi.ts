@@ -101,10 +101,8 @@ export const FI = {
     /** Contact name and number shown on the phone. */
     name: 'Asevarasto',
     number: '7413',
-    /** First message in the chat; it stays in the history as the instructions. */
-    welcome: [
-      'Asevarasto. Palvelut:\nLATAA – lippaat täyteen, varalipas myös.\nKRANAATTI – yksi kranaatti, heitto G:llä.\nMuuta ei ole. Kiire odottamaan.',
-    ],
+    /** First message in the chat; it stays in the history as the instructions. In English, so newcomers understand it. */
+    welcome: ['Asevarasto. Services:\nLATAA: full magazines, the spare too.\nKRANAATTI: one grenade, throw with G.\nThere is nothing else. Hurry up and wait.'],
     /** Short acknowledgements after a reload; an empty string means no reply at all. */
     reloadOk: ['Kuitattu.', 'Ladattu. Seuraava.', 'Lipas vaihdettu.', 'Tässä. Älä tuhlaa.', 'Ota ja mene.', 'Patruunat eivät kasva puussa.', '', '', ''],
     reloadFull: ['Lippaat ovat täynnä. Ammu ensin, {rank}.', 'Kaikki täynnä, varalipaskin. Mitä sinä oikein lataat?', 'Sinulla on jo kaikki. Laske itse.'],
@@ -153,31 +151,24 @@ export const FI = {
 
   /**
    * The company commander: a higher-up who texts the milestones of your service (only to you).
-   * {name} the player, {tj} days left, {eur} the new päiväraha, {rankTo} the new rank in the
-   * translative, {number} where to write.
+   * In English on purpose, so everyone understands the rules they announce; Päiväraha and the
+   * ranks keep their Finnish names. {name} the player, {tj} days left, {eur} the new Päiväraha,
+   * {rank} the new rank, {number} where to write.
    */
   commander: {
     name: 'Komppanian päällikkö',
     number: '7400',
-    /** P-kausi is over: the Sotku App opens. */
-    pkausi: [
-      'Onnittelut, sotamies {name}! P-kausi on takana. Sinulla on nyt lupa käyttää Sotku-sovellusta tavaroiden ja palveluiden ostamiseen.',
-      'P-kausi suoritettu, sotamies {name}. Onnittelut. Saat nyt käyttää Sotku-sovellusta tavaroiden ja palveluiden ostamiseen.',
-    ],
-    /** A pay rise, which is also a promotion. */
-    rise: ['TJ {tj}! Ylennys {rankTo}. Päiväraha nousee: nyt {eur} € päivältä.', 'TJ {tj}. Onnittelut, ylennys {rankTo}. Päiväraha on nyt {eur} € päivältä.'],
+    /** P-kausi is passed: the Sotku App opens. */
+    pkausi: ['Congratulations on passing P-kausi. You may now use the Sotku App to buy goods and services.'],
+    /** A pay rise, which is also a promotion (just the pay for someone still in P-kausi). */
+    rise: ['TJ {tj}! You are promoted to {rank}. Your Päiväraha is now {eur} € a day.'],
+    raise: ['TJ {tj}! Your Päiväraha is now {eur} € a day.'],
     /** TJ 0: the discharge paperwork, at Nylands brigad. */
-    tj0: [
-      'TJ 0! Kotiutuspaperit odottavat. Viimeinen luukku on Dragsvikissä: Nylands brigad, numero {number}. Svenska, tack.',
-      'TJ 0. Ennen kotiutusta vielä yksi luukku: Nylands brigad, numero {number}. Ruotsiksi.',
-    ],
+    tj0: ['TJ 0! Your discharge papers are waiting. The last counter is in Dragsvik: Nylands brigad, number {number}. Svenska, tack.'],
     /** Discharged: the reservist star and a free pick from the Sotku. */
-    discharged: [
-      'Kotiutettu. Reservin kersantti {name}, reservin tähti on ansaittu. Kotiutuslahja: valitse Sotkusta yksi tuote ilmaiseksi.',
-      'Palvelus suoritettu. Ylennys reservin kersantiksi, ja tähti hihaan. Valitse Sotkusta kotiutuslahja, yksi tuote ilmaiseksi.',
-    ],
+    discharged: ['Discharged. Reservin kersantti {name}, you have earned the reservist star. Your discharge gift: one item from the Sotku, free.'],
     /** Anything texted to the company commander. */
-    reply: ['Komppanian päällikkö ei vastaa tekstiviesteihin.', 'Asiat vääpelin kautta.', 'Tämä numero on vain tiedotteille.'],
+    reply: ['The company commander does not answer text messages.', 'Go through the vääpeli.', 'This number is for announcements only.'],
   },
 
   /** Gear and the Sotku App's goods, by id (src/shared/service.ts), and the shop's paths. */
@@ -194,7 +185,7 @@ export const FI = {
     sarja: 'Sarjatulipistooli',
     suujarru: 'Suujarru',
     lipas2: 'Pidennetty lipas II',
-    lukko: 'Kevennetty lukko',
+    punapiste: 'Punapistetähtäin',
     rumpu: 'Rumpulipas',
     vaimennin: 'Vaimennin',
     tkiv: 'Tarkkuuskivääri',
@@ -205,8 +196,8 @@ export const FI = {
     kannykka: 'Kännykkätutka',
     lennokki: 'Tiedustelulennokki',
     tihea: 'Tiheä huolto',
-    heitto: 'Pitkä heitto',
-    sytytin: 'Lyhyt sytytin',
+    heitto: 'Hyvä heittäjä',
+    sirpale: 'Lisää sirpaleita',
     kolmas: 'Kolmas kranaatti',
     raskas: 'Raskas panos',
     tuli: 'Tulitoimitus',
@@ -246,11 +237,16 @@ export const FI = {
     unlocked: ['Hyvä. Asevarasto palvelee taas.', 'Kuitattu. Jatka.'],
   },
 
-  /** The tutorial on the range: Asevarasto's first text is a radio check, answered with YK. */
+  /**
+   * The tutorial on the range: Asevarasto's first text is a radio check, just "YK". In English,
+   * so newcomers understand it: anything but YK gets the explanation, and after that the
+   * shorter tellings-off.
+   */
   training: {
-    radioCheck: ['Asevarasto, yhteyskoe. Jos tämä viesti tuli perille, vastaa YK. Jos ei tullut, älä vastaa mitään.'],
-    radioCheckOk: ['Kuuluu. Lippaat tulossa.\nJatkossa: LATAA kun patruunat loppuvat, KRANAATTI kun tarvitset kranaatin. Muuta ei ole.'],
-    radioCheckWrong: ['Vastaa YK. Kaksi kirjainta, {rank}.', 'YK. Ei muuta. Yhteyskoe ei ole keskustelu.', 'Kirjoita YK. Isot tai pienet, kunhan kaksi kirjainta.'],
+    radioCheck: ['YK'],
+    radioCheckExplain: ["Asevarasto, radio check. If this message got through, reply YK. If it didn't, don't reply at all."],
+    radioCheckOk: ['Loud and clear. Magazines on the way.\nFrom now on: LATAA when you run out of rounds, KRANAATTI when you need a grenade. There is nothing else.'],
+    radioCheckWrong: ['Reply YK. Two letters, {rank}.', 'YK. Nothing else. A radio check is not a conversation.', "Type YK. Capitals or not, as long as it's two letters."],
   },
   ladder: {
     /** P-kausi gear came due with a kill or with a death: the first line before the task. */

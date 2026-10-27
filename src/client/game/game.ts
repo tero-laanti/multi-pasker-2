@@ -20,6 +20,7 @@ import type { Settings } from '../settings';
 import type { Hud } from '../ui/hud';
 import { Effects } from './effects';
 import { Grenades, type Explosion } from './grenades';
+import { ThrowArc } from './throwArc';
 import type { ViewModel } from './viewmodel';
 import { WeaponController } from './weapons';
 
@@ -126,6 +127,7 @@ export class Game {
   simSteps = 0;
   lastFrameSteps = 0;
   readonly root = new THREE.Group();
+  private arc = new ThrowArc();
   readonly props: PropsView;
   readonly effects = new Effects();
   readonly grenades: Grenades;
@@ -172,6 +174,7 @@ export class Game {
     this.root.add(this.effects.group);
     this.grenades = new Grenades(this.world, deps.audio);
     this.root.add(this.grenades.group);
+    this.root.add(this.arc.root);
     this.viewmodel = deps.viewmodel;
     this.chimneys = map.props.filter((pr) => pr.kind === 'chimney').map((c) => ({ x: c.x, y: c.y + 1.8, z: c.z, next: Math.random() }));
     const sp = map.spawns[0]!;
@@ -382,16 +385,8 @@ export class Game {
       }
       if (this.weapons.releaseGrenade) {
         this.weapons.releaseGrenade = false;
-        const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
-        const rx = Math.cos(this.yaw);
-        const rz = -Math.sin(this.yaw);
-        const e = this.eye;
-        // Pitkä heitto: the same throw, harder.
-        const T = this.weapons.upgrades.heitto ? { ...TUNING.grenade, throwSpeed: TUNING.grenade.throwSpeed * GEAR.throwMul } : TUNING.grenade;
-        const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz, T);
-        // Start just in front of the eye, a little left and low, but never inside a wall.
-        this.world.trace(this.tr, e.x, e.y, e.z, e.x + fwd.x * 0.35 - rx * 0.12, e.y + fwd.y * 0.35 - 0.1, e.z + fwd.z * 0.35 - rz * 0.12, 0.045, 0.045, 0.045, MASK.GRENADE);
-        this.mode.grenadeReleased([this.tr.x, this.tr.y, this.tr.z], v, Math.max(0.05, this.weapons.fuseLeft ?? this.weapons.fuse));
+        const t = this.throwFrom();
+        this.mode.grenadeReleased(t.o, t.v, Math.max(0.05, this.weapons.fuseLeft ?? this.weapons.fuse));
         this.weapons.clearPin();
       }
       this.handleDroppedGrenade();
@@ -440,10 +435,28 @@ export class Game {
     return this.mode.outOfAmmo?.() ?? UI.hud.outOfAmmo;
   }
 
-  /** Flash, smoke, sound, light and screen shake of an explosion. */
+  /**
+   * Where a grenade let go now starts, and how fast: just in front of the eye, a little left and
+   * low, never inside a wall.
+   */
+  private throwFrom(): { o: [number, number, number]; v: [number, number, number] } {
+    const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
+    const rx = Math.cos(this.yaw);
+    const rz = -Math.sin(this.yaw);
+    const e = this.eye;
+    // Hyvä heittäjä: the same throw, harder.
+    const T = this.weapons.upgrades.heitto ? { ...TUNING.grenade, throwSpeed: TUNING.grenade.throwSpeed * GEAR.throwMul } : TUNING.grenade;
+    const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz, T);
+    this.world.trace(this.tr, e.x, e.y, e.z, e.x + fwd.x * 0.35 - rx * 0.12, e.y + fwd.y * 0.35 - 0.1, e.z + fwd.z * 0.35 - rz * 0.12, 0.045, 0.045, 0.045, MASK.GRENADE);
+    return { o: [this.tr.x, this.tr.y, this.tr.z], v };
+  }
+
   /** A blast's flash, smoke, sound and shake; `radius` when it is bigger than a grenade's. */
   explosionFx(x: number, y: number, z: number, radius?: number): void {
-    this.effects.explosion(x, y, z, radius ? radius / TUNING.grenade.radius : 1);
+    // A scorch mark only where there is ground close below: a blast in the air leaves none.
+    this.world.trace(this.tr, x, y + 0.1, z, x, y - 0.6, z, 0, 0, 0, MASK.SHOT);
+    const ground = this.tr.fraction < 1 && this.tr.ny > 0.5 ? this.tr.y : null;
+    this.effects.explosion(x, y, z, radius ? radius / TUNING.grenade.radius : 1, ground);
     const dist = Math.hypot(x - this.eye.x, y - this.eye.y, z - this.eye.z);
     this.deps.audio.playAt(dist < 45 ? 'grenade_explode' : 'grenade_far', x, y + 0.3, z, { volume: 1, refDistance: 8, rolloff: 0.7, maxDistance: 600 });
     this.blast = { x, y, z, t: 0 };
@@ -513,6 +526,11 @@ export class Game {
       cam.rotation.set(this.pitch + punchP * DEG + (Math.random() - 0.5) * sh, this.yaw - punchY * DEG + (Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh, 'YXZ');
     }
     this.shake = Math.max(0, this.shake - dt * 3);
+    // Hyvä heittäjä: the throw's path while the grenade is in the hand.
+    if (w.upgrades.heitto && (w.state === 'priming' || w.state === 'holding') && this.mode.alive && !co) {
+      const t = this.throwFrom();
+      this.arc.show(this.world, t.o, t.v, Math.max(0.05, w.fuseLeft ?? w.fuse), TUNING.grenade);
+    } else this.arc.hide();
     const ads = lerp(w.adsPrev, w.ads, alpha);
     const adsE = ads * ads * (3 - 2 * ads);
     // Looking through the sniper rifle's scope: the scope fills the view, the gun is out of sight.

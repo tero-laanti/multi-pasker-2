@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { HAND_POSES } from '../src/client/game/models/handPoses';
-import { forearmInHand, gloveGeometry, wristLimit, type HandKey } from '../src/client/game/models/hands';
+import { buildHand, forearmInHand, gloveGeometry, wristLimit, type HandKey } from '../src/client/game/models/hands';
 import type { KnifeModel } from '../src/client/game/models/knife';
 import type { WeaponModel } from '../src/client/game/models/pistol';
 import { PHONE } from '../src/client/game/models/weaponShapes';
@@ -19,6 +19,7 @@ function stubCanvas(): void {
 let pistol: WeaponModel;
 let rifle: WeaponModel;
 let knife: KnifeModel;
+let grenade: THREE.Object3D;
 
 /** Weapon triangles without the hands and without flat decals (the serial plate). */
 function weaponTris(m: WeaponModel) {
@@ -58,6 +59,8 @@ beforeAll(async () => {
   knife = buildKnife();
   // The knife alone, in the same (grip) space as the hand's geometry.
   knife.knife.removeFromParent();
+  const { grenadeMesh } = await import('../src/client/game/grenades');
+  grenade = grenadeMesh();
 });
 
 const KEYS = Object.keys(HAND_POSES) as HandKey[];
@@ -106,6 +109,7 @@ describe('first-person hands', () => {
     ['rifle.left', () => [rifle.hands.left, weaponTris(rifle)]],
     ['phone.left', () => [pistol.hands.phone, phoneTris()]],
     ['knife.right', () => [knife.hand, collectTriangles(knife.knife)]],
+    ['grenade.left', () => [buildHand('grenade.left'), collectTriangles(grenade)]],
   ];
   for (const [key, get] of cases) {
     it(`${key} keeps out of what it holds`, () => {

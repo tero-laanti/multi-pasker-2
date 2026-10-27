@@ -71,8 +71,8 @@ service involved), and they can play on the same machine.
 2. **Join game**, type a name (letters including Å, Ä, Ö and digits, up to 12) and click the view.
    The first time, you start on the shooting range for a short training (see below); after that,
    joining goes straight to the match.
-3. Free-for-all on the garrison (*varuskunta*): 4-minute rounds, respawn after ~2.5 s, a short
-   spawn protection that ends when you fire. Tab shows the scoreboard; it also appears between
+3. Free-for-all on the garrison (*varuskunta*): 4-minute rounds of free fighting, respawn after
+   3 s, a short spawn protection that ends when you fire. Tab shows the scoreboard; it also appears between
    rounds, and the next round starts by itself after 12 s.
 4. The garrison: the kasarmi (barracks) to the north, the asevarasto (armoury) to the east, the
    sotku (canteen) to the west, the esterata (obstacle course) to the south, and the **Veksi**,
@@ -99,8 +99,8 @@ the range*): walk to the marked table, knock down the marked target, press R and
 no spare magazine, then pick up the phone from the duty table behind you (E). That opens the
 pairing screen, which explains that the phone app is only a web page from the host's computer
 (nothing to install, no permissions, it connects only to the host computer). Asevarasto's first
-text is a radio check (*yhteyskoe*):
-reply `YK` and the magazines are full. Train as long as you like, then Esc → **Go to the match**.
+text is a radio check (*yhteyskoe*), just `YK`: reply `YK` and the magazines are full (anything
+else gets the explanation, and after that less patience). Train as long as you like, then Esc → **Go to the match**.
 The browser remembers that you've done it.
 
 **Without a phone of your own:** the pairing panel (on the training's pairing screen and in the
@@ -185,7 +185,8 @@ match under way, so restarting the server keeps them.
 
 Your service lasts the match: TJ counts down from 347, kept by name over rounds, a rejoin and a
 server restart. A kill serves 3 days (the host can change it), being killed by someone
-else 1 (a day in the veksi counts too), and killing someone who outranks you 2 more. Every day
+else 1 (a day in the veksi counts too), and killing someone with a lower TJ than yours (further
+into their service) 1 more. Every day
 served pays the päiväraha: 5 € a day for days 1–165, 10 € for days 166–255 and 15 € after that,
 3,105 € for the whole service. The money shows only on the phone; the game shows what a kill paid
 under the kill confirmation.
@@ -199,16 +200,17 @@ The first six weeks are P-kausi. Gear comes by text, as paperwork at the asevara
 | 20 | *Teroitettu puukko*: one stab kills | an office at a new number: open a chat with it yourself, then send its phrase or the code word hidden in a wall of regulations |
 | 30 | the grenade belt (two grenades) | the huoltopäällikkö at a 17-digit +358 number: a voice note spells the code in the phonetic alphabet |
 
-On day 42 the company commander (*Komppanian päällikkö*) texts that P-kausi is over: you are
-sotamies, and the **Sotku App** opens on the phone's second tab. It sells four specialist paths of
-six nodes each, rows I–IV, each node needing one from the row above:
+Once you have served 42 days and signed for all four, the company commander (*Komppanian
+päällikkö*) texts that P-kausi is over: you are sotamies, and the **Sotku App** opens on the phone's
+second tab (until then it shows the days and the gear still to go). It sells four specialist paths
+of six nodes each, rows I–IV, each node needing one from the row above:
 
 | Path | Role | Nodes |
 |---|---|---|
-| Sotilaspoliisi | the pistol as a main weapon | quick draw, 18-round magazine, hip-fire accuracy, hollow points (three hits kill), faster on the move, full auto |
-| Tarkka-ampuja | rifle expert | muzzle brake, 50-round magazine, lighter bolt, drum magazine, suppressor, and the sniper rifle on key 3 |
-| Viestimies | the phone and the minimap | speed dial (`L`, `K`), autofill of codes, a wider minimap, dark mode, enemies holding a phone on the minimap, and a recon drone (text LENNOKKI) |
-| Pioneeri | grenades | quicker resupply, longer throws, a shorter fuse, a third grenade, a bigger blast, and a mortar strike where you are looking (text TULI) |
+| Sotilaspoliisi | the pistol as a main weapon | quick draw, 18-round magazine, hip-fire accuracy, hollow points (+50 % damage), 20 % faster with the pistol out, full auto |
+| Tarkka-ampuja | rifle expert | muzzle brake, 50-round magazine, a red dot sight (quicker and steadier aiming), drum magazine, suppressor, and the sniper rifle on key 3 |
+| Viestimies | the phone and the minimap | dark mode, speed dial (`L`, `K`), a wider minimap, autofill of codes, enemies holding a phone on the minimap, and a recon drone (text LENNOKKI) |
+| Pioneeri | grenades | quicker resupply, a good arm (the throw's path shown while you hold the grenade, and 30 % farther), more shrapnel (+50 % damage), a third grenade, a heavier charge (+50 % blast radius), and a mortar strike where you are looking (text TULI) |
 
 The whole tree costs 7,190 €, so a service buys about one and a half paths. Row I is handed over at
 once; the rows above need paperwork like P-kausi's (a word, a phrase or an office, the supply
@@ -222,8 +224,9 @@ The pay rises (TJ 181 and TJ 91) come as texts from the company commander with a
 Swedish (*Svara på svenska, tack.*); after it you are *reservin kersantti*, with a star in the kill
 feed and the scoreboard, and one Sotku item of your choice free. Nothing is paid after TJ 0.
 
-Every price and rule is in `SERVICE`, `SOTKU` and `GEAR` in `src/shared/config.ts`. F2 → *Serve 42
-days*, *Do the paperwork (or serve 10 days)* and *Add 500 €* skip the waiting while testing.
+Every price and rule is in `SERVICE`, `SOTKU` and `GEAR` in `src/shared/config.ts`. F2 → *Skip
+P-kausi (its days and its gear)*, *Do the paperwork (or serve 10 days)* and *Add 500 €* skip the
+waiting while testing.
 
 ## Awards and the evening
 

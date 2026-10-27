@@ -121,7 +121,7 @@ describe('life cycle', () => {
     b.p.ammo.pistol = 3;
     room.damage(b.p, a.p, 200, 'body', 'pistol', [0, 1, 5]);
     expect(b.p.alive).toBe(false);
-    for (let i = 0; i < 60 * 3; i++) {
+    for (let i = 0; i < 60 * (TUNING.player.respawnTime + 0.2); i++) {
       c.advance(1000 / 60);
       room.tick(1 / 60);
     }

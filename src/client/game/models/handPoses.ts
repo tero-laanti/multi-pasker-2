@@ -95,11 +95,39 @@ const phoneLeft: GlovePose = {
   thumb: { dir: [0.86, 0.51, 0], knuckle: [0, 0, 1], lift: 0.76, mcp: 0.74, ip: 0.12 },
 };
 
-// The knife (knife.ts): its handle has the pistol grip's shape and place, so this is the pistol
-// hand with the index finger off the trigger and curled round the handle like the others.
+// The knife (knife.ts; its handle has the pistol grip's shape and place) in a saber grip: the
+// pistol hand turned 25° about the palm's normal so the handle runs diagonally across the palm,
+// from the base of the index finger to the heel of the hand, and the blade carries on nearer the
+// forearm's line. The thumb lies along the handle's back towards the blade; the wrist is bent
+// towards the palm and the little finger, as in a thrust from below.
 const knifeRight: GlovePose = {
-  ...pistolRight,
-  index: { spread: 0.06, mcp: 0.86, pip: 1.55, dip: 0.58 },
+  wrist: [0.042, -0.075, 0.064],
+  along: [-0.063, 0.306, -0.95],
+  back: [0.989, 0.148, -0.018],
+  forearm: [-0.208, -0.946, 0.247],
+  index: { spread: 0.06, mcp: 0.45, pip: 1.3, dip: 0.72 },
+  middle: { mcp: 0.4, pip: 1.45, dip: 0.8 },
+  ring: { mcp: 0.7, pip: 1.3, dip: 0.72 },
+  pinky: { spread: -0.03, mcp: 0.95, pip: 0.8, dip: 0.44 },
+  thumb: { dir: [-0.437, 0.437, -0.786], knuckle: [0, 0.313, 0.95], lift: 0.6, mcp: 0.75, ip: 0 },
+};
+
+// Left hand holding a hand grenade (the grenade's space: the body's centre at the origin, +Y up
+// the fuse, +Z the spoon side), as it is taught: the palm on one side, the fingers round the far
+// side, the thumb across the spoon.
+const grenadeLeft: GlovePose = {
+  left: true,
+  wrist: [-0.046, 0.004, 0.08],
+  along: [0, 0, -1],
+  back: [-1, 0, 0],
+  forearm: [-0.35, -0.45, 0.82],
+  // It is thrown: a long sleeve, so the end never comes into view.
+  sleeve: 0.55,
+  index: { spread: 0.08, mcp: 1.15, pip: 0.85, dip: 0.57 },
+  middle: { mcp: 1, pip: 0.95, dip: 0.52 },
+  ring: { spread: -0.04, mcp: 0.9, pip: 0.85, dip: 0.57 },
+  pinky: { spread: -0.12, mcp: 0.85, pip: 0.6, dip: 0.48 },
+  thumb: { dir: [0.74, -0.185, -0.647], knuckle: [0, 0.5, 1], lift: 0.75, mcp: 1, ip: 0 },
 };
 
 export const HAND_POSES: Record<HandKey, GlovePose> = {
@@ -110,4 +138,5 @@ export const HAND_POSES: Record<HandKey, GlovePose> = {
   'rifle.left': rifleLeft,
   'phone.left': phoneLeft,
   'knife.right': knifeRight,
+  'grenade.left': grenadeLeft,
 };

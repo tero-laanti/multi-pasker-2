@@ -14,7 +14,7 @@ import { HAND_POSES } from './handPoses';
  * of the hand, +X towards the little finger. Left hands are the mirror image.
  */
 
-export type HandKey = 'pistol.right' | 'pistol.left' | 'pistol.leftRack' | 'rifle.right' | 'rifle.left' | 'phone.left' | 'knife.right';
+export type HandKey = 'pistol.right' | 'pistol.left' | 'pistol.leftRack' | 'rifle.right' | 'rifle.left' | 'phone.left' | 'knife.right' | 'grenade.left';
 
 export interface HandsModel {
   /** Shooting hand, fixed to the grip. */
@@ -73,6 +73,8 @@ export interface GlovePose {
   back: V3;
   /** Wrist → elbow in the holder's space (towards that arm's shoulder). */
   forearm: V3;
+  /** Sleeve length (metres), for a hand that moves about in view; GLOVE.sleeve.length otherwise. */
+  sleeve?: number;
   index: Curl;
   middle: Curl;
   ring: Curl;
@@ -330,7 +332,7 @@ export function gloveGeometry(p: GlovePose, key?: HandKey): { glove: THREE.Buffe
   parts.push(cuff);
   const S = GLOVE.sleeve;
   const sleeve = mergeGeometries([
-    tube(-S.from - S.length, -S.from, S.r1, S.r1 * 0.85, S.r0, S.r0 * 0.82),
+    tube(-S.from - (p.sleeve ?? S.length), -S.from, S.r1, S.r1 * 0.85, S.r0, S.r0 * 0.82),
     new THREE.TorusGeometry(S.r0 * 0.96, 0.0045, 6, 18).rotateX(Math.PI / 2).scale(1, 1, 0.84).translate(0, -S.from, 0),
   ])!.applyQuaternion(turn);
   for (const g of parts) g.deleteAttribute('uv');

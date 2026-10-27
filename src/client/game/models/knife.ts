@@ -4,9 +4,13 @@ import { HAND_POSES } from './handPoses';
 import { buildHand } from './hands';
 import { roundedProfile, type Pt } from './weaponShapes';
 
-/** In view space for the stab: the blade points ahead, the forearm runs back and down to the right. */
-const BLADE_DIR = new THREE.Vector3(-0.5, 0.18, -0.85);
-const FOREARM_DIR = new THREE.Vector3(0.45, -0.62, 0.64);
+/**
+ * In view space for the stab, as a right hand's knife is seen in first person: the back of the
+ * hand (the knuckles) up and turned to you, the fingers ahead, palm down; the blade then points
+ * ahead and to the left and the forearm comes up from below on the right.
+ */
+const BACK_DIR = new THREE.Vector3(0.15, 0.95, 0.25);
+const ALONG_DIR = new THREE.Vector3(-0.25, 0.1, -1);
 
 /** Rotation basis from a first direction and the part of a second one square to it. */
 function basis(a: THREE.Vector3, b: THREE.Vector3): THREE.Matrix4 {
@@ -77,10 +81,9 @@ export function buildKnife(): KnifeModel {
   const hand = buildHand('knife.right');
   const inner = new THREE.Group();
   inner.add(knife, hand);
-  // Turn the blade (up the handle) ahead and the pose's forearm back towards the shoulder.
-  const blade3 = new THREE.Vector3(0, KNIFE.axis[1], KNIFE.axis[0]);
-  const forearm3 = new THREE.Vector3(...HAND_POSES['knife.right'].forearm);
-  const turn = basis(BLADE_DIR, FOREARM_DIR).multiply(basis(blade3, forearm3).transpose());
+  // Turn the back of the hand up and the fingers ahead.
+  const pose = HAND_POSES['knife.right'];
+  const turn = basis(BACK_DIR, ALONG_DIR).multiply(basis(new THREE.Vector3(...pose.back), new THREE.Vector3(...pose.along)).transpose());
   inner.quaternion.setFromRotationMatrix(turn);
   const root = new THREE.Group();
   root.name = 'knife';

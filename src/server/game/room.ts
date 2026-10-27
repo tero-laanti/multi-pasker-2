@@ -653,7 +653,8 @@ export class Room {
         this.setSettings({ bots: Math.max(0, this.bots.length - 1) });
         break;
       case 'serve':
-        this.service.serve(p, typeof arg === 'number' ? arg : SERVICE.pkausi, 'kill');
+        if (typeof arg === 'number') this.service.serve(p, arg, 'kill');
+        else this.service.skipPkausi(p);
         break;
       case 'money':
         p.service.money += typeof arg === 'number' ? arg : 500;
@@ -1014,14 +1015,9 @@ export class Room {
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
   }
 
-  /** The player's fuse (s): Lyhyt sytytin shortens it. */
-  fuseOf(p: ServerPlayer): number {
-    return level(p.service.upgrades, 'sytytin') > 0 ? GEAR.shortFuse : TUNING.grenade.fuse;
-  }
-
   /** Fuse left (s) on the grenade in hand. */
   private fuseLeft(p: ServerPlayer): number {
-    return this.fuseOf(p) - (this.now() - p.pinAt) / 1000;
+    return TUNING.grenade.fuse - (this.now() - p.pinAt) / 1000;
   }
 
   /**
@@ -1030,7 +1026,7 @@ export class Room {
    */
   throwGrenade(p: ServerPlayer, o: [number, number, number], v: [number, number, number]): void {
     if (!p.alive) return;
-    let fuse = this.fuseOf(p);
+    let fuse = TUNING.grenade.fuse;
     if (p.pinAt) {
       fuse = Math.max(0.05, this.fuseLeft(p));
       p.pinAt = 0;
@@ -1064,12 +1060,14 @@ export class Room {
     this.emit({ k: 'nade', id: g.id, p: p.id, o: [g.x, g.y, g.z], v: [0, -1, 0], fuse });
   }
 
-  /** A grenade (or a mortar round) goes off: Raskas panos and the mortar blast wider. */
+  /** A grenade (or a mortar round) goes off: Raskas panos blasts wider, Lisää sirpaleita hits harder. */
   private explode(g: Grenade & { owner: number }, w: 'grenade' | 'mortar' = 'grenade'): void {
     const owner = this.players.get(g.owner) ?? null;
-    const heavy = w === 'mortar' || (owner && level(owner.service.upgrades, 'raskas') > 0);
-    const T = heavy ? { ...TUNING.grenade, radius: GEAR.heavyRadius } : TUNING.grenade;
-    this.emit(heavy ? { k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z, r: T.radius } : { k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z });
+    const u = owner?.service.upgrades ?? {};
+    const radius = w === 'mortar' ? GEAR.mortarRadius : TUNING.grenade.radius * (level(u, 'raskas') > 0 ? GEAR.blastRadiusMul : 1);
+    const damage = TUNING.grenade.damage * (w === 'grenade' && level(u, 'sirpale') > 0 ? GEAR.grenadeDamageMul : 1);
+    const T = { ...TUNING.grenade, radius, damage };
+    this.emit(radius !== TUNING.grenade.radius ? { k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z, r: radius } : { k: 'boom', id: g.id, x: g.x, y: g.y, z: g.z });
     for (const v of this.players.values()) {
       if (!v.alive) continue;
       const cy = v.y + 1.0;

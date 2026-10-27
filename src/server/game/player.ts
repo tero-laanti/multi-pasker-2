@@ -76,6 +76,8 @@ export class ServerPlayer {
   training = false;
   /** The tutorial's radio check: armed when the phone is picked up, sent once one is paired. */
   radioCheck: 'none' | 'armed' | 'waiting' | 'done' = 'none';
+  /** Replies to the radio check that weren't YK: the first gets the explanation. */
+  radioMisses = 0;
   /** An inventory check waiting for an answer, and when the next one is due (server ms). */
   inventory: InventoryCheck | null = null;
   inventoryAt = 0;

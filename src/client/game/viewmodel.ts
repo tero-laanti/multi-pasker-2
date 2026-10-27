@@ -10,6 +10,19 @@ import { WEAPON_IDS } from '../../shared/protocol';
 import { THROW_RELEASE, type WeaponController } from './weapons';
 import type { Upgrades } from '../../shared/upgrades';
 import { grenadeMesh } from './grenades';
+import { buildHand } from './models/hands';
+
+/**
+ * The grenade in the left hand, in view: fuse up and a little forwards, the palm on its left,
+ * the thumb across the near side, the forearm down and back towards the left shoulder.
+ */
+const GRIP_TURN = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.15, 0, 0.05, 'YXZ'));
+const X_AXIS = new THREE.Vector3(1, 0, 0);
+/** Throw progress by which the empty hand has dropped out of view (and goes back to the gun). */
+const GRIP_GONE = 0.75;
+
+/** Where the red dot sits in the rifle's model space: aiming puts it on the view axis. */
+const RED_DOT = { y: 0.066, z: -0.062 };
 
 /** The trigger finger's tap: seconds to pull and to let go, how far it curls (rad) and the trigger moves (m). */
 const TRIGGER = { pull: 0.03, release: 0.07, angle: 0.2, travel: 0.0025 };
@@ -144,7 +157,10 @@ export class ViewModel {
   private flashSide: THREE.Group;
   private flashTime = 1;
   private casings: Casing[] = [];
+  /** The grenade and the left hand round it (grenade space), moved together. */
+  private grenadeGrip = new THREE.Group();
   private heldGrenade = grenadeMesh();
+  private grenadeHand = buildHand('grenade.left');
   private knife = buildKnife();
   private casingIndex = 0;
   onCasingLand: (() => void) | null = null;
@@ -153,6 +169,9 @@ export class ViewModel {
   /** Suppressor fitted (Vaimennin): no muzzle flash. */
   silenced = false;
   private attachments: { suppressor: THREE.Mesh; drum?: THREE.Group; mag?: THREE.Object3D[] }[] = [];
+  /** Punapistetähtäin on the rifle, and the rifle's own sight (where aiming lines up without it). */
+  private redDot = new THREE.Group();
+  private ironSight = { y: 0, z: 0 };
   private upgradesKey = '';
   private phone: PhoneModel = buildPhone();
   /** How far the phone is up in view (0..1); it dips while the left hand is busy. */
@@ -174,7 +193,7 @@ export class ViewModel {
       m.root.visible = false;
     }
 
-    // Upgrades you can see: a suppressor on each gun, the rifle's drum magazine.
+    // Upgrades you can see: a suppressor on each gun, the rifle's drum magazine and red dot sight.
     const attachMat = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, roughness: 0.5, metalness: 0.6 });
     for (const [id, m] of Object.entries(this.models) as [WeaponId, WeaponModel][]) {
       const r = id === 'pistol' ? 0.016 : 0.019;
@@ -192,6 +211,22 @@ export class ViewModel {
         m.mag.add(drum);
         entry.drum = drum;
         entry.mag = [...m.mag.children].filter((c) => c !== drum);
+        // The red dot sight: a raised reflex sight on the cover in place of the rear sight; the
+        // front post shows just under the dot.
+        const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) =>
+          new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, Math.abs(z1 - z0)).translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), attachMat);
+        this.redDot.add(box(-0.011, 0.011, 0.026, 0.05, -0.03, -0.088));
+        for (const sx of [-1, 1]) this.redDot.add(box(sx > 0 ? 0.0125 : -0.0155, sx > 0 ? 0.0155 : -0.0125, 0.05, 0.083, -0.05, -0.074));
+        this.redDot.add(box(-0.0155, 0.0155, 0.079, 0.083, -0.05, -0.074));
+        const glass = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.025, 0.029).translate(0, 0.0645, RED_DOT.z - 0.001),
+          new THREE.MeshStandardMaterial({ color: 0x9fc3d6, metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.18, depthWrite: false }),
+        );
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.0011, 10, 8).translate(0, RED_DOT.y, RED_DOT.z), new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }));
+        this.redDot.add(glass, dot);
+        this.redDot.visible = false;
+        m.root.add(this.redDot);
+        this.ironSight = { y: m.sightY, z: m.sightZ };
       }
       this.attachments.push(entry);
     }
@@ -224,8 +259,9 @@ export class ViewModel {
     this.flashFront.visible = false;
     this.flashSide.visible = false;
 
-    this.heldGrenade.visible = false;
-    scene.add(this.heldGrenade);
+    this.grenadeGrip.add(this.heldGrenade, this.grenadeHand);
+    this.grenadeGrip.visible = false;
+    scene.add(this.grenadeGrip);
     scene.add(this.knife.root);
     const brass = new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 1, roughness: 0.3 });
     const geo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.019, 10);
@@ -248,6 +284,16 @@ export class ViewModel {
       a.suppressor.visible = this.silenced;
       if (a.drum) a.drum.visible = drum;
       for (const c of a.mag ?? []) c.visible = !drum;
+    }
+    // With the red dot, aiming lines up on the dot instead of the iron sights.
+    const dot = (u.punapiste ?? 0) > 0;
+    const rifle = this.models.rifle;
+    this.redDot.visible = dot;
+    if (rifle) {
+      const rear = rifle.root.getObjectByName('rearSight');
+      if (rear) rear.visible = !dot;
+      rifle.sightY = dot ? RED_DOT.y : this.ironSight.y;
+      rifle.sightZ = dot ? RED_DOT.z : this.ironSight.z;
     }
   }
 
@@ -374,15 +420,25 @@ export class ViewModel {
 
     this.updateCasings(dt);
 
-    // The grenade in view: up as the pin comes out, held while G is down, flung when it is let go.
-    const held = w.state === 'priming' || w.state === 'holding' || (w.state === 'throwing' && w.progress < THROW_RELEASE);
-    this.heldGrenade.visible = held;
-    if (held) {
-      const rise = w.state === 'priming' ? smoothstep(0, 1, w.progress) : 1;
-      const fling = w.state === 'throwing' ? w.progress / THROW_RELEASE : 0;
+    // The grenade in the left hand: up from below as the pin comes out, held while G is down,
+    // flung when it is let go; the hand follows through and drops away.
+    const gt = w.progress;
+    const grip = w.state === 'priming' || w.state === 'holding' || (w.state === 'throwing' && gt < GRIP_GONE);
+    this.grenadeGrip.visible = grip;
+    if (grip) {
+      const rise = w.state === 'priming' ? smoothstep(0.25, 1, gt) : 1;
+      // A quick toss: forwards and up to the release, then down out of view.
+      const fling = w.state === 'throwing' ? smoothstep(0, THROW_RELEASE, gt) : 0;
+      const drop = w.state === 'throwing' ? smoothstep(THROW_RELEASE, GRIP_GONE, gt) : 0;
       const sway = w.state === 'holding' ? Math.sin(this.time * 2.1) * 0.004 : 0;
-      this.heldGrenade.position.set(-0.2 + 0.06 * rise + 0.08 * fling, -0.3 + 0.16 * rise + 0.08 * fling + sway, -0.42 - 0.02 * rise - 0.25 * fling);
-      this.heldGrenade.rotation.set(-0.4 - 1.2 * fling, 0.3, 0.2);
+      this.heldGrenade.visible = gt < THROW_RELEASE || w.state !== 'throwing';
+      this.grenadeGrip.position.set(
+        -0.17 + 0.05 * rise + 0.06 * fling - 0.04 * drop,
+        -0.4 + 0.23 * rise + 0.06 * fling - 0.36 * drop + sway,
+        -0.42 - 0.02 * rise - 0.14 * fling + 0.06 * drop,
+      );
+      // The wrist flicks forwards on the release.
+      this.grenadeGrip.quaternion.setFromAxisAngle(X_AXIS, -0.25 * fling * (1 - drop)).multiply(GRIP_TURN);
     }
 
     // The knife: up from below the dipped gun, a straight stab that lands at hitAt, back down.
@@ -684,6 +740,11 @@ export class ViewModel {
         p.pitch -= 0.45 * k;
         p.roll += 0.3 * k;
         p.x += 0.03 * k;
+        // The left hand lets go of the gun for the grenade, and is back on it after the throw.
+        const off = w.state === 'priming' ? smoothstep(0, 0.35, t) : w.state === 'holding' ? 1 : 1 - smoothstep(GRIP_GONE, 1, t);
+        lh.position.set(-0.04 * off, -0.2 * off, 0.1 * off);
+        lh.rotation.x = 0.5 * off;
+        lh.visible = m.supportHandAtRest && off < 0.98;
         break;
       }
       case 'stabbing': {

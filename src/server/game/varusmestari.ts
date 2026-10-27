@@ -51,6 +51,7 @@ export class Varusmestari {
   radioCheck(p: ServerPlayer): void {
     if (p.radioCheck === 'waiting' || p.radioCheck === 'done') return;
     p.radioCheck = 'waiting';
+    p.radioMisses = 0;
     p.phone.conv(V.number, V.name);
     this.post(p, V.number, pick(FI.training.radioCheck));
   }
@@ -267,7 +268,7 @@ export class Varusmestari {
     // On the range: the radio check first, then LATAA and KRANAATTI for the range's own guns.
     if (p.training) {
       if (p.radioCheck === 'waiting') {
-        if (!isRadioCheckReply(text)) return { reply: say(FI.training.radioCheckWrong), public: false, command: false };
+        if (!isRadioCheckReply(text)) return { reply: say(p.radioMisses++ === 0 ? FI.training.radioCheckExplain : FI.training.radioCheckWrong), public: false, command: false };
         p.radioCheck = 'done';
         p.outbox.push({ k: 'training', what: 'radioCheck' });
         return ok(say(FI.training.radioCheckOk));

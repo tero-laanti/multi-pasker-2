@@ -29,9 +29,9 @@ export function damageFor(id: WeaponId, zone: HitZone, distance: number, preset:
   const d = TUNING.killSpeed[preset];
   const t = TUNING[id];
   if (id === 'pistol') {
-    if (zone === 'head') return d.pistolHead;
-    // Ontelokärjet: the same share more than the plain round, whatever the preset.
-    return u.ontelo ? Math.round((d.pistolBody * GEAR.pistolBody) / TUNING.killSpeed.cod.pistolBody) : d.pistolBody;
+    const dmg = zone === 'head' ? d.pistolHead : d.pistolBody;
+    // Ontelokärjet: every pistol hit does half as much again, whatever the preset.
+    return u.ontelo ? Math.floor(dmg * GEAR.pistolDamageMul) : dmg;
   }
   if (id === 'sniper') return zone === 'head' ? d.sniperHead : d.sniperBody;
   if (zone === 'head') return d.rifleHead;
@@ -75,6 +75,8 @@ export interface SpreadInput {
   phone?: number;
   /** Gear that steadies hip fire (Lonkalta): multiplies the hip spread. */
   hipMul?: number;
+  /** Gear that steadies aiming on the move (Punapistetähtäin): multiplies the aimed spread from moving. */
+  adsMoveMul?: number;
 }
 
 /** Cone half-angle in degrees for the next shot. */
@@ -87,6 +89,6 @@ export function spreadFor(t: WeaponTuning, s: SpreadInput): number {
   hip = Math.min(hip, t.spreadMax + (s.airborne ? t.spreadAir : 0));
   const ph = s.phone ?? 0;
   if (ph > 0) hip = hip * (1 + (TUNING.phoneOut.spreadMul - 1) * ph) + TUNING.phoneOut.spreadAdd * ph;
-  const ads = t.spreadAds + t.spreadAdsMove * moveK + s.bloom * 0.15 + (s.airborne ? t.spreadAir * 0.5 : 0);
+  const ads = t.spreadAds + t.spreadAdsMove * moveK * (s.adsMoveMul ?? 1) + s.bloom * 0.15 + (s.airborne ? t.spreadAir * 0.5 : 0);
   return lerp(hip, ads, s.ads);
 }

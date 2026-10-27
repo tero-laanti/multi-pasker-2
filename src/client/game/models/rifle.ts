@@ -21,19 +21,21 @@ export function buildRifle(): WeaponModel {
   const worn: THREE.BufferGeometry[] = [];
   const dark: THREE.BufferGeometry[] = [];
   const poly: THREE.BufferGeometry[] = [];
+  const rear: THREE.BufferGeometry[] = [];
 
   // Receiver body and the top cover.
   steel.push(extrudeSide(RIFLE.receiver, 0.0152, 0.0012));
   worn.push(extrudeSide(RIFLE.cover, 0.0138, 0.0012));
-  // Diopter rear sight: base, aperture ring and the two protective ears.
-  steel.push(boxAt(-0.009, 0.009, 0.026, 0.036, 0.004, 0.03));
+  // Diopter rear sight: base, aperture ring and the two protective ears (its own mesh: a red
+  // dot sight replaces it).
+  rear.push(boxAt(-0.009, 0.009, 0.026, 0.036, 0.004, 0.03));
   {
     const ring = new THREE.TorusGeometry(0.0042, 0.0017, 10, 22);
     ring.translate(0, SIGHT_Y, 0.016);
-    steel.push(ring);
+    rear.push(ring);
     const stem = boxAt(-0.0022, 0.0022, 0.034, SIGHT_Y - 0.004, 0.013, 0.019);
-    steel.push(stem);
-    for (const sx of [-1, 1]) steel.push(boxAt(sx * 0.0065, sx * 0.0095, 0.03, SIGHT_Y + 0.006, 0.006, 0.026));
+    rear.push(stem);
+    for (const sx of [-1, 1]) rear.push(boxAt(sx * 0.0065, sx * 0.0095, 0.03, SIGHT_Y + 0.006, 0.006, 0.026));
   }
   // Barrel, gas block, gas tube.
   steel.push(cylZ(0.0108, 0.0098, -0.215, -0.66, 0, 0, 22));
@@ -77,6 +79,7 @@ export function buildRifle(): WeaponModel {
   add(worn, M.bluedWorn);
   add(dark, M.bore);
   add(poly, M.polymer);
+  add(rear, M.blued).name = 'rearSight';
 
   // Bolt carrier with the charging handle (racks back).
   const boltGeo: THREE.BufferGeometry[] = [boxAt(0.0148, 0.0166, -0.005, 0.01, -0.06, -0.16), cylZ(0.0035, 0.0035, -0.135, -0.135, 0.004, 0.0165, 10)];

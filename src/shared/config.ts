@@ -255,7 +255,7 @@ export const TUNING = {
     health: 100,
     regenDelay: 4.5,
     regenRate: 40,
-    respawnTime: 2.5,
+    respawnTime: 3,
     spawnProtect: 1,
   },
   /** The knife (V): a stab at arm's length with the gun lowered. Two stabs kill from full health. */
@@ -364,17 +364,17 @@ export const INVENTORY = {
 export const SERVICE = {
   /** Days in the service: TJ at the start. */
   days: 347,
-  /** Days served for a kill, for being killed by someone else, and extra when the victim outranks the killer. */
+  /** Days served for a kill, for being killed by someone else, and extra when the victim has a lower TJ than the killer. */
   killDays: 3,
   deathDays: 1,
-  seniorDays: 2,
+  seniorDays: 1,
   /** Päiväraha in € a day, from the day given on (days count from 1). Each rise is also a promotion. */
   pay: [
     [1, 5],
     [166, 10],
     [256, 15],
   ] as [number, number][],
-  /** P-kausi (six weeks): the Sotku App opens after this many days, and alokas becomes sotamies. */
+  /** P-kausi (six weeks): after this many days, and its gear signed for, the Sotku App opens and alokas becomes sotamies. */
   pkausi: 42,
   /** P-kausi's gear, handed out by text on the day given. */
   gear: [
@@ -401,21 +401,21 @@ export const SOTKU = {
     sarja: { path: 'sp', tier: 4, price: 600, needs: ['ontelo', 'kevyt'] },
     suujarru: { path: 'ta', tier: 1, price: 120 },
     lipas2: { path: 'ta', tier: 2, price: 200, needs: ['suujarru'] },
-    lukko: { path: 'ta', tier: 2, price: 200, needs: ['suujarru'] },
+    punapiste: { path: 'ta', tier: 2, price: 200, needs: ['suujarru'] },
     rumpu: { path: 'ta', tier: 3, price: 350, needs: ['lipas2'] },
-    vaimennin: { path: 'ta', tier: 3, price: 350, needs: ['lukko'] },
+    vaimennin: { path: 'ta', tier: 3, price: 350, needs: ['punapiste'] },
     tkiv: { path: 'ta', tier: 4, price: 700, needs: ['rumpu', 'vaimennin'] },
-    pikavalinta: { path: 'vm', tier: 1, price: 100 },
-    autofill: { path: 'vm', tier: 2, price: 200, needs: ['pikavalinta'] },
-    tutka: { path: 'vm', tier: 2, price: 200, needs: ['pikavalinta'] },
-    tumma: { path: 'vm', tier: 3, price: 300, needs: ['autofill', 'tutka'] },
+    tumma: { path: 'vm', tier: 1, price: 100 },
+    tutka: { path: 'vm', tier: 2, price: 200, needs: ['tumma'] },
+    pikavalinta: { path: 'vm', tier: 2, price: 200, needs: ['tumma'] },
+    autofill: { path: 'vm', tier: 3, price: 300, needs: ['pikavalinta'] },
     kannykka: { path: 'vm', tier: 3, price: 300, needs: ['tutka'] },
-    lennokki: { path: 'vm', tier: 4, price: 600, needs: ['tumma', 'kannykka'] },
+    lennokki: { path: 'vm', tier: 4, price: 600, needs: ['autofill', 'kannykka'] },
     tihea: { path: 'pi', tier: 1, price: 100 },
     heitto: { path: 'pi', tier: 2, price: 200, needs: ['tihea'] },
-    sytytin: { path: 'pi', tier: 2, price: 200, needs: ['tihea'] },
-    kolmas: { path: 'pi', tier: 3, price: 300, needs: ['heitto', 'sytytin'] },
-    raskas: { path: 'pi', tier: 3, price: 350, needs: ['heitto', 'sytytin'] },
+    sirpale: { path: 'pi', tier: 2, price: 200, needs: ['tihea'] },
+    kolmas: { path: 'pi', tier: 3, price: 300, needs: ['heitto', 'sirpale'] },
+    raskas: { path: 'pi', tier: 3, price: 350, needs: ['heitto', 'sirpale'] },
     tuli: { path: 'pi', tier: 4, price: 650, needs: ['kolmas', 'raskas'] },
   },
   /** The café: consumables, bought as often as you like. */
@@ -429,10 +429,13 @@ export const GEAR = {
   pistolMagazine: 18,
   /** Lonkalta: the pistol's hip spread (also on the move) is multiplied by this. */
   pistolHipMul: 0.5,
-  /** Ontelokärjet: pistol body hits. */
-  pistolBody: 34,
+  /** Ontelokärjet: every pistol hit does this much more (rounded down: a body hit 25 → 37). */
+  pistolDamageMul: 1.5,
   /** Kevyt varustus: movement with the pistol out. */
-  pistolMoveMul: 1.1,
+  pistolMoveMul: 1.2,
+  /** Punapistetähtäin: the rifle aims this much quicker, and its aimed spread on the move is multiplied by this. */
+  redDotAdsMul: 0.7,
+  redDotAdsMoveMul: 0.5,
   /** Sarjatulipistooli. */
   pistolAutoRpm: 1000,
   /** Tutka: minimap range (m) and how much longer shots stay on it. */
@@ -442,14 +445,15 @@ export const GEAR = {
   droneTime: 15,
   /** Tiheä huolto: seconds between KRANAATTI deliveries. */
   grenadeCooldown: 5,
-  /** Pitkä heitto: throw speed multiplier. */
+  /** Hyvä heittäjä: throw speed multiplier (and the throw's path shown while holding a grenade). */
   throwMul: 1.3,
-  /** Lyhyt sytytin: the fuse (s). */
-  shortFuse: 1.8,
-  /** Raskas panos: blast radius (m). */
-  heavyRadius: 8,
-  /** Tulitoimitus: mortar rounds, landing this long (s) after TULI, scattered this far (m), once a round. */
+  /** Lisää sirpaleita: grenade damage multiplier. */
+  grenadeDamageMul: 1.5,
+  /** Raskas panos: blast radius multiplier. */
+  blastRadiusMul: 1.5,
+  /** Tulitoimitus: mortar rounds, landing this long (s) after TULI, scattered this far (m), each blasting this far (m), once a round. */
   mortarRounds: 3,
+  mortarRadius: 8,
   mortarDelay: 10,
   mortarSpread: 5,
   mortarGap: 0.8,

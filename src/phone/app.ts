@@ -1,7 +1,7 @@
 import { SERVICE, SOTKU } from '../shared/config';
 import { FI } from '../shared/fi';
 import { ACCENTS, PROTOCOL_VERSION, type MsgState, type PhoneConversation, type PhoneMessage, type PhoneServerMsg, type PhoneStatus } from '../shared/protocol';
-import { CAFE_IDS, PATHS, benefit, canBuy, effects, isCafeId, isShopId, pathItems, payFor, rises, shopItem, type PathId, type ShopId, type StoreState } from '../shared/service';
+import { CAFE_IDS, GEAR_IDS, PATHS, benefit, canBuy, effects, isCafeId, isShopId, pathItems, payFor, rises, shopItem, type PathId, type ShopId, type StoreState } from '../shared/service';
 import { UI } from '../shared/ui';
 import { Keyboard } from './keyboard';
 import { Media } from './media';
@@ -756,14 +756,22 @@ export class PhoneApp {
     if (st && this.sotkuItem) this.renderItem(s, st, this.sotkuItem);
   }
 
-  /** P-kausi: the shop is shut, with how many days are left; the money is already there. */
+  /**
+   * P-kausi: the shop is shut until its days are served and its gear is signed for (both shown);
+   * the money is already there.
+   */
   private renderLocked(body: HTMLElement, st: StoreState): void {
     const box = h('div', 'lockbox', undefined, body);
     h('div', 'lock-icon', '🔒', box);
     h('div', 'lock-title', S.locked, box);
     const prog = h('div', 'prog', undefined, box);
     h('i', '', undefined, prog).style.width = `${Math.round((Math.min(st.days, SERVICE.pkausi) / SERVICE.pkausi) * 100)}%`;
-    h('div', 'lock-days', fill(S.lockedDays, { d: st.days, n: SERVICE.pkausi, left: Math.max(0, SERVICE.pkausi - st.days) }), box);
+    const left = SERVICE.pkausi - st.days;
+    h('div', 'lock-days', left > 0 ? fill(S.lockedDays, { d: st.days, n: SERVICE.pkausi, left }) : fill(S.lockedDaysDone, { d: st.days, n: SERVICE.pkausi }), box);
+    const gear = GEAR_IDS.filter((id) => st.owned.includes(id)).length;
+    h('div', 'lock-days', fill(S.lockedGear, { n: gear, of: GEAR_IDS.length }), box);
+    if (st.paper) h('div', 'lock-note strong', fill(S.waitingOpen, { where: st.paper.where }), box);
+    else if (gear < GEAR_IDS.length) h('div', 'lock-note', S.lockedGearHint, box);
     h('div', 'lock-note', fill(S.lockedNote, { eur: payFor(Math.max(1, st.days)) }), box);
     h('div', 'sect', S.paths, body);
     const grid = h('div', 'paths', undefined, body);
@@ -790,7 +798,8 @@ export class PhoneApp {
         const row = h('div', 'row2', undefined, body);
         const left = h('div', 'row2-main', undefined, row);
         h('div', 'row2-name', FI.items[id] ?? id, left);
-        h('div', 'row2-sub', S.waitingNote, left);
+        const open = st.paper?.item === id;
+        h('div', `row2-sub${open ? ' strong' : ''}`, open ? fill(S.waitingOpen, { where: st.paper!.where }) : S.waitingQueued, left);
         h('span', 'wait', S.paperwork, row);
       }
     }

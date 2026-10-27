@@ -366,8 +366,11 @@ export class Effects {
     }
   }
 
-  /** Grenade blast: flash core, dust ring, smoke column, sparks, debris and a scorch mark. `k`: how much bigger (a heavy charge, a mortar round). */
-  explosion(x: number, y: number, z: number, k = 1): void {
+  /**
+   * Grenade blast: flash core, dust ring, smoke column, sparks, debris, and a scorch mark on the
+   * ground at `groundY` (none for a blast in the air). `k`: how much bigger (a heavy charge, a mortar round).
+   */
+  explosion(x: number, y: number, z: number, k = 1, groundY: number | null = y): void {
     const rnd = () => Math.random() * 2 - 1;
     for (let i = 0; i < 14; i++) {
       this.sparks.emit({ x, y: y + 0.2, z, vx: rnd() * 2 * k, vy: Math.random() * 2 * k, vz: rnd() * 2 * k, max: 0.12 + Math.random() * 0.08, size: (0.5 + Math.random() * 0.4) * k, grow: 1.5, r: 1, g: 0.75, b: 0.4, a: 0.9, gravity: 0, drag: 6 });
@@ -388,7 +391,7 @@ export class Effects {
       const sp = 3 + Math.random() * 7;
       this.dust.emit({ x, y: y + 0.1, z, vx: rnd() * sp, vy: 2 + Math.random() * sp, vz: rnd() * sp, max: 0.9 + Math.random() * 0.5, size: 0.03 + Math.random() * 0.03, grow: 0, r: 0.2, g: 0.18, b: 0.15, a: 1, gravity: 9.8, drag: 0.4 });
     }
-    this.decal(x, y + 0.002, z, 0, 1, 0, 2.2 * k, 1);
+    if (groundY !== null) this.decal(x, groundY + 0.002, z, 0, 1, 0, 2.2 * k, 1);
   }
 
   /** A slow puff of wood smoke (tent stoves). */

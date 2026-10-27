@@ -3,8 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { normalize } from '../src/shared/chat';
-import { MATCH, SERVICE, SOTKU } from '../src/shared/config';
+import { GEAR, MATCH, SERVICE, SOTKU, TUNING } from '../src/shared/config';
 import { FI } from '../src/shared/fi';
+import { explosionDamage } from '../src/shared/grenade';
 import { MapBuilder } from '../src/shared/map/builder';
 import { PROTOCOL_VERSION, type GameEvent, type PhoneServerMsg } from '../src/shared/protocol';
 import { canBuy, earn, payFor, rankFor, SHOP_IDS } from '../src/shared/service';
@@ -155,14 +156,18 @@ describe('the service', () => {
     expect(a!.p.service.days).toBe(0);
   });
 
-  it('killing someone who outranks you serves two extra days', () => {
+  it('killing someone with a lower TJ serves one extra day', () => {
     const { all, kill, serve } = setup();
     const [a, b] = all;
-    serve(b!.p, SERVICE.pkausi);
-    expect(b!.p.rank).toBe(1);
+    serve(b!.p, 10);
     kill(a!.p, b!.p);
     expect(a!.p.service.days).toBe(SERVICE.killDays + SERVICE.seniorDays);
-    expect(a!.ws.events().find((e) => e.k === 'pay')).toMatchObject({ days: 5, senior: true });
+    expect(a!.ws.events().find((e) => e.k === 'pay')).toMatchObject({ days: 4, senior: true });
+    // The same TJ (or a higher one) is a plain kill.
+    const before = b!.p.service.days;
+    a!.p.service.days = before;
+    kill(b!.p, a!.p);
+    expect(b!.p.service.days).toBe(before + SERVICE.killDays);
   });
 
   it('the first kill brings the rifle as paperwork; it stays for the rest of the evening', () => {
@@ -252,41 +257,61 @@ describe('the service', () => {
     expect(p.maxGrenades).toBe(2);
   });
 
-  it('P-kausi ends at day 42: the company commander opens the Sotku App and alokas is sotamies', () => {
-    const { all, serve, run, texts, store } = setup();
+  it('P-kausi is passed with its 42 days and its gear signed for: then the commander opens the Sotku App', () => {
+    const { all, serve, run, texts, store, paperwork } = setup();
     const [a] = all;
-    serve(a!.p, 41);
-    expect(store(a!.phone)?.open).toBe(false);
-    expect(a!.p.rank).toBe(0);
-    serve(a!.p, 1);
+    serve(a!.p, SERVICE.pkausi);
     run(4000);
+    // The days are served, but the gear's paperwork isn't done: still alokas, the shop shut.
+    expect(store(a!.phone)?.open).toBe(false);
+    expect(store(a!.phone)?.paper).toEqual({ item: 'rifle', where: FI.varusmestari.name });
+    expect(a!.p.rank).toBe(0);
+    expect(a!.p.phone.convs.has(C.number)).toBe(false);
+    for (let i = 0; i < 4; i++) paperwork(a!.p);
+    // The commander's text comes after the asevarasto's replies on their way.
+    run(15000);
     expect(store(a!.phone)?.open).toBe(true);
     expect(store(a!.phone)?.money).toBe(210);
     expect(a!.p.rank).toBe(1);
-    const msg = texts(a!.phone, C.number).pop()?.text ?? '';
-    expect(msg).toContain('Sotku');
-    expect(msg).toContain(a!.p.name);
+    expect(texts(a!.phone, C.number).pop()?.text).toBe(C.pkausi[0]);
     expect(a!.p.phone.convs.get(C.number)?.name).toBe(C.name);
   });
 
+  it('the debug skip hands P-kausi over at once, gear and all', () => {
+    const { all, room, run, store } = setup();
+    const [a] = all;
+    a!.p.isHost = true;
+    room.onMessage(a!.p, { t: 'dev', cmd: 'serve' });
+    run(4000);
+    expect(a!.p.service.days).toBe(SERVICE.pkausi);
+    expect(store(a!.phone)?.open).toBe(true);
+    expect(store(a!.phone)?.waiting).toEqual([]);
+    expect(a!.p.owned).toContain('rifle');
+    expect(a!.p.maxGrenades).toBe(2);
+  });
+
   it('the pay rises are texted (to you only) and promote you', () => {
-    const { all, serve, run, texts } = setup();
+    const { all, room, serve, run, texts } = setup();
     const [a, b] = all;
-    serve(a!.p, 166);
+    room.service.skipPkausi(a!.p);
+    serve(a!.p, 166 - SERVICE.pkausi);
     run(20000);
     const rise = texts(a!.phone, C.number).find((m) => m.text?.includes('10 €'));
-    expect(rise?.text).toContain('TJ 181');
-    expect(rise?.text).toContain('korpraaliksi');
+    expect(rise?.text).toBe('TJ 181! You are promoted to korpraali. Your Päiväraha is now 10 € a day.');
     expect(a!.p.rank).toBe(2);
     expect(texts(b!.phone, C.number).length).toBe(0);
     serve(a!.p, 90);
     run(20000);
-    expect(texts(a!.phone, C.number).some((m) => m.text?.includes('15 €') && m.text.includes('alikersantiksi'))).toBe(true);
+    expect(texts(a!.phone, C.number).some((m) => m.text?.includes('15 €') && m.text.includes('alikersantti'))).toBe(true);
     expect(a!.p.rank).toBe(3);
+    // Someone still in P-kausi only hears of the pay.
+    serve(b!.p, 166);
+    run(20000);
+    expect(texts(b!.phone, C.number).pop()?.text).toBe('TJ 181! Your Päiväraha is now 10 € a day.');
   });
 
   it('the shop: row I at once, the rest after paperwork; needs, money and P-kausi are checked', () => {
-    const { all, serve, buy, store, send } = setup();
+    const { all, room, serve, buy, store, send } = setup();
     const [a] = all;
     const p = a!.p;
     serve(p, 10);
@@ -294,22 +319,23 @@ describe('the service', () => {
     buy(p, 'suujarru');
     // The shop is shut in P-kausi.
     expect(p.service.owned.has('suujarru')).toBe(false);
-    serve(p, SERVICE.pkausi - 10);
-    // Clear the P-kausi gear's paperwork out of the way.
-    Object.assign(p.service, { waiting: [], open: null, money: 330 });
-    buy(p, 'lukko');
+    // P-kausi done at once (its gear without paperwork).
+    room.service.skipPkausi(p);
+    p.service.money = 330;
+    buy(p, 'punapiste');
     expect(p.service.waiting).toEqual([]);
     buy(p, 'suujarru');
     expect(p.service.owned.has('suujarru')).toBe(true);
     expect(p.service.money).toBe(210);
     expect(weaponStats('rifle', p.service.upgrades).recoilMul).toBeCloseTo(0.75);
-    buy(p, 'lukko');
+    buy(p, 'punapiste');
     expect(p.service.money).toBe(10);
-    expect(p.service.waiting).toEqual(['lukko']);
-    expect(store(a!.phone)?.waiting).toEqual(['lukko']);
+    expect(p.service.waiting).toEqual(['punapiste']);
+    expect(store(a!.phone)?.waiting).toEqual(['punapiste']);
+    expect(store(a!.phone)?.paper).toEqual({ item: 'punapiste', where: FI.varusmestari.name });
     expect(p.service.open?.kind).toBe('word');
     send(p, p.service.open!.code);
-    expect(p.gun('rifle').rpm).toBe(700);
+    expect(p.gun('rifle').adsMul).toBeCloseTo(0.7);
     // Not enough money: refused, and the phone is told how things are.
     const sent = a!.phone.sent.length;
     buy(p, 'rumpu');
@@ -318,18 +344,20 @@ describe('the service', () => {
   });
 
   it('the café: munkki does the next paperwork with KIITOS, nakkisuoja skips an inventory check', () => {
-    const { all, serve, buy, send, run, room, texts } = setup();
+    const { all, buy, send, run, room, texts } = setup();
     const [a] = all;
     const p = a!.p;
-    serve(p, SERVICE.pkausi);
-    p.service.money = 100;
+    room.service.skipPkausi(p);
+    p.service.money = 420;
     buy(p, 'munkki');
     buy(p, 'nakkisuoja');
     expect(p.service.cafe).toEqual({ munkki: 1, nakkisuoja: 1 });
-    expect(p.service.money).toBe(30);
-    expect(p.service.open?.due).toBe('rifle');
+    expect(p.service.money).toBe(350);
+    buy(p, 'suujarru');
+    buy(p, 'lipas2');
+    expect(p.service.open?.due).toBe('lipas2');
     send(p, 'Kiitos');
-    expect(p.service.owned.has('rifle')).toBe(true);
+    expect(p.service.owned.has('lipas2')).toBe(true);
     expect(p.service.cafe.munkki).toBe(0);
     p.inventoryAt = 0;
     room.onPhoneMessage(p, { t: 'read', conv: V.number });
@@ -346,6 +374,7 @@ describe('the service', () => {
     const [a, b] = all;
     const p = a!.p;
     void b;
+    room.service.skipPkausi(p);
     p.service.days = SERVICE.days - 1;
     serve(p, 3);
     expect(p.service.tj).toBe(0);
@@ -368,8 +397,8 @@ describe('the service', () => {
     expect(p.info().star).toBe(true);
     expect(p.service.voucher).toBe(true);
     p.service.money = 0;
-    buy(p, 'pikavalinta');
-    expect(p.service.owned.has('pikavalinta')).toBe(true);
+    buy(p, 'tumma');
+    expect(p.service.owned.has('tumma')).toBe(true);
     expect(p.service.voucher).toBe(false);
   });
 
@@ -390,8 +419,8 @@ describe('the service', () => {
     expect(again.service.days).toBe(days);
     expect(again.service.money).toBe(a!.p.service.money);
     expect(again.owned).toContain('rifle');
-    expect(again.rank).toBe(1);
-    // The P-kausi gear still waiting gets its paperwork again.
+    // Still alokas: P-kausi's gear waits for its paperwork, which starts again.
+    expect(again.rank).toBe(0);
     expect(again.service.open?.due).toBe('lipas');
     // A new evening (the host's dev command) starts everyone again.
     again.isHost = true;
@@ -406,11 +435,37 @@ describe('the Sotku’s gear at work', () => {
     expect(weaponStats('pistol', { plipas: 1 }).magazine).toBe(18);
     expect(weaponStats('pistol', { sarja: 1 })).toMatchObject({ auto: true, rpm: 1000 });
     expect(weaponStats('pistol', { pveto: 1 }).drawMul).toBeCloseTo(0.5);
-    expect(damageFor('pistol', 'body', 10, 'cod', { ontelo: 1 })).toBe(34);
+    expect(damageFor('pistol', 'body', 10, 'cod', { ontelo: 1 })).toBe(37);
+    expect(damageFor('pistol', 'head', 10, 'cod', { ontelo: 1 })).toBe(75);
     expect(damageFor('pistol', 'body', 10, 'cod')).toBe(25);
     expect(damageFor('sniper', 'head', 300, 'cod')).toBeGreaterThanOrEqual(100);
+    expect(weaponStats('pistol', { kevyt: 1 }).moveMul).toBeCloseTo(GEAR.pistolMoveMul);
     expect(weaponStats('rifle', { lipas: 2 }).magazine).toBe(50);
     expect(weaponStats('rifle', { rumpu: 1 }).magazine).toBe(75);
+    expect(weaponStats('rifle', { punapiste: 1 })).toMatchObject({ adsMul: GEAR.redDotAdsMul, adsMoveMul: GEAR.redDotAdsMoveMul });
+    expect(weaponStats('rifle', {})).toMatchObject({ adsMul: 1, adsMoveMul: 1 });
+  });
+
+  it('more shrapnel hurts more, and the heavy charge reaches farther', () => {
+    const { all, room } = setup();
+    const [a, b] = all;
+    const v = b!.p;
+    /** Damage to the other player from the first one's grenade going off this far from them. */
+    const blast = (dist: number) => {
+      v.hp = 100;
+      v.protectedUntil = 0;
+      (room as unknown as { explode(g: object): void }).explode({ id: 1, owner: a!.p.id, x: v.x + dist, y: v.y + 1, z: v.z, vx: 0, vy: 0, vz: 0, fuse: 0, resting: true });
+      return 100 - v.hp;
+    };
+    const T = TUNING.grenade;
+    const shrapnel = { ...T, damage: T.damage * GEAR.grenadeDamageMul };
+    expect(blast(4)).toBe(explosionDamage(4));
+    a!.p.service.give('sirpale');
+    expect(blast(4)).toBe(explosionDamage(4, shrapnel));
+    expect(blast(T.radius + 0.5)).toBe(0);
+    a!.p.service.give('raskas');
+    expect(blast(T.radius + 0.5)).toBe(explosionDamage(T.radius + 0.5, { ...shrapnel, radius: T.radius * GEAR.blastRadiusMul }));
+    expect(blast(T.radius + 0.5)).toBeGreaterThan(0);
   });
 
   it('the one-stab knife kills from full health', () => {
@@ -467,7 +522,8 @@ describe('matches', () => {
     room.setSettings({ rounds: 2 });
     kill(a!.p, b!.p);
     send(a!.p, a!.p.service.open!.code);
-    room.service.serve(a!.p, 60, 'kill');
+    room.service.skipPkausi(a!.p);
+    room.service.serve(a!.p, 21, 'kill');
     run(8000);
     expect(a!.p.owned).toContain('rifle');
     expect(a!.p.phone.convs.has(C.number)).toBe(true);

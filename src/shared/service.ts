@@ -1,6 +1,6 @@
 import { GEAR, MINIMAP, SERVICE, SOTKU, TUNING } from './config';
 import { UI } from './ui';
-import { BRAKE, DRUM_ROUNDS, MAG_STEP, RPM_STEP, type Upgrades } from './upgrades';
+import { BRAKE, DRUM_ROUNDS, MAG_STEP, type Upgrades } from './upgrades';
 
 /**
  * The service and the Sotku App's rules, shared by the server (which decides) and the phone
@@ -52,12 +52,13 @@ export function earn(served: number, add: number): number {
 }
 
 /**
- * Rank by days served: alokas through P-kausi, sotamies after it, a promotion with each pay
- * rise (korpraali, alikersantti), and kersantti once discharged. Indexes FI.ranks.
+ * Rank by days served: alokas until P-kausi is passed (its days served and its gear signed
+ * for), sotamies after it, a promotion with each pay rise (korpraali, alikersantti), and
+ * kersantti once discharged. Indexes FI.ranks.
  */
-export function rankFor(days: number, discharged = false): number {
+export function rankFor(days: number, discharged = false, passed = days >= SERVICE.pkausi): number {
   if (discharged) return SERVICE.pay.length + 1;
-  if (days < SERVICE.pkausi) return 0;
+  if (!passed) return 0;
   return 1 + rises().filter((from) => days >= from).length;
 }
 
@@ -93,8 +94,10 @@ export interface StoreState {
   /** Days served (TJ = SERVICE.days − days) and the wallet. */
   days: number;
   money: number;
-  /** P-kausi is over: the shop is open. */
+  /** P-kausi is passed (its days and its gear signed for): the shop is open. */
   open: boolean;
+  /** The paperwork under way: what it hands over and the chat it is done in. */
+  paper: { item: ItemId | 'discharge'; where: string } | null;
   /** Handed over, and bought but still waiting for paperwork (in the order they come). */
   owned: ItemId[];
   waiting: ItemId[];
@@ -113,20 +116,20 @@ export function benefit(id: string): string {
     lipas: { a: R.magazine, b: R.magazine + MAG_STEP },
     vyo: { a: 1, b: 2 },
     plipas: { a: P.magazine, b: GEAR.pistolMagazine },
-    ontelo: { a: TUNING.killSpeed.cod.pistolBody, b: GEAR.pistolBody },
+    ontelo: { pct: Math.round((GEAR.pistolDamageMul - 1) * 100) },
     kevyt: { pct: Math.round((GEAR.pistolMoveMul - 1) * 100) },
     sarja: { b: GEAR.pistolAutoRpm },
     suujarru: { pct: Math.round((1 - BRAKE[1]!) * 100) },
     lipas2: { a: R.magazine + MAG_STEP, b: R.magazine + MAG_STEP * 2 },
-    lukko: { a: R.rpm, b: R.rpm + RPM_STEP },
+    punapiste: { pct: Math.round((1 - GEAR.redDotAdsMul) * 100) },
     rumpu: { b: DRUM_ROUNDS },
     tkiv: { b: TUNING.killSpeed.cod.sniperBody, n: TUNING.sniper.magazine },
     tutka: { a: MINIMAP.range, b: GEAR.radarRange },
     lennokki: { s: GEAR.droneTime },
     tihea: { a: G.supplyCooldown, b: GEAR.grenadeCooldown },
     heitto: { pct: Math.round((GEAR.throwMul - 1) * 100) },
-    sytytin: { a: G.fuse, b: GEAR.shortFuse },
-    raskas: { a: G.radius, b: GEAR.heavyRadius },
+    sirpale: { pct: Math.round((GEAR.grenadeDamageMul - 1) * 100) },
+    raskas: { pct: Math.round((GEAR.blastRadiusMul - 1) * 100) },
     tuli: { n: GEAR.mortarRounds, s: GEAR.mortarDelay },
   };
   const v = values[id] ?? {};
