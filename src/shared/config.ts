@@ -312,6 +312,8 @@ export const WEB_MATCH = {
 export const AUDIO = {
   maxGunshotVoices: 24,
   hearingRange: 120,
+  /** Every gunshot (yours and others', near and far, tails and suppressed), relative to the other sounds. */
+  gunVolume: 0.7,
 };
 
 export const EFFECTS = {

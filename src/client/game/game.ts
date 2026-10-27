@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { AUDIO, SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
 import { throwVelocity } from '../../shared/grenade';
 import { UI } from '../../shared/ui';
 import type { MapData } from '../../shared/map/types';
@@ -459,7 +459,7 @@ export class Game {
 
     // Own gunshot: close layer every shot, one tail voice that the next shot replaces.
     const silenced = this.weapons.stats(weapon).silenced;
-    audio.play(silenced ? `${weapon}_suppressed` : `${weapon}_shot`, { volume: 0.95, gunshot: true });
+    audio.play(silenced ? `${weapon}_suppressed` : `${weapon}_shot`, { volume: 0.95 * AUDIO.gunVolume, gunshot: true });
     if (this.tailVoice) {
       try {
         this.tailVoice.stop(audio.ctx.currentTime + 0.03);
@@ -467,7 +467,7 @@ export class Game {
         // Already finished.
       }
     }
-    this.tailVoice = silenced ? null : audio.play(`${weapon}_tail`, { volume: 0.6 });
+    this.tailVoice = silenced ? null : audio.play(`${weapon}_tail`, { volume: 0.6 * AUDIO.gunVolume });
 
     const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);
     this.effects.muzzleSmoke(e.x + fwd.x * 0.45, e.y + fwd.y * 0.45 - 0.08, e.z + fwd.z * 0.45, fwd.x, fwd.y, fwd.z);
