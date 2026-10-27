@@ -295,6 +295,14 @@ export const LADDER = {
   stages: 6,
 };
 
+/** The minimap in the match HUD: the garrison from above, turned so your view points up. */
+export const MINIMAP = {
+  /** Metres from your position to the edge of the map circle. */
+  range: 45,
+  /** How long (s) an enemy's shot shows as a red dot where it was fired. Suppressed shots never show. */
+  shotShow: 2.5,
+};
+
 /** The browser version (mp2.laanti.fi): no server to join, so its bot match runs one in the page. */
 export const WEB_MATCH = {
   /** Bots in the bot match. With the player that makes 8, so the gate stays shut. */

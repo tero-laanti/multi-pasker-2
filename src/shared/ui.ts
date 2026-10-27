@@ -59,6 +59,7 @@ export const UI = {
     invertY: 'Invert vertical look',
     crouchToggle: 'C toggles crouch',
     rawInput: 'Raw input (bypass OS mouse acceleration)',
+    minimap: 'Show the minimap',
     masterVolume: 'Master volume',
     effectsVolume: 'Effects',
     quality: 'Graphics quality',

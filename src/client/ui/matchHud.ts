@@ -3,6 +3,7 @@ import { FI } from '../../shared/fi';
 import { ACCENTS, type AwardInfo, type EveningRow, type PlayerInfo, type RoundInfo } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { wrapAngle } from '../../shared/math';
+import { Minimap } from './minimap';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -32,9 +33,10 @@ interface FeedLine {
   t: number;
 }
 
-/** Match HUD: health, damage direction, kill feed, round timer, scoreboard and death screen. */
+/** Match HUD: health, damage direction, kill feed, round timer, minimap, scoreboard and death screen. */
 export class MatchHud {
   readonly root: HTMLDivElement;
+  readonly minimap: Minimap;
   private healthBox: HTMLDivElement;
   private healthFill: HTMLDivElement;
   private healthNum: HTMLDivElement;
@@ -77,6 +79,7 @@ export class MatchHud {
     this.root = el('div', 'match-hud', parent);
     this.vignette = el('div', 'dmg-vignette', this.root);
     this.dirs = el('div', 'dmg-dirs', this.root);
+    this.minimap = new Minimap(this.root);
     this.healthBox = el('div', 'health', this.root);
     el('div', 'health-label', this.healthBox, UI.hud.health);
     const bar = el('div', 'health-bar', this.healthBox);

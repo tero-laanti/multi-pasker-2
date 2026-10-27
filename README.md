@@ -79,6 +79,11 @@ service involved), and they can play on the same machine.
 Reloading the page puts you back into the same player (score kept). Leaving from the Esc menu
 shows you as *left* to the others; you can come back during the round.
 
+**The minimap** (top left) is the garrison from above, turned so that where you look is up, with
+north marked on its rim. An enemy who fires without a suppressor shows as a red dot where the shot
+came from for 2.5 s (on the rim when further away), and the closed gate is a red bar. Its range
+and timing are `MINIMAP` in `config.ts`; Settings → *Show the minimap* turns it off.
+
 **Bots** fill empty slots for testing: F2 → *Add bot* / *Fill with bots (15)*, or start the server
 with `PASKER_BOTS=15 npm start` (`set PASKER_BOTS=15` first on Windows).
 

@@ -298,6 +298,7 @@ export class Menu {
     toggle(UI.settings.invertY, 'invertY');
     toggle(UI.settings.crouchToggle, 'crouchToggle');
     toggle(UI.settings.rawInput, 'rawInput');
+    toggle(UI.settings.minimap, 'minimap');
     slider(UI.settings.masterVolume, 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
     slider(UI.settings.effectsVolume, 'effectsVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
     const qrow = h('label', 'row', undefined, form);

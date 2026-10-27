@@ -9,6 +9,7 @@ export interface Settings {
   invertY: boolean;
   crouchToggle: boolean;
   rawInput: boolean;
+  minimap: boolean;
   masterVolume: number;
   effectsVolume: number;
   quality: Quality;
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   invertY: false,
   crouchToggle: true,
   rawInput: true,
+  minimap: true,
   masterVolume: 0.8,
   effectsVolume: 1,
   quality: 'high',

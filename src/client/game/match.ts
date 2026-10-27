@@ -104,6 +104,7 @@ export class MatchMode implements GameMode {
     game.keepRunning = true;
     game.devDirectReload = false;
     this.setGate(false);
+    hud.minimap.setMap(game.map);
   }
 
   get firing(): boolean {
@@ -361,6 +362,8 @@ export class MatchMode implements GameMode {
     } else {
       this.remotes.players.get(e.p)?.char.muzzleFlash();
       g.effects.tracer(m.x, m.y, m.z, e.e[0], e.e[1], e.e[2]);
+      // A loud shot gives the shooter away on everyone's minimap.
+      this.hud.minimap.shot(e.p, m.x, m.z);
     }
     if (silenced) {
       // No loud report.
@@ -517,6 +520,8 @@ export class MatchMode implements GameMode {
     const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';
     this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);
+    const s = g.deps.settings;
+    this.hud.minimap.draw(dt, g.eye.x, g.eye.z, g.yaw, s.fov, this.gate, s.minimap);
     this.hud.netStatus(this.net.stats.connected ? '' : UI.menu.reconnecting);
   }
 

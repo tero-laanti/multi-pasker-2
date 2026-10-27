@@ -37,7 +37,7 @@ export const UPGRADES: Record<UpgradeId, UpgradeDef> = {
     levels: 2,
     benefit: (n) => `Rifle fire rate ${TUNING.rifle.rpm + RPM_STEP * (n - 1)} → ${TUNING.rifle.rpm + RPM_STEP * n} rounds per minute.`,
   },
-  vaimennin: { id: 'vaimennin', name: 'Vaimennin', levels: 1, benefit: () => 'Suppressor: quieter shots, heard from a smaller radius, and no muzzle flash. Others can see it on your gun.' },
+  vaimennin: { id: 'vaimennin', name: 'Vaimennin', levels: 1, benefit: () => 'Suppressor: quieter shots, heard from a smaller radius, no muzzle flash and no red dot on the others’ minimaps. They can see it on your gun.' },
   vyo: { id: 'vyo', name: 'Kranaattivyö', levels: 1, benefit: () => 'Carry 2 grenades instead of 1.' },
   tumma: { id: 'tumma', name: 'Tumma tila', levels: 1, benefit: () => 'Dark mode: others can’t see you using your phone.' },
   pikavalinta: { id: 'pikavalinta', name: 'Pikavalinta', levels: 1, benefit: () => 'Speed dial: L works as LATAA and K as KRANAATTI.' },
