@@ -414,6 +414,7 @@ export class App {
       this.range.showDrill = true;
       g.weapons.endlessSpare = true;
       g.weapons.give('pistol');
+      g.weapons.give('rifle');
     }
   }
 

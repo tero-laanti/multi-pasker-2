@@ -156,6 +156,8 @@ export class TutorialMode implements GameMode {
     w.refillAll();
     if (what === 'radioCheck' && this.stage !== 'done') {
       w.endlessSpare = false;
+      // Free practice from here: the range's rifle too (in a match it comes from the ladder).
+      w.give('rifle');
       this.set('done');
     }
   }

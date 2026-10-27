@@ -288,7 +288,7 @@ function onConnection(ws: WebSocket, req: http.IncomingMessage): void {
 function printBanner(args: Args, lan: string | null): void {
   const line = '─'.repeat(56);
   console.log(line);
-  console.log(` MULTI-PASKER ${args.dev ? '(development)' : ''}`);
+  console.log(` MULTI-PASKER 2 ${args.dev ? '(development)' : ''}`);
   console.log(line);
   if (lan) {
     console.log(` Players: open  http://${lan}:${args.port}/  in Chrome or Edge`);

@@ -275,8 +275,8 @@ export class Game {
     if (controls) {
       if (input.consumePress('KeyC')) this.crouchWanted = this.deps.settings.crouchToggle ? !this.crouchWanted : true;
       if (!this.deps.settings.crouchToggle) this.crouchWanted = k.has('KeyC');
-      if (input.consumePress('Digit1')) this.weapons.switchTo('rifle');
-      if (input.consumePress('Digit2')) this.weapons.switchTo('pistol');
+      if (input.consumePress('Digit1')) this.weapons.switchTo('pistol');
+      if (input.consumePress('Digit2')) this.weapons.switchTo('rifle');
       const wheel = input.consumeWheel();
       if (wheel !== 0) this.weapons.cycleWeapon(wheel);
       if (input.consumePress('KeyI')) this.weapons.inspect();

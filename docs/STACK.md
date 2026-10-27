@@ -1,4 +1,4 @@
-# MULTI-PASKER — stack decision record
+# MULTI-PASKER 2 — stack decision record
 
 Date: 2026-10-26. Status: decided.
 

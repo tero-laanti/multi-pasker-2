@@ -36,6 +36,8 @@ export class RangeMode implements GameMode {
     game.root.add(this.view.group);
     game.newSerials();
     game.weapons.endlessSpare = true;
+    // The range has both guns: the pistol in hand, the rifle on 2.
+    game.weapons.give('rifle');
   }
 
   reload(): void {

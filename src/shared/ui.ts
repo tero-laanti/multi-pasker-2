@@ -4,7 +4,7 @@
  * `{name}`-style placeholders are filled in by the code.
  */
 export const UI = {
-  appTitle: 'MULTI-PASKER',
+  appTitle: 'MULTI-PASKER 2',
 
   menu: {
     tagline: 'The armourer will serve you. Eventually.',
@@ -41,8 +41,8 @@ export const UI = {
       ['Shift', 'sprint'],
       ['Space', 'jump'],
       ['C', 'crouch'],
-      ['1 / 2 / wheel', 'switch weapon'],
-      ['G', 'grenade: hold, let go to throw'],
+      ['1 / 2 / wheel', 'pistol / rifle'],
+      ['G', 'grenade: pulls the pin, let go to throw'],
       ['I', 'inspect weapon'],
       ['Tab', 'scoreboard'],
       ['R', 'reload (one spare magazine)'],
@@ -183,7 +183,7 @@ export const UI = {
       phone: { title: 'Get the phone', body: 'There is a phone on the duty table behind you. Walk up to it and press E.' },
       pair: { title: 'Pair your phone', body: 'Scan the code on the screen with your phone.' },
       reply: { title: 'Answer the radio check', body: 'Asevarasto texted you. Open the chat on your phone and reply YK.' },
-      done: { title: 'Training complete', body: 'R puts in your spare magazine. Text LATAA for full magazines, KRANAATTI for a grenade (hold G, let go to throw). Train as long as you like, then Esc → Go to the match.' },
+      done: { title: 'Training complete', body: 'R puts in your spare magazine. Text LATAA for full magazines, KRANAATTI for a grenade (G pulls the pin, let go to throw). The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.' },
     } as Record<string, { title: string; body: string }>,
     noSpareTitle: 'No spare magazine',
     noSpare: 'Nothing to reload. Maybe text the armoury for more?',

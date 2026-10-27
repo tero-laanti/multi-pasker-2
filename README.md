@@ -1,4 +1,4 @@
-# MULTI-PASKER
+# MULTI-PASKER 2
 
 A browser FPS for one LAN party: up to 16 players, each on a computer for combat and on their
 own phone for weapon support from a gruff Finnish army armourer, the *varusmestari*.
@@ -219,7 +219,7 @@ hit registration.
 | Shift | sprint |
 | Space | jump (a small ledge assist lets you climb ledges just above jump height) |
 | C | crouch (toggle by default, hold in settings) |
-| 1 / 2 / wheel | rifle / pistol |
+| 1 / 2 / wheel | pistol / rifle (you start a life with the pistol; the rifle comes from the TJ ladder) |
 | G | grenade: the pin comes out and the 2.5 s fuse starts; let go to throw. Hold it too long and it goes off in your hand |
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
@@ -237,8 +237,9 @@ target running on a rail; pop-up drill targets behind cover; and a training yard
 point (kill house, tower with stairs and a ramp, crates) for testing movement.
 Shoot the **yellow plate** in front of the firing point to start a 30-second drill
 ("Ampumapaikoille!" → "Tuli vapaa!" → … → "Tulitauko!"). Your best score is kept in the browser.
-On the range you start with the pistol and reloads never run out; the dev panel (F2) gives the
-rifle and grenades, which later come from the varusmestari. The training (above) happens here too.
+On the range you have the pistol (1) and the rifle (2), and reloads never run out; the dev panel
+(F2) gives grenades, which in a match come from the varusmestari. The training (above) happens
+here too: it starts with the pistol only, like a match, and hands you the rifle once it is done.
 
 ## Tuning
 

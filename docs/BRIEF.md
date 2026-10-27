@@ -1,8 +1,8 @@
-# MULTI-PASKER — build brief
+# MULTI-PASKER 2 — build brief
 
 You have no prior conversation context; this brief is self-contained. Save a copy as `docs/BRIEF.md` in the project.
 
-MULTI-PASKER is a browser FPS for one LAN party: up to 16 Finnish players, each using a computer for combat and their own phone for weapon support. Players reload, get grenades and unlock upgrades by messaging a fictional army armourer, a *varusmestari*, in a fake messaging app on their phone. Reloading stays simple. Upgrades turn into escalating Finnish army bureaucracy: tongue twisters, transfers between offices, absurdly long numbers, voice notes spelled in the phonetic alphabet, and finally the Swedish-language brigade. Using the phone never pauses the game, and everyone can see who is on their phone.
+MULTI-PASKER 2 is a browser FPS for one LAN party: up to 16 Finnish players, each using a computer for combat and their own phone for weapon support. Players reload, get grenades and unlock upgrades by messaging a fictional army armourer, a *varusmestari*, in a fake messaging app on their phone. Reloading stays simple. Upgrades turn into escalating Finnish army bureaucracy: tongue twisters, transfers between offices, absurdly long numbers, voice notes spelled in the phonetic alphabet, and finally the Swedish-language brigade. Using the phone never pauses the game, and everyone can see who is on their phone.
 
 Success criterion: the shooting is fun on its own, and the phone creates funny, visible moments of vulnerability that make everyone demand another round.
 
