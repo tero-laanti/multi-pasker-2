@@ -192,7 +192,7 @@ export const FI = {
     /** Stage 1: the rifle. */
     stage1: ['Nimellesi on kirjattu rynnäkkökivääri. Kuittaa vastaanotto viestillä: {code}', 'Rynkky odottaa luukulla. Kuittaa: {code}', 'Ase on varattu nimellesi. Lähetä {code}, niin kirjaan sen ulos.'],
     stage1Codes: ['KUITTAAN', 'SELVÄ', 'UUDISTUS', 'VASTAANOTETTU'],
-    stage1Done: ['Kuitattu. Rynnäkkökivääri on nyt sinun. Älä hukkaa sitä.', 'Kuitattu. Rynkky on sinun. Ykkösnäppäin, jos et muuten löydä.'],
+    stage1Done: ['Kuitattu. Rynnäkkökivääri on nyt sinun. Älä hukkaa sitä.', 'Kuitattu. Rynkky on sinun. Kakkosnäppäin, jos et muuten löydä.'],
     /** Stage 2: the proper form of address at the asevarasto. */
     stage2: ['Varastossa on parannuksia, mutta ensin muodollisuudet. Kirjoita: {code}', 'Täällä puhutellaan oikein. Lähetä: {code}', 'Ennen kuin mitään luovutetaan, kirjoita: {code}'],
     stage2Codes: ['PYYDÄN LUPAA PUHUTELLA', 'HERRA KERSANTTI {RANK} {NAME}', 'UUDENLAINEN UUDISTUS', 'VESIHIISI SIHISI HISSISSÄ', 'MUSTAN KISSAN PAKSUT POSKET', 'KOKOO KOKOON KOKO KOKKO'],
