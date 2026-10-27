@@ -7,7 +7,6 @@ import type { ServerMsg } from '../shared/protocol';
 import { AudioEngine } from './audio/engine';
 import { Game, type GameDeps } from './game/game';
 import { MatchMode } from './game/match';
-import { prepareHands } from './game/models/hands';
 import { RangeMode } from './game/rangeMode';
 import { TutorialMode, markTutorialDone, tutorialDone } from './game/tutorial';
 import { ViewModel } from './game/viewmodel';
@@ -145,7 +144,6 @@ export class App {
     this.audio.setVolumes(this.settings.masterVolume, this.settings.effectsVolume);
     await document.fonts.ready.catch(() => undefined);
     const audioLoad = this.audio.load((done, total) => this.menu.showLoading(`${UI.menu.loading} ${done}/${total}`));
-    await prepareHands();
     const t0 = performance.now();
     this.viewmodel = new ViewModel(this.renderer.vmScene);
     this.viewmodelBuildMs = performance.now() - t0;

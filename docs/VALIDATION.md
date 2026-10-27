@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 123 passing
+## Automated tests (`npm test`): 124 passing
 
 | Area | What the tests check |
 |---|---|
@@ -20,7 +20,7 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 | Inventory check | Asked only of the living with a connected phone during a round; the answer time starts when the question arrives; the number when asked or when answered counts; a right answer gives a grenade and closes it, a wrong one keeps it open, a timeout locks the phone until PUNNERRETTU; bots answer (mostly right) and report their push-ups |
 | TJ ladder | First offer on the first kill or death, every 3rd kill and every 3rd death on separate counters, self-kills don't count; codes unique between players; one open task with a queue; every stage 1–6 including the office number opened by hand, the 17-digit number and its voice note, the serial number, the Swedish stage and "svara på svenska"; TJ 0; munkkikahvit; upgrade choice applied once; round reset; upgrade weapon numbers |
 | Awards and evening | Each award to the right player, nothing for nothing, the evening scoreboard adding rounds, surviving a restart (file), leaving bots out |
-| First-person hands | No glove vertex inside either weapon, no crossing triangles, in every held and reload pose (exact mesh test) |
+| First-person hands | Every pose builds; fingers bend only towards the palm and within joint limits; no wrist bends more than 28°; left hands are true mirror images; no glove sinks more than 2.5 mm into the gun or phone it holds (exact mesh distance) |
 
 ## End-to-end, in real browsers
 

@@ -47,7 +47,6 @@ Other commands:
 | `npm run typecheck` | TypeScript type check |
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
 | `npm run gen:voice` | Re-make placeholder voice lines and `docs/RECORDING.md` |
-| `npm run gen:hands` | Re-solve the first-person hand poses after changing a weapon shape or a hand pose |
 
 ### Choosing the address and port
 
@@ -258,25 +257,16 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
 
 ## First-person hands
 
-The gloved hands are the **WebXR Input Profiles "generic-hand"** model
-(`assets/models/generic-hand-right.glb`, unmodified `dist/profiles/generic-hand/right.glb` from the
-npm package `@webxr-input-profiles/assets` 1.0.20, https://github.com/immersive-web/webxr-input-profiles),
-MIT licensed, Copyright (c) 2019 Amazon; the license text is in
-[assets/models/LICENSE-generic-hand.md](assets/models/LICENSE-generic-hand.md). Left hands are the
-same model mirrored. It is served with the client like any other bundled asset (nothing loads from
-the internet).
+The gloved hands are built from plain shapes in
+[src/client/game/models/hands.ts](src/client/game/models/hands.ts): a rounded palm with knuckles,
+three capsule segments per finger, the thumb, a glove cuff and a sleeve, merged into one mesh per
+hand. A pose ([handPoses.ts](src/client/game/models/handPoses.ts)) is where the wrist sits on the
+gun (or phone), how far each finger joint curls, three points for the thumb and the direction of
+the forearm. Fingers only bend towards the palm, and the wrist never bends more than 28°: past
+that, the forearm turns with the hand. `tests/hands.test.ts` checks those limits and that no
+glove sinks more than 2.5 mm into what it holds.
 
-Each pose (`src/client/game/models/handSpecs.ts`) places the hand on the gun and solves the fingers
-against a distance field built from the same side profiles the gun meshes are extruded from
-(`weaponShapes.ts`): gripping fingers close until each segment touches, the trigger finger is aimed
-at the trigger with IK, the thumb is aimed along the frame. At load a worker skins the model with
-dual quaternions, adds a glove cuff and thickness, subdivides it once and presses whatever still
-touches the gun flat against its surface, so the glove never enters the weapon (`tests/hands.test.ts`
-checks every hand against the real weapon triangles). Solved poses are cached in
-`handPoses.json`; run `npm run gen:hands` after changing a pose, a weapon profile or the hand model
-(the test fails while the cache is out of date). The support hand also has a phone-holding pose
-(`hands.phone`, with a `phoneAnchor` at the phone's centre). `tools/handlab/` is a small page for
-looking at a pose in development: `/tools/handlab/index.html` on the dev server.
+![The hands on the pistol, the rifle and the phone](docs/hands/new-hands.jpg)
 
 ## Technical overview
 
@@ -292,8 +282,8 @@ looking at a pose in development: `/tools/handlab/index.html` on the dev server.
 - **Weapons:** hitscan from the eye; deterministic, learnable recoil split into a share that stays
   in your aim and a punch that springs back; ADS, sprint-to-fire, spread and fire-rate caps all in
   the fixed step. Grenades bounce off the same collision world and their blast is blocked by cover.
-- **Weapon models** are built in code from extruded, bevelled profiles; the **hands** are a posed,
-  skinned hand model baked in a worker (see *First-person hands*).
+- **Weapon models** are built in code from extruded, bevelled profiles; the **hands** from simple
+  shapes posed by a few joint angles (see *First-person hands*).
 - **Networking:** each client owns its movement (no reconciliation) and sends it 60 times a
   second in a small binary message stamped with its clock-synced send time. The server sends
   binary snapshots at 30 Hz; every player's state carries its age, so remote players are
@@ -319,7 +309,7 @@ src/client/    app.ts, net.ts, game/ (core loop, range and match modes, remote p
 src/phone/     the phone app: app.ts, keyboard.ts, net.ts, media.ts
 src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari, ladder), voicenotes.ts, lan.ts, http.ts, tuningWriter.ts
 tools/         sound import/synthesis, voice placeholders, e2e screenshot driver
-assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults; models/ (hand model)
+assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults; phone/ (wake video, icon)
 ```
 
 Browser tests drive real Chrome through Playwright: `npx tsx tools/e2e/shot.ts <outDir> <scenario.js>`
