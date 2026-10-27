@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
 import { TraceResult } from '../../shared/collision/world';
 import { meleeTarget } from '../../shared/melee';
-import { AUDIO, TUNING, type WeaponId } from '../../shared/config';
+import { TUNING, type WeaponId } from '../../shared/config';
 import { wrapAngle, type Vec3 } from '../../shared/math';
 import {
   PF,
@@ -360,7 +360,7 @@ export class MatchMode implements GameMode {
     // Suppressed: no flash or tracer, a dull thump heard only nearby.
     const silenced = weaponStats(e.w, this.players.get(e.p)?.upgrades ?? {}).silenced;
     if (silenced) {
-      audio.playAt(`${e.w}_suppressed`, m.x, m.y, m.z, { volume: 0.9 * AUDIO.gunVolume, refDistance: 2.5, rolloff: 1.4, maxDistance: 40, gunshot: true });
+      audio.playAt(`${e.w}_suppressed`, m.x, m.y, m.z, { volume: audio.gun(0.9), refDistance: 2.5, rolloff: 1.4, maxDistance: 40, gunshot: true });
     } else {
       this.remotes.players.get(e.p)?.char.muzzleFlash();
       g.effects.tracer(m.x, m.y, m.z, e.e[0], e.e[1], e.e[2]);
@@ -370,10 +370,10 @@ export class MatchMode implements GameMode {
     if (silenced) {
       // No loud report.
     } else if (dist < FAR_SHOT) {
-      audio.playAt(`${e.w}_shot`, m.x, m.y, m.z, { volume: 0.95 * AUDIO.gunVolume, refDistance: 5, rolloff: 1, maxDistance: 300, gunshot: true });
-      if (dist < 18) audio.playAt(`${e.w}_tail`, m.x, m.y, m.z, { volume: 0.35 * AUDIO.gunVolume, refDistance: 6, rolloff: 1 });
+      audio.playAt(`${e.w}_shot`, m.x, m.y, m.z, { volume: audio.gun(0.95), refDistance: 5, rolloff: 1, maxDistance: 300, gunshot: true });
+      if (dist < 18) audio.playAt(`${e.w}_tail`, m.x, m.y, m.z, { volume: audio.gun(0.35), refDistance: 6, rolloff: 1 });
     } else {
-      audio.playAt(`${e.w}_far`, m.x, m.y, m.z, { volume: 0.9 * AUDIO.gunVolume, refDistance: 28, rolloff: 0.6, maxDistance: 600, gunshot: true });
+      audio.playAt(`${e.w}_far`, m.x, m.y, m.z, { volume: audio.gun(0.9), refDistance: 28, rolloff: 0.6, maxDistance: 600, gunshot: true });
     }
     if (e.hp !== undefined) {
       if (e.hp !== this.myId) {

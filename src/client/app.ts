@@ -146,7 +146,7 @@ export class App {
     const map = buildRange();
     this.renderer = new Renderer(this.canvas, this.settings.quality, map.sunDir);
     this.renderer.setView(this.settings.fov, this.settings.renderScale);
-    this.audio.setVolumes(this.settings.masterVolume, this.settings.effectsVolume);
+    this.audio.setVolumes(this.settings.masterVolume, this.settings.effectsVolume, this.settings.gunVolume);
     await document.fonts.ready.catch(() => undefined);
     const audioLoad = this.audio.load((done, total) => this.menu.showLoading(`${UI.menu.loading} ${done}/${total}`));
     const t0 = performance.now();
@@ -525,7 +525,7 @@ export class App {
   private applySettings(s: Settings, reloadNeeded: boolean): void {
     saveSettings(s);
     this.renderer.setView(s.fov, s.renderScale);
-    this.audio.setVolumes(s.masterVolume, s.effectsVolume);
+    this.audio.setVolumes(s.masterVolume, s.effectsVolume, s.gunVolume);
     if (reloadNeeded) location.reload();
   }
 

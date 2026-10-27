@@ -69,9 +69,18 @@ export class AudioEngine {
     if (this.ctx.state !== 'running') void this.ctx.resume();
   }
 
-  setVolumes(master: number, effects: number): void {
+  setVolumes(master: number, effects: number, guns = 1): void {
     this.master.gain.value = master;
     this.sfx.gain.value = effects;
+    this.guns = guns;
+  }
+
+  /** The player's gunshot level (Settings), on top of AUDIO.gunVolume. */
+  private guns = 1;
+
+  /** A gunshot sound's volume: its own level times AUDIO.gunVolume and the player's setting. */
+  gun(volume: number): number {
+    return volume * AUDIO.gunVolume * this.guns;
   }
 
   async load(onProgress?: (done: number, total: number) => void): Promise<void> {

@@ -301,6 +301,7 @@ export class Menu {
     toggle(UI.settings.minimap, 'minimap');
     slider(UI.settings.masterVolume, 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
     slider(UI.settings.effectsVolume, 'effectsVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
+    slider(UI.settings.gunVolume, 'gunVolume', 0, 1.5, 0.01, (v) => `${Math.round(v * 100)} %`);
     const qrow = h('label', 'row', undefined, form);
     h('span', 'label', UI.settings.quality, qrow);
     const sel = h('select', '', undefined, qrow);

@@ -63,6 +63,7 @@ export const UI = {
     minimap: 'Show the minimap',
     masterVolume: 'Master volume',
     effectsVolume: 'Effects',
+    gunVolume: 'Gunshots',
     quality: 'Graphics quality',
     qualityLow: 'Low (integrated graphics)',
     qualityMedium: 'Medium',

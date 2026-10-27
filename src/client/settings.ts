@@ -12,6 +12,8 @@ export interface Settings {
   minimap: boolean;
   masterVolume: number;
   effectsVolume: number;
+  /** Gunshots relative to their default level (AUDIO.gunVolume). */
+  gunVolume: number;
   quality: Quality;
   renderScale: number;
 }
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   minimap: true,
   masterVolume: 0.8,
   effectsVolume: 1,
+  gunVolume: 1,
   quality: 'high',
   renderScale: 1,
 };
