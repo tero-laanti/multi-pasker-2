@@ -43,6 +43,7 @@ export const UI = {
       ['C', 'crouch'],
       ['1 / 2 / wheel', 'pistol / rifle'],
       ['G', 'grenade: pulls the pin, let go to throw'],
+      ['V', 'knife: two stabs kill'],
       ['I', 'inspect weapon'],
       ['Tab', 'scoreboard'],
       ['R', 'reload (one spare magazine)'],
@@ -72,7 +73,7 @@ export const UI = {
   },
 
   hud: {
-    weapons: { pistol: 'Pistol', rifle: 'Assault rifle' } as Record<string, string>,
+    weapons: { pistol: 'Pistol', rifle: 'Assault rifle', knife: 'Knife' } as Record<string, string>,
     reloading: 'RELOADING',
     grenade: 'Grenade',
     reloadKey: 'Press R to reload.',
@@ -202,7 +203,7 @@ export const UI = {
       phone: { title: 'Get the phone', body: 'There is a phone on the duty table behind you. Walk up to it and press E.' },
       pair: { title: 'Pair your phone', body: 'Scan the code on the screen with your phone.' },
       reply: { title: 'Answer the radio check', body: 'Asevarasto texted you. Open the chat on your phone and reply YK.' },
-      done: { title: 'Training complete', body: 'R puts in your spare magazine. Text LATAA for full magazines, KRANAATTI for a grenade (G pulls the pin, let go to throw). The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.' },
+      done: { title: 'Training complete', body: 'R puts in your spare magazine. Text LATAA for full magazines, KRANAATTI for a grenade (G pulls the pin, let go to throw). V stabs with the knife: two stabs kill. The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.' },
     } as Record<string, { title: string; body: string }>,
     noSpareTitle: 'No spare magazine',
     noSpare: 'Nothing to reload. Maybe text the armoury for more?',
@@ -342,6 +343,7 @@ export const UI = {
       by: ['{name} didn’t wait for you to finish typing.', '{name} replied first.', 'Shot by {name}, mid-sentence.', '{name} thanks you for standing still.'],
       head: ['{name} aimed for the screen and found your head.', 'Headshot by {name}. The phone is fine.'],
       grenade: ['{name}’s grenade landed at your feet. You were busy typing.', 'A grenade from {name}. Your thumbs were full.'],
+      knife: ['{name} brought a knife to a text fight.', '{name} came close enough to read over your shoulder. Then closer.', 'Knifed by {name}. You never looked up.'],
       self: ['Your own grenade, while texting. The armourer will hear of this.', 'You pulled the pin and kept typing.', 'Killed by your own hand. It was holding a phone.'],
       lost: 'Never sent',
       ok: 'Understood',

@@ -196,6 +196,16 @@ export const TUNING = {
     respawnTime: 2.5,
     spawnProtect: 1,
   },
+  /** The knife (V): a stab at arm's length with the gun lowered. Two stabs kill from full health. */
+  melee: {
+    damage: 55,
+    /** Reach from the eye to the target's body (m), and how far off the view it may be (degrees). */
+    range: 1.9,
+    cone: 30,
+    /** The whole stab (s), and when in it (fraction) the blade lands. */
+    time: 0.6,
+    hitAt: 0.32,
+  },
   grenade: {
     fuse: 2.5,
     throwSpeed: 17,

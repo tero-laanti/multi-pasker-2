@@ -14,7 +14,7 @@ import { HAND_POSES } from './handPoses';
  * of the hand, +X towards the little finger. Left hands are the mirror image.
  */
 
-export type HandKey = 'pistol.right' | 'pistol.left' | 'pistol.leftRack' | 'rifle.right' | 'rifle.left' | 'phone.left';
+export type HandKey = 'pistol.right' | 'pistol.left' | 'pistol.leftRack' | 'rifle.right' | 'rifle.left' | 'phone.left' | 'knife.right';
 
 export interface HandsModel {
   /** Shooting hand, fixed to the grip. */

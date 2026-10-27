@@ -162,6 +162,7 @@ export class Remotes {
         sprinting: (s.flags & PF.SPRINT) !== 0,
         ads: (s.flags & PF.ADS) !== 0,
         reloading: (s.flags & PF.RELOAD) !== 0,
+        stabbing: (s.flags & PF.MELEE) !== 0,
         weapon: rp.weapon,
         // Tumma tila: nobody sees them on the phone.
         phone: (s.flags & PF.PHONE) !== 0 && !rp.info.upgrades?.tumma,
@@ -186,6 +187,14 @@ export class Remotes {
       if (hit && (!best || hit.t < best.t)) best = { id: rp.info.id, zone: hit.zone, t: hit.t };
     }
     return best;
+  }
+
+  /** Remote players as drawn right now who can be hurt (alive, not spawn-protected): for the knife. */
+  *bodies(): Generator<{ id: number; x: number; y: number; z: number; crouched: boolean }> {
+    for (const rp of this.players.values()) {
+      if (!rp.present || !rp.alive || (rp.s.flags & PF.PROTECTED) !== 0) continue;
+      yield { id: rp.info.id, x: rp.s.x, y: rp.s.y, z: rp.s.z, crouched: rp.crouched };
+    }
   }
 
   /** Where a remote player's muzzle is drawn (falls back to their eye). */

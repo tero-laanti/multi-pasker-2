@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
-import type { TraceResult } from '../../shared/collision/world';
+import { TraceResult } from '../../shared/collision/world';
+import { meleeTarget } from '../../shared/melee';
 import { AUDIO, TUNING, type WeaponId } from '../../shared/config';
 import { wrapAngle, type Vec3 } from '../../shared/math';
 import {
@@ -12,6 +13,7 @@ import {
   type ClientMsg,
   type EveningRow,
   type GameEvent,
+  type KillWeapon,
   type PlayerInfo,
   type RoundInfo,
   type ServerMsg,
@@ -39,7 +41,7 @@ interface Death {
   pitch: number;
   t: number;
   killer: number;
-  weapon: WeaponId | 'grenade';
+  weapon: KillWeapon;
 }
 
 /** What still matters while we are on the range rather than in the match. */
@@ -398,7 +400,7 @@ export class MatchMode implements GameMode {
     }
   }
 
-  private die(killer: number, weapon: WeaponId | 'grenade'): void {
+  private die(killer: number, weapon: KillWeapon): void {
     const g = this.game;
     this.alive = false;
     this.hp = 0;
@@ -427,6 +429,7 @@ export class MatchMode implements GameMode {
     if (m.onGround) flags |= PF.GROUND;
     if (w.state === 'inspecting') flags |= PF.INSPECT;
     if (w.grenadeBusy) flags |= PF.THROW;
+    if (w.state === 'stabbing') flags |= PF.MELEE;
     this.net.sendBinary(
       encodeState({
         seq: ++this.stateSeq,
@@ -468,6 +471,31 @@ export class MatchMode implements GameMode {
 
   grenadePinned(): void {
     this.net.send({ t: 'pin' });
+  }
+
+  private meleeTr = new TraceResult();
+
+  /** The knife lands: the nearest player drawn within reach, with no wall in between (the server checks again). */
+  melee(eye: THREE.Vector3, dir: Vec3): void {
+    const g = this.game;
+    const { audio, hud } = g.deps;
+    const o: [number, number, number] = [eye.x, eye.y, eye.z];
+    const d: [number, number, number] = [dir.x, dir.y, dir.z];
+    const tr = this.meleeTr;
+    const inSight = [...this.remotes.bodies()].filter((b) => {
+      const cy = b.y + (b.crouched ? 0.6 : 1.0);
+      g.world.trace(tr, eye.x, eye.y, eye.z, b.x, cy, b.z, 0, 0, 0, MASK.SHOT);
+      return tr.fraction >= 1 || tr.fraction * Math.hypot(b.x - eye.x, cy - eye.y, b.z - eye.z) > Math.hypot(b.x - eye.x, cy - eye.y, b.z - eye.z) - 0.45;
+    });
+    const t = meleeTarget(o, d, inSight);
+    this.net.send({ t: 'melee', rt: this.remotes.clock.renderTime, o, d, hit: t?.id });
+    if (!t) return;
+    // Predicted feedback, as for a shot: blood, the blade going in and a hit marker.
+    const hy = t.y + (t.crouched ? 0.7 : 1.15);
+    g.effects.hitPuff(t.x, hy, t.z, -dir.x, -dir.y, -dir.z, true);
+    audio.playAt('impact_flesh', t.x, hy, t.z, { volume: 0.95, refDistance: 3 });
+    hud.hitMarker('body');
+    audio.play('hit_body', { bus: 'ui', volume: 0.7, delay: 0.01 });
   }
 
   grenadeReleased(o: [number, number, number], v: [number, number, number], fuse: number): void {

@@ -106,6 +106,14 @@ to the game* or Esc puts it away. Phones never use Bluetooth or a cable: the pho
 over Wi-Fi to the computer hosting the game, so the phones' Wi-Fi has to be the same network as
 the host (wired PCs are fine).
 
+## The knife
+
+**V** stabs with a puukko: the gun dips, the knife goes in at arm's length (1.9 m, within 30° of
+where you look) and comes back, 0.6 s in all. A stab does 55 damage, so two kill from full
+health; not while reloading or holding a grenade. The server checks the reach against where the
+target was when you saw them, and that no wall is in between, as it does for shots. Bots stab
+when someone is close. Its numbers are `TUNING.melee` in `config.ts`.
+
 ## Ammo
 
 Each gun has its magazine and one spare. **R** (or pulling the trigger on an empty gun) puts in
@@ -274,6 +282,7 @@ machine that deployed (not in git), so deploy from that machine.
 | C | crouch (toggle by default, hold in settings) |
 | 1 / 2 / wheel | pistol / rifle (you start a life with the pistol; the rifle comes from the TJ ladder) |
 | G | grenade: the pin comes out and the 2.5 s fuse starts; let go to throw. Hold it too long and it goes off in your hand |
+| V | knife: the gun dips and a puukko stabs at arm's length; two stabs kill |
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
 | R | reload with the spare magazine (more comes with LATAA) |

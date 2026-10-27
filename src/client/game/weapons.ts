@@ -3,7 +3,7 @@ import { DEG, clamp, damp, makeRng, viewDir, type Vec3 } from '../../shared/math
 import { WEAPONS, recoilKick, spreadFor, type RecoilKick } from '../../shared/weapons';
 import { weaponStats, type Upgrades, type WeaponStats } from '../../shared/upgrades';
 
-export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'priming' | 'holding' | 'throwing';
+export type WeaponState = 'ready' | 'reloading' | 'inspecting' | 'holstering' | 'drawing' | 'priming' | 'holding' | 'throwing' | 'stabbing';
 
 export interface WeaponInput {
   fireHeld: boolean;
@@ -41,6 +41,7 @@ interface Cue {
   volume?: number;
   refill?: boolean;
   release?: boolean;
+  stab?: boolean;
 }
 
 /** Pulling the pin and bringing the grenade up (s); then it is held for as long as G is. */
@@ -126,6 +127,8 @@ export class WeaponController {
   droppedGrenade = false;
   /** Set when the fuse ran out in the hand; the game handles the blast and clears this. */
   cookedOff = false;
+  /** Set on the step the knife lands; the game finds what it hit and clears this. */
+  stabNow = false;
   /** When the pin came out (weapon time; -1: no grenade in hand). The fuse burns from here. */
   private pinAt = -1;
   private time = 0;
@@ -227,6 +230,7 @@ export class WeaponController {
     this.releaseGrenade = false;
     this.droppedGrenade = false;
     this.cookedOff = false;
+    this.stabNow = false;
     this.pinAt = -1;
     this.sounds.push({ name: `${this.current}_draw`, volume: 0.8 });
     this.enter('drawing', TUNING[this.current].drawTime, []);
@@ -277,6 +281,17 @@ export class WeaponController {
   private throwHeld(): void {
     this.released = false;
     this.enter('throwing', THROW_TIME, [{ at: THROW_RELEASE, sound: 'grenade_throw', release: true }]);
+  }
+
+  /** V: the gun dips and the knife stabs (not while reloading, switching or holding a grenade). */
+  stab(): boolean {
+    if (this.state !== 'ready' && this.state !== 'inspecting') return false;
+    const M = TUNING.melee;
+    this.enter('stabbing', M.time, [
+      { at: 0.08, sound: 'grenade_throw', volume: 0.75 },
+      { at: M.hitAt, stab: true },
+    ]);
+    return true;
   }
 
   inspect(): void {
@@ -351,6 +366,7 @@ export class WeaponController {
           this.releaseGrenade = true;
           this.released = true;
         }
+        if (c.stab) this.stabNow = true;
       }
       if (this.state === 'holding') {
         // Held as long as G is down; the throw starts when it is let go.

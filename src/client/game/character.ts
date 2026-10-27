@@ -297,10 +297,15 @@ export interface CharacterState {
   sprinting: boolean;
   ads: boolean;
   reloading: boolean;
+  /** Stabbing with the knife (V): the arms lunge forward. */
+  stabbing: boolean;
   weapon: WeaponId;
   /** A chat is open on their phone: it is in their left hand. */
   phone: boolean;
 }
+
+/** Seconds a stab's lunge takes, out and back. */
+const STAB_TIME = 0.45;
 
 function nameTagTexture(name: string, accent: number): THREE.CanvasTexture {
   const c = document.createElement('canvas');
@@ -357,6 +362,9 @@ export class Character {
   private legYaw = 0;
   private reload = 0;
   private phoneK = 0;
+  /** Seconds since the last stab began, and whether the last state said stabbing. */
+  private stabT = STAB_TIME;
+  private stabbing = false;
   private phone: THREE.Group;
   private suppressors: THREE.Mesh[] = [];
   private drum: THREE.Mesh;
@@ -495,6 +503,10 @@ export class Character {
     this.sprint = damp(this.sprint, s.sprinting ? 1 : 0, 8, dt);
     this.reload = damp(this.reload, s.reloading ? 1 : 0, 10, dt);
     this.phoneK = damp(this.phoneK, s.phone && !this.dying ? 1 : 0, 9, dt);
+    if (s.stabbing && !this.stabbing) this.stabT = 0;
+    this.stabbing = s.stabbing;
+    this.stabT += dt;
+    const lunge = this.stabT < STAB_TIME ? Math.sin((this.stabT / STAB_TIME) * Math.PI) : 0;
 
     // Legs turn towards the walking direction (back-pedalling keeps them facing forward).
     let angle = speed > 0.4 ? Math.atan2(vr, vf) : 0;
@@ -523,7 +535,7 @@ export class Character {
     // Upper body: counter the leg turn, lean into sprints and crouches, share the pitch.
     const lean = 0.5 * c + 0.28 * this.sprint;
     const pitch = clamp(s.pitch, -1.3, 1.3);
-    bn[B.spine]!.rotation.set(-lean + pitch * 0.25, this.legYaw, 0, 'YXZ');
+    bn[B.spine]!.rotation.set(-lean - 0.2 * lunge + pitch * 0.25, this.legYaw, 0, 'YXZ');
     bn[B.head]!.rotation.set(lean + pitch * 0.5 - 0.45 * this.phoneK, 0, 0);
     // Phone out: the left hand leaves the gun for the phone; the gun hangs a little lower.
     const arms = ARM_POSES[this.weapon];
@@ -537,6 +549,9 @@ export class Character {
     bn[B.aim]!.rotation.set(aimPitch * (1 - sprint) - 0.75 * sprint - 0.35 * this.reload - 0.22 * this.phoneK, 0.55 * sprint, 0.5 * this.reload, 'YXZ');
     if (s.ads) bn[B.aim]!.position.set(-0.04, 0.4 + 0.04, 0);
     else bn[B.aim]!.position.set(0, 0.4, 0);
+    // A stab: the arms drive forward and a little down, and come back.
+    bn[B.aim]!.position.z -= 0.28 * lunge;
+    bn[B.aim]!.rotation.x -= 0.3 * lunge;
 
     // Death: knees buckle, then the body tips over around the feet.
     const root = bn[B.root]!;

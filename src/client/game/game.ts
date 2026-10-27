@@ -87,6 +87,8 @@ export interface GameMode {
   grenadePinned?(): void;
   /** The fuse ran out in the hand. */
   cookedOff?(): void;
+  /** The knife (V) lands now: find who it reached. */
+  melee?(eye: THREE.Vector3, dir: Vec3): void;
   /** A locally simulated grenade exploded (the range; match explosions come from the server). */
   exploded?(e: Explosion): void;
   /** R (or the trigger on an empty gun) with a spare magazine to put in. */
@@ -280,6 +282,7 @@ export class Game {
       const wheel = input.consumeWheel();
       if (wheel !== 0) this.weapons.cycleWeapon(wheel);
       if (input.consumePress('KeyI')) this.weapons.inspect();
+      if (input.consumePress('KeyV')) this.weapons.stab();
       if (input.consumePress('KeyG')) {
         if (this.weapons.primeGrenade()) this.mode.grenadePinned?.();
         else if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
@@ -371,6 +374,10 @@ export class Game {
       }
       for (const shot of this.weapons.shots) this.fireShot(shot.weapon, shot.dir);
       this.weapons.shots.length = 0;
+      if (this.weapons.stabNow) {
+        this.weapons.stabNow = false;
+        this.mode.melee?.(this.eye, viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch));
+      }
       if (this.weapons.releaseGrenade) {
         this.weapons.releaseGrenade = false;
         const fwd = viewDir({ x: 0, y: 0, z: 0 }, this.yaw, this.pitch);

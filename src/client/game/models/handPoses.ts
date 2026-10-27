@@ -95,6 +95,13 @@ const phoneLeft: GlovePose = {
   thumb: { dir: [0.86, 0.51, 0], knuckle: [0, 0, 1], lift: 0.76, mcp: 0.74, ip: 0.12 },
 };
 
+// The knife (knife.ts): its handle has the pistol grip's shape and place, so this is the pistol
+// hand with the index finger off the trigger and curled round the handle like the others.
+const knifeRight: GlovePose = {
+  ...pistolRight,
+  index: { spread: 0.06, mcp: 0.86, pip: 1.55, dip: 0.58 },
+};
+
 export const HAND_POSES: Record<HandKey, GlovePose> = {
   'pistol.right': pistolRight,
   'pistol.left': pistolLeft,
@@ -102,4 +109,5 @@ export const HAND_POSES: Record<HandKey, GlovePose> = {
   'rifle.right': rifleRight,
   'rifle.left': rifleLeft,
   'phone.left': phoneLeft,
+  'knife.right': knifeRight,
 };

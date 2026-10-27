@@ -24,9 +24,14 @@ export const PF = {
   INSPECT: 256,
   THROW: 512,
   BOT: 1024,
+  /** Stabbing with the knife (V). */
+  MELEE: 2048,
 } as const;
 
 export const WEAPON_IDS: WeaponId[] = ['pistol', 'rifle'];
+
+/** What a kill was done with. */
+export type KillWeapon = WeaponId | 'grenade' | 'knife';
 
 export interface ClientState {
   seq: number;
@@ -220,6 +225,8 @@ export type ClientMsg =
   /** G pressed: the pin is out and the fuse is burning (the throw comes with 'grenade'). */
   | { t: 'pin' }
   | { t: 'grenade'; o: [number, number, number]; v: [number, number, number] }
+  /** A knife stab landing now (render time `rt`), on the player it reached (`hit`), if any. */
+  | { t: 'melee'; rt: number; o: [number, number, number]; d: [number, number, number]; hit?: number }
   | { t: 'dev'; cmd: string; arg?: unknown };
 
 export type ServerMsg =
@@ -247,7 +254,7 @@ export interface RoundInfo {
 export type GameEvent =
   | { k: 'shot'; p: number; w: WeaponId; o: [number, number, number]; e: [number, number, number]; n?: [number, number, number]; s?: number; hp?: number }
   | { k: 'hit'; a: number; v: number; dmg: number; hp: number; z: HitZone; from: [number, number, number] }
-  | { k: 'kill'; a: number; v: number; w: WeaponId | 'grenade'; head: boolean; draft?: string }
+  | { k: 'kill'; a: number; v: number; w: KillWeapon; head: boolean; draft?: string }
   | { k: 'spawn'; p: number; x: number; y: number; z: number; yaw: number; ammo: Record<WeaponId, number>; reserve: Record<WeaponId, number>; weapons: WeaponId[] }
   /** Authoritative magazine count after the shooter's fire message `seq` (if any). */
   /** `n`: rounds in the magazine, `r`: spare rounds. */
@@ -406,4 +413,4 @@ export type PhoneServerMsg =
   /** An inventory check: seconds left to answer (0: answered or over). */
   | { t: 'inventory'; left: number }
   /** Killed with the phone out: by whom ('' when it was your own doing), how, and what never got sent. */
-  | { t: 'killed'; by: string; w: WeaponId | 'grenade'; head: boolean; draft: string };
+  | { t: 'killed'; by: string; w: KillWeapon; head: boolean; draft: string };

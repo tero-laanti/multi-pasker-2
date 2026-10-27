@@ -3,6 +3,7 @@ import { TraceResult } from '../../shared/collision/world';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { FI } from '../../shared/fi';
 import { rayPlayer } from '../../shared/hitbox';
+import { meleeReaches } from '../../shared/melee';
 import { DEG, clamp, wrapAngle } from '../../shared/math';
 import { Mover, emptyCmd, newMoveState, type MoveState } from '../../shared/movement';
 import { findPath, nearestNode } from '../../shared/nav';
@@ -122,7 +123,8 @@ export class Bot {
       cmd.forward = flat > 22 ? 0.6 : flat < 6 ? -0.4 : 0;
       cmd.crouch = now < this.crouchUntil;
       cmd.ads = flat > 12;
-      this.fire(now, flat, skill);
+      // Up close the knife is quicker than the gun.
+      if (!(flat < TUNING.melee.range + 0.4 && this.stab(now, t))) this.fire(now, flat, skill);
     } else {
       this.target = null;
       this.followPath(now, cmd);
@@ -209,6 +211,18 @@ export class Bot {
       this.goTo(this.lastSeenPos.x, this.lastSeenPos.y, this.lastSeenPos.z);
       this.target = null;
     }
+  }
+
+  /** A knife stab when the target is within reach in front of us; false when there was none. */
+  private stab(now: number, t: ServerPlayer): boolean {
+    const p = this.p;
+    if (now - p.lastMeleeAt < TUNING.melee.time * 1000 || p.pinAt) return false;
+    const cp = Math.cos(p.pitch);
+    const d: [number, number, number] = [-Math.sin(p.yaw) * cp, Math.sin(p.pitch), -Math.cos(p.yaw) * cp];
+    const o: [number, number, number] = [p.x, p.eyeY(), p.z];
+    if (!meleeReaches(o, d, t)) return false;
+    this.room.melee(p, o, d, now, t.id);
+    return true;
   }
 
   private fire(now: number, dist: number, skill: number): void {

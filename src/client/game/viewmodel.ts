@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { DEG, clamp, damp, lerp, smoothstep } from '../../shared/math';
+import { buildKnife } from './models/knife';
 import { buildPhone, type PhoneModel } from './models/phone';
 import { buildPistol, type WeaponModel } from './models/pistol';
 import { buildRifle } from './models/rifle';
@@ -142,6 +143,7 @@ export class ViewModel {
   private flashTime = 1;
   private casings: Casing[] = [];
   private heldGrenade = grenadeMesh();
+  private knife = buildKnife();
   private casingIndex = 0;
   onCasingLand: (() => void) | null = null;
   /** World-space muzzle flash strength for lighting (0..1). */
@@ -221,6 +223,7 @@ export class ViewModel {
 
     this.heldGrenade.visible = false;
     scene.add(this.heldGrenade);
+    scene.add(this.knife.root);
     const brass = new THREE.MeshStandardMaterial({ color: 0xc9a14a, metalness: 1, roughness: 0.3 });
     const geo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.019, 10);
     for (let i = 0; i < 10; i++) {
@@ -377,6 +380,19 @@ export class ViewModel {
       const sway = w.state === 'holding' ? Math.sin(this.time * 2.1) * 0.004 : 0;
       this.heldGrenade.position.set(-0.2 + 0.06 * rise + 0.08 * fling, -0.3 + 0.16 * rise + 0.08 * fling + sway, -0.42 - 0.02 * rise - 0.25 * fling);
       this.heldGrenade.rotation.set(-0.4 - 1.2 * fling, 0.3, 0.2);
+    }
+
+    // The knife: up from below the dipped gun, a straight stab that lands at hitAt, back down.
+    const stabbing = w.state === 'stabbing';
+    const kr = this.knife.root;
+    kr.visible = stabbing && w.progress > 0.03 && w.progress < 0.97;
+    if (stabbing) {
+      const t = w.progress;
+      const hit = TUNING.melee.hitAt;
+      const up = smoothstep(0, 0.22, t) * (1 - smoothstep(0.75, 1, t));
+      const out = t < hit ? smoothstep(0.12, hit, t) : 1 - smoothstep(hit + 0.1, 0.8, t);
+      kr.position.set(0.19 - 0.07 * out, -0.4 + 0.22 * up + 0.07 * out, -0.24 - 0.26 * out);
+      kr.rotation.set(0.35 * (1 - up) + 0.05 * out, 0.1 - 0.12 * out, -0.2 + 0.15 * out, 'YXZ');
     }
   }
 
@@ -665,6 +681,15 @@ export class ViewModel {
         p.pitch -= 0.45 * k;
         p.roll += 0.3 * k;
         p.x += 0.03 * k;
+        break;
+      }
+      case 'stabbing': {
+        // The gun drops out of the way while the knife does its work.
+        const k = smoothstep(0, 0.18, t) * (1 - smoothstep(0.75, 1, t));
+        p.y -= 0.2 * k;
+        p.pitch -= 0.8 * k;
+        p.roll += 0.25 * k;
+        p.x += 0.04 * k;
         break;
       }
       case 'holstering': {

@@ -51,6 +51,9 @@ export class ServerPlayer {
   /** Spare rounds per gun (the spare magazine). */
   reserve: Record<WeaponId, number> = { pistol: TUNING.pistol.magazine, rifle: TUNING.rifle.magazine };
   lastShotAt: Record<WeaponId, number> = { pistol: -1e9, rifle: -1e9 };
+  /** The last knife stab (server ms), and until when it shows (the MELEE flag). */
+  lastMeleeAt = -1e9;
+  meleeUntil = 0;
   reload: Reload | null = null;
   grenades = 0;
   maxGrenades = 1;

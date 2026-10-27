@@ -485,7 +485,7 @@ export class PhoneApp {
     this.root.querySelector('.killed-wrap')?.remove();
     const K = P.killed;
     const pick = (list: readonly string[]) => list[Math.floor(Math.random() * list.length)]!;
-    const line = !m.by ? pick(K.self) : m.w === 'grenade' ? pick(K.grenade) : m.head ? pick(K.head) : pick(K.by);
+    const line = !m.by ? pick(K.self) : m.w === 'grenade' ? pick(K.grenade) : m.w === 'knife' ? pick(K.knife) : m.head ? pick(K.head) : pick(K.by);
     const wrap = h('div', 'killed-wrap', undefined, this.root);
     const box = h('div', 'killed', undefined, wrap);
     h('div', 'killed-title', pick(K.title), box);

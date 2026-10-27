@@ -17,10 +17,12 @@ import {
   encodeSnapshot,
   type ClientMsg,
   type GameEvent,
+  type KillWeapon,
   type PhoneClientMsg,
   type PlayerSnap,
   type RoundInfo,
 } from '../../shared/protocol';
+import { meleeReaches } from '../../shared/melee';
 import { damageFor } from '../../shared/weapons';
 import { Bot } from './bot';
 import { ServerPlayer, type InventoryKind } from './player';
@@ -569,6 +571,9 @@ export class Room {
       case 'grenade':
         this.throwGrenade(p, msg.o, msg.v);
         break;
+      case 'melee':
+        this.melee(p, msg.o, msg.d, msg.rt, typeof msg.hit === 'number' ? msg.hit : undefined);
+        break;
       case 'dev':
         if (this.opts.dev || p.isHost) this.dev(p, msg.cmd, msg.arg);
         break;
@@ -829,6 +834,37 @@ export class Room {
     if (victim) this.damage(victim, p, damageFor(w, zone, dist, this.killSpeed), zone, w, [ox, oy, oz]);
   }
 
+  /**
+   * A knife stab landing: the claimed player, rewound to what the attacker saw, must be within
+   * reach and in front, with nothing solid in between. Two stabs kill from full health.
+   */
+  melee(p: ServerPlayer, o: [number, number, number], d: [number, number, number], rt: number, target?: number): void {
+    const now = this.now();
+    const M = TUNING.melee;
+    // Not with a grenade in hand, and no faster than the stab itself.
+    if (!p.alive || p.pinAt || now - p.lastMeleeAt < M.time * 1000 * 0.8) return;
+    p.lastMeleeAt = now;
+    p.meleeUntil = now + M.time * (1 - M.hitAt) * 1000;
+    p.protectedUntil = 0;
+    let [ox, oy, oz] = o;
+    if (Math.hypot(ox - p.x, oy - p.eyeY(), oz - p.z) > 1.5) {
+      ox = p.x;
+      oy = p.eyeY();
+      oz = p.z;
+    }
+    const dl = Math.hypot(d[0], d[1], d[2]) || 1;
+    const dir: [number, number, number] = [d[0] / dl, d[1] / dl, d[2] / dl];
+    const v = target === undefined ? undefined : this.players.get(target);
+    if (!v || v === p || !v.alive || now < v.protectedUntil) return;
+    const h = v.history.at(Math.max(now - NET.maxRewind * 1000, Math.min(now, rt)));
+    if (!h || !h.alive || !meleeReaches([ox, oy, oz], dir, h, 0.35)) return;
+    // Nothing solid between the blade and the body.
+    const cy = h.y + (h.crouched ? 0.6 : 1.0);
+    this.world.trace(this.tr, ox, oy, oz, h.x, cy, h.z, 0, 0, 0, MASK.SHOT);
+    if (this.tr.fraction < 1 && this.tr.fraction * Math.hypot(h.x - ox, cy - oy, h.z - oz) < Math.hypot(h.x - ox, cy - oy, h.z - oz) - 0.45) return;
+    this.damage(v, p, M.damage, 'body', 'knife', [ox, oy, oz]);
+  }
+
   private headConfirmed(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, h: { x: number; y: number; z: number; crouched: boolean }, maxT: number): boolean {
     const headY = h.y + (h.crouched ? TUNING.move.crouchEye : TUNING.move.standEye) + 0.02;
     const lx = h.x - ox;
@@ -840,7 +876,7 @@ export class Room {
     return d2 <= 0.27 * 0.27;
   }
 
-  damage(v: ServerPlayer, a: ServerPlayer | null, amount: number, zone: HitZone, w: WeaponId | 'grenade', from: [number, number, number]): void {
+  damage(v: ServerPlayer, a: ServerPlayer | null, amount: number, zone: HitZone, w: KillWeapon, from: [number, number, number]): void {
     if (!v.alive || amount <= 0) return;
     const now = this.now();
     if (now < v.protectedUntil) return;
@@ -853,7 +889,7 @@ export class Room {
     if (v.hp <= 0) this.kill(v, a, w, zone === 'head');
   }
 
-  kill(v: ServerPlayer, a: ServerPlayer | null, w: WeaponId | 'grenade', head: boolean): void {
+  kill(v: ServerPlayer, a: ServerPlayer | null, w: KillWeapon, head: boolean): void {
     // A grenade with its pin out falls where they fall, still burning.
     if (v.pinAt) this.dropGrenade(v);
     v.alive = false;
@@ -1073,6 +1109,7 @@ export class Room {
     if (p.reload && now < p.reload.end) f |= PF.RELOAD;
     if (p.bot) f |= PF.BOT;
     if (p.alive && p.phone.out && (p.phone.online || p.bot)) f |= PF.PHONE;
+    if (p.alive && now < p.meleeUntil) f |= PF.MELEE;
     return f;
   }
 
