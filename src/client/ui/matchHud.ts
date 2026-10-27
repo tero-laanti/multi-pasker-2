@@ -195,10 +195,10 @@ export class MatchHud {
   }
 
   /** Our own phone: connected, offline, or not paired yet. */
-  phone(state: 'none' | 'online' | 'offline', out: boolean): void {
-    const key = `${state}${out}`;
+  phone(state: 'none' | 'online' | 'offline', out: boolean, virtual = false): void {
+    const key = `${state}${out}${virtual}`;
     if (!this.changed('phone', key)) return;
-    this.phoneLine.textContent = state === 'online' ? `📱 ${UI.hud.phoneOnline}` : state === 'offline' ? `📱 ${UI.hud.phoneOffline}` : UI.hud.phoneNone;
+    this.phoneLine.textContent = state === 'online' ? `📱 ${virtual ? UI.hud.phoneVirtual : UI.hud.phoneOnline}` : state === 'offline' ? `📱 ${UI.hud.phoneOffline}` : UI.hud.phoneNone;
     this.phoneLine.dataset.state = state;
     this.phoneLine.classList.toggle('out', out);
   }

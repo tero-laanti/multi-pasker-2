@@ -151,7 +151,7 @@ export class MatchMode implements GameMode {
         this.evening = msg.rows;
         break;
       case 'pairInfo':
-        this.pairInfo = { url: msg.url, token: msg.token, code: msg.code, phone: msg.phone };
+        this.pairInfo = { url: msg.url, token: msg.token, code: msg.code, phone: msg.phone, virtual: msg.virtual };
         this.onPairInfo(this.pairInfo);
         break;
       case 'players':
@@ -458,9 +458,13 @@ export class MatchMode implements GameMode {
     return true;
   }
 
-  grenadeReleased(o: [number, number, number], v: [number, number, number]): void {
+  grenadePinned(): void {
+    this.net.send({ t: 'pin' });
+  }
+
+  grenadeReleased(o: [number, number, number], v: [number, number, number], fuse: number): void {
     this.net.send({ t: 'grenade', o, v });
-    this.ownGrenades.push(this.game.grenades.spawn(o[0], o[1], o[2], v, TUNING.grenade.fuse, this.myId));
+    this.ownGrenades.push(this.game.grenades.spawn(o[0], o[1], o[2], v, fuse, this.myId));
   }
 
   outOfAmmo(): string {
@@ -501,7 +505,7 @@ export class MatchMode implements GameMode {
 
     this.hud.health(this.alive ? this.hp : 0);
     this.hud.score(this.players.get(this.myId)?.kills ?? 0);
-    this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut);
+    this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut, this.pairInfo?.virtual ?? false);
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);
     this.hud.inventory(this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0);

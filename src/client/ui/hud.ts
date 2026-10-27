@@ -24,6 +24,7 @@ export class Hud {
   private results: HTMLDivElement;
   private centerNote: HTMLDivElement;
   private prompt: HTMLDivElement;
+  private fuseEl: HTMLDivElement;
   private grenadeEl: HTMLDivElement;
   private last = new Map<string, string | number | boolean>();
   private bannerTimer = 0;
@@ -49,6 +50,17 @@ export class Hud {
     this.results = el('div', 'results', this.root);
     this.centerNote = el('div', 'center-note', this.root);
     this.prompt = el('div', 'prompt', this.root);
+    this.fuseEl = el('div', 'fuse', this.root);
+  }
+
+  /** The fuse of the grenade in hand (seconds), or null when there is none. */
+  fuse(left: number | null): void {
+    const text = left === null ? '' : UI.hud.fuse.replace('{s}', Math.max(0, left).toFixed(1));
+    if (this.changed('fuse', text)) {
+      this.fuseEl.textContent = text;
+      this.fuseEl.classList.toggle('show', text.length > 0);
+      this.fuseEl.classList.toggle('urgent', left !== null && left < 1);
+    }
   }
 
   /** "[E] Pick up …" under the crosshair while something can be used. */

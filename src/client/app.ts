@@ -22,6 +22,7 @@ import { PairPanel, type PairInfo } from './ui/pair';
 import { StatsOverlay } from './ui/stats';
 import { TuningPanel } from './ui/tuning';
 import { TutorialHud } from './ui/tutorialHud';
+import { VirtualPhone } from './ui/virtualPhone';
 
 type Mode = 'loading' | 'menu' | 'range' | 'training' | 'match';
 
@@ -59,6 +60,7 @@ export class App {
   /** The training on the range before a first match. */
   private tutorial: TutorialMode | null = null;
   private tutorialHud: TutorialHud;
+  private virtualPhone: VirtualPhone;
   private mode: Mode = 'loading';
   private killSpeed: KillSpeedPreset = 'cod';
   /** Tests drive frames themselves (see exposeDebug). */
@@ -89,7 +91,8 @@ export class App {
       toggleStats: () => this.stats.toggle(),
       toggleDev: () => this.dev.toggle(),
     });
-    this.pairPanels = [new PairPanel(() => this.openSimulator()), new PairPanel(() => this.openSimulator())];
+    const pairPanel = () => new PairPanel(() => this.openSimulator(), () => this.openVirtualPhone());
+    this.pairPanels = [pairPanel(), pairPanel()];
     this.menu.addPairPanels(this.pairPanels[0]!.root, this.pairPanels[1]!.root);
     this.tutorialHud = new TutorialHud(this.hud.root, root, {
       skip: () => {
@@ -102,8 +105,11 @@ export class App {
         void this.lock();
       },
       openSimulator: () => this.openSimulator(),
+      openVirtual: () => this.openVirtualPhone(),
     });
     this.pairPanels.push(this.tutorialHud.pair);
+    this.virtualPhone = new VirtualPhone(root);
+    this.virtualPhone.onClose = (escape) => this.closeVirtualPhone(escape);
     this.menu.setTrainingNote(!tutorialDone());
     this.input.onLook = (dx, dy) => this.game?.onLook(dx, dy);
     this.input.onLockChange = (locked) => this.onLockChange(locked);
@@ -298,6 +304,32 @@ export class App {
     }
   }
 
+  /**
+   * The virtual phone: the phone app on this screen for players without one of their own.
+   * The game waits while it is open (the character stands with the phone out).
+   */
+  private openVirtualPhone(): void {
+    const token = this.match?.pairInfo?.token;
+    const g = this.game;
+    if (!token || !g || (this.mode !== 'match' && this.mode !== 'training')) return;
+    this.tutorialHud.hideModal();
+    this.menu.hide();
+    g.paused = true;
+    // The range stands still while paused; keep it running so the phone comes up in the hand.
+    g.keepRunning = true;
+    this.virtualPhone.show(token);
+    this.input.unlock();
+  }
+
+  /** Back into the game from the virtual phone (its button is a click, so the mouse locks again). */
+  private closeVirtualPhone(toMenu = false): void {
+    if (!this.virtualPhone.shown) return;
+    this.virtualPhone.hide();
+    if (this.mode !== 'match' && this.rangeGame) this.rangeGame.keepRunning = false;
+    if (toMenu) this.menu.showPause();
+    else void this.lock();
+  }
+
   /** Development: the phone app in a phone-sized window, typed on with the real keyboard. */
   private openSimulator(): void {
     const token = this.match?.pairInfo?.token;
@@ -417,7 +449,7 @@ export class App {
   private onLockChange(locked: boolean): void {
     const g = this.game;
     if ((this.mode !== 'range' && this.mode !== 'match' && this.mode !== 'training') || !g) return;
-    if (!locked && this.tutorialHud.modalOpen) {
+    if (!locked && (this.tutorialHud.modalOpen || this.virtualPhone.shown)) {
       g.paused = true;
       return;
     }
@@ -433,7 +465,9 @@ export class App {
   }
 
   private onKey(code: string): void {
-    if (code === 'F3') this.stats.toggle();
+    // Esc doesn't count as a click, so it can't lock the mouse: back to the menu instead.
+    if (code === 'Escape' && this.virtualPhone.shown) this.closeVirtualPhone(true);
+    else if (code === 'F3') this.stats.toggle();
     else if (code === 'F4') this.showPanel(this.tuning);
     else if (code === 'F2' || code === 'Backquote') this.showPanel(this.dev);
   }
@@ -446,6 +480,7 @@ export class App {
   }
 
   private quitToMenu(): void {
+    this.virtualPhone.dispose();
     if (this.mode === 'training') this.leaveTraining();
     if (this.mode === 'match' || this.mode === 'training') {
       const wasMatch = this.mode === 'match';

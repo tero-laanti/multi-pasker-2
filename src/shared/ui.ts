@@ -78,6 +78,8 @@ export const UI = {
     outOfAmmo: 'Out of ammo. Text LATAA to Asevarasto.',
     outOfAmmoNoPhone: 'Out of ammo. No phone: you get more when you respawn.',
     noGrenade: 'No grenades. Ask the armourer: KRANAATTI.',
+    cookedOff: 'It went off in your hand.',
+    fuse: 'Fuse {s} s',
     grenadeWeapon: 'Grenade',
     health: 'Health',
     killedBy: 'Killed by {name}',
@@ -102,6 +104,7 @@ export const UI = {
     phoneNone: 'No phone: Esc → pair',
     phoneOffline: 'Phone offline',
     phoneOnline: 'Phone',
+    phoneVirtual: 'Virtual phone: Esc',
     taskOpen: '📱 Task open on your phone',
     kills: '{n} kills',
     kill1: '1 kill',
@@ -119,6 +122,7 @@ export const UI = {
     online: 'Phone connected.',
     offline: 'Phone disconnected. It reconnects by itself.',
     noLan: 'Phones need the server’s network address. Restart the server with --host <address>.',
+    virtual: 'Virtual phone connected.',
     simulator: 'Open phone simulator',
   },
 
@@ -158,6 +162,14 @@ export const UI = {
     phoneOnline: 'phone connected',
     phoneOffline: 'phone disconnected',
     phoneNone: 'no phone',
+  },
+
+  virtualPhone: {
+    open: 'Open a virtual phone',
+    openHint: 'No phone of your own? Use one on this screen: you click its keys with the mouse.',
+    title: 'Virtual phone',
+    close: 'Back to the game',
+    hint: 'Click the keys with the mouse. Your character has the phone out while this is open.',
   },
 
   tutorial: {

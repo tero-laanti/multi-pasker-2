@@ -16,6 +16,8 @@ export interface TutorialHudActions {
   /** Back to the range after pairing: lock the mouse again. */
   resume(): void;
   openSimulator(): void;
+  /** Use the virtual phone on this screen instead of one's own. */
+  openVirtual(): void;
 }
 
 /**
@@ -50,7 +52,7 @@ export class TutorialHud {
     el('div', 'tutorial-lead', why, UI.tutorial.pairLead);
     const list = el('ul', 'tutorial-points', why);
     for (const point of UI.tutorial.pairPoints) el('li', '', list, point);
-    this.pair = new PairPanel(() => a.openSimulator());
+    this.pair = new PairPanel(() => a.openSimulator(), () => a.openVirtual());
     cols.appendChild(this.pair.root);
     this.skipBox = el('div', 'tutorial-skip', this.modalBody);
     const skip = el('button', 'btn small', this.skipBox, UI.tutorial.skip);

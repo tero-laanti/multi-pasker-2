@@ -81,8 +81,12 @@ export interface GameMode {
    * Returns true when the shot hit a target or player (no wall impact is drawn then).
    */
   shot(weapon: WeaponId, eye: THREE.Vector3, dir: Vec3, tr: TraceResult): boolean;
-  /** The local grenade left the hand. */
-  grenadeReleased(o: [number, number, number], v: [number, number, number]): void;
+  /** The local grenade left the hand with `fuse` seconds left (thrown, or dropped with no speed). */
+  grenadeReleased(o: [number, number, number], v: [number, number, number], fuse: number): void;
+  /** G pressed: the pin is out (matches tell the server, whose fuse starts now). */
+  grenadePinned?(): void;
+  /** The fuse ran out in the hand. */
+  cookedOff?(): void;
   /** A locally simulated grenade exploded (the range; match explosions come from the server). */
   exploded?(e: Explosion): void;
   /** R (or the trigger on an empty gun) with a spare magazine to put in. */
@@ -276,14 +280,15 @@ export class Game {
       const wheel = input.consumeWheel();
       if (wheel !== 0) this.weapons.cycleWeapon(wheel);
       if (input.consumePress('KeyI')) this.weapons.inspect();
-      if (input.consumePress('KeyG') && !this.weapons.primeGrenade()) {
-        if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
+      if (input.consumePress('KeyG')) {
+        if (this.weapons.primeGrenade()) this.mode.grenadePinned?.();
+        else if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
       }
       if (input.consumePress('KeyR')) this.requestReload();
     } else {
       this.crouchWanted = false;
-      // A grenade still in the hand goes back on the belt rather than being thrown at random.
-      this.weapons.cancelGrenade();
+      // A live grenade can't go back on the belt: paused while holding it, it falls.
+      this.weapons.dropGrenade();
     }
 
     const canFire = controls && this.mode.firing !== false;
@@ -375,7 +380,13 @@ export class Game {
         const v = throwVelocity(this.yaw, this.pitch, this.move.vx, this.move.vy, this.move.vz);
         // Start just in front of the eye, a little left and low, but never inside a wall.
         this.world.trace(this.tr, e.x, e.y, e.z, e.x + fwd.x * 0.35 - rx * 0.12, e.y + fwd.y * 0.35 - 0.1, e.z + fwd.z * 0.35 - rz * 0.12, 0.045, 0.045, 0.045, MASK.GRENADE);
-        this.mode.grenadeReleased([this.tr.x, this.tr.y, this.tr.z], v);
+        this.mode.grenadeReleased([this.tr.x, this.tr.y, this.tr.z], v, Math.max(0.05, this.weapons.fuseLeft ?? TUNING.grenade.fuse));
+        this.weapons.clearPin();
+      }
+      this.handleDroppedGrenade();
+      if (this.weapons.cookedOff) {
+        this.weapons.cookedOff = false;
+        this.mode.cookedOff?.();
       }
       for (const s of this.weapons.sounds) audio.play(s.name, { volume: s.volume ?? 1 });
       this.weapons.sounds.length = 0;
@@ -388,6 +399,16 @@ export class Game {
       this.mode.exploded?.(ex);
     }
     this.mode.step(dt);
+  }
+
+  /** A live grenade that fell from the hand: at the feet, no speed, the fuse it had left. */
+  private handleDroppedGrenade(): void {
+    const w = this.weapons;
+    if (!w.droppedGrenade) return;
+    w.droppedGrenade = false;
+    const fuse = Math.max(0.05, w.fuseLeft ?? TUNING.grenade.fuse);
+    w.clearPin();
+    this.mode.grenadeReleased([this.move.x, this.move.y + 0.9, this.move.z], [0, -1, 0], fuse);
   }
 
   /** R: in goes the spare magazine, or a reminder that there is none. */
@@ -558,6 +579,7 @@ export class Game {
     const hint = empty && (w.canReload || this.devDirectReload) ? UI.hud.reloadKey : empty || w.reminder > 0 ? this.outOfAmmoText() : '';
     hud.setHint(co ? '' : hint);
     hud.grenades(w.grenades, w.maxGrenades);
+    hud.fuse(w.cooking ? w.fuseLeft : null);
 
     renderer.render(this.sunShade);
   }

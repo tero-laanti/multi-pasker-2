@@ -6,6 +6,8 @@ export interface PairInfo {
   token: string;
   code: string;
   phone: 'none' | 'online' | 'offline';
+  /** The connected phone is the virtual one on this screen. */
+  virtual: boolean;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
@@ -29,7 +31,7 @@ export class PairPanel {
   private sim: HTMLButtonElement;
   private lastUrl = '';
 
-  constructor(onSimulator: () => void) {
+  constructor(onSimulator: () => void, onVirtual: () => void) {
     this.root = el('div', 'pair-panel hidden');
     el('div', 'pair-title', this.root, UI.pair.title);
     this.qr = el('div', 'pair-qr', this.root);
@@ -42,6 +44,13 @@ export class PairPanel {
       e.stopPropagation();
       onSimulator();
     };
+    const virtual = el('div', 'pair-virtual', this.root);
+    const open = el('button', 'btn small', virtual, UI.virtualPhone.open);
+    open.onclick = (e) => {
+      e.stopPropagation();
+      onVirtual();
+    };
+    el('div', 'pair-virtual-hint', virtual, UI.virtualPhone.openHint);
   }
 
   update(info: PairInfo | null, dev: boolean): void {
@@ -57,7 +66,7 @@ export class PairPanel {
     }
     this.manual.textContent = UI.pair.manual.replace('{url}', phoneUrl.replace(/^https?:\/\//, '') || `<server>/phone`);
     this.code.textContent = info.code;
-    this.status.textContent = info.phone === 'online' ? UI.pair.online : info.phone === 'offline' ? UI.pair.offline : UI.pair.none;
+    this.status.textContent = info.phone === 'online' ? (info.virtual ? UI.pair.virtual : UI.pair.online) : info.phone === 'offline' ? UI.pair.offline : UI.pair.none;
     this.status.dataset.state = info.phone;
   }
 }

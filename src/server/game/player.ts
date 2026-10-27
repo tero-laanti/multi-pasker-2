@@ -55,6 +55,8 @@ export class ServerPlayer {
   grenades = 0;
   maxGrenades = 1;
   lastGrenadeAt = -1e9;
+  /** When the pin of the grenade in hand came out (server ms; 0: none in hand). */
+  pinAt = 0;
   kills = 0;
   deaths = 0;
   serials: Record<WeaponId, string> = { pistol: '000000', rifle: '000000' };
@@ -173,6 +175,7 @@ export class ServerPlayer {
     this.maxGrenades = maxGrenades(this.ladder.upgrades);
     this.reload = null;
     this.grenades = 0;
+    this.pinAt = 0;
     this.lastDamageAt = -1e9;
   }
 }

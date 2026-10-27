@@ -122,6 +122,12 @@ export class WeaponController {
   maxGrenades = 1;
   /** Set on the step the grenade leaves the hand; the game spawns it and clears this. */
   releaseGrenade = false;
+  /** The grenade left the hand by falling (the game was paused while holding it): no throw. */
+  droppedGrenade = false;
+  /** Set when the fuse ran out in the hand; the game handles the blast and clears this. */
+  cookedOff = false;
+  /** When the pin came out (weapon time; -1: no grenade in hand). The fuse burns from here. */
+  private pinAt = -1;
   private time = 0;
   private rng = makeRng(Date.now() >>> 0);
   private kick: RecoilKick = { pitch: 0, yaw: 0 };
@@ -219,6 +225,9 @@ export class WeaponController {
     this.buffered = 0;
     this.cooldown = 0;
     this.releaseGrenade = false;
+    this.droppedGrenade = false;
+    this.cookedOff = false;
+    this.pinAt = -1;
     this.sounds.push({ name: `${this.current}_draw`, volume: 0.8 });
     this.enter('drawing', TUNING[this.current].drawTime, []);
   }
@@ -231,23 +240,42 @@ export class WeaponController {
     this.enter('reloading', dur, reloadCues(id, empty, TUNING[id].reloadRefill));
   }
 
-  /** G pressed: pin out and the grenade up, if one is carried and the hands are free. */
+  /** G pressed: pin out (the fuse burns from now) and the grenade up, if one is carried and the hands are free. */
   primeGrenade(): boolean {
     if (this.grenades <= 0) return false;
     if (this.state !== 'ready' && this.state !== 'inspecting') return false;
     this.grenades--;
+    this.pinAt = this.time;
     this.enter('priming', PRIME_TIME, [{ at: 0, sound: 'grenade_pin', volume: 0.8 }]);
     return true;
   }
 
-  /** The grenade goes back on the belt unthrown (the game was paused while holding it). */
-  cancelGrenade(): void {
+  /** Seconds left on the fuse of the grenade in hand (or just thrown); null when there is none. */
+  get fuseLeft(): number | null {
+    return this.pinAt < 0 ? null : TUNING.grenade.fuse - (this.time - this.pinAt);
+  }
+
+  /** The pin is out and the grenade is still in the hand. */
+  get cooking(): boolean {
+    return this.pinAt >= 0 && (this.state === 'priming' || this.state === 'holding' || (this.state === 'throwing' && !this.released));
+  }
+
+  private released = false;
+
+  /** A live grenade lets go without a throw (the game was paused while holding it): it falls. */
+  dropGrenade(): void {
     if (this.state !== 'priming' && this.state !== 'holding') return;
-    this.grenades++;
+    this.droppedGrenade = true;
     this.enter('drawing', this.t.drawTime * 0.6, []);
   }
 
+  /** The pin is spent: the grenade was thrown, dropped or went off. */
+  clearPin(): void {
+    this.pinAt = -1;
+  }
+
   private throwHeld(): void {
+    this.released = false;
     this.enter('throwing', THROW_TIME, [{ at: THROW_RELEASE, sound: 'grenade_throw', release: true }]);
   }
 
@@ -295,6 +323,13 @@ export class WeaponController {
     this.punchPrevY = this.punchY;
     const t = this.t;
 
+    // Held too long: it goes off in the hand.
+    if (this.cooking && (this.fuseLeft ?? 1) <= 0) {
+      this.cookedOff = true;
+      this.pinAt = -1;
+      this.enter('drawing', this.t.drawTime, []);
+    }
+
     // Timed states.
     if (this.state !== 'ready') {
       this.stateTime += dt;
@@ -312,7 +347,10 @@ export class WeaponController {
           }
           this.refilledAt = this.time;
         }
-        if (c.release) this.releaseGrenade = true;
+        if (c.release) {
+          this.releaseGrenade = true;
+          this.released = true;
+        }
       }
       if (this.state === 'holding') {
         // Held as long as G is down; the throw starts when it is let go.

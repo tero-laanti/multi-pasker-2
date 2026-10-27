@@ -242,8 +242,12 @@ export class TutorialMode implements GameMode {
     return this.range.shot(weapon, eye, dir, tr);
   }
 
-  grenadeReleased(o: [number, number, number], v: [number, number, number]): void {
-    this.range.grenadeReleased(o, v);
+  grenadeReleased(o: [number, number, number], v: [number, number, number], fuse: number): void {
+    this.range.grenadeReleased(o, v, fuse);
+  }
+
+  cookedOff(): void {
+    this.range.cookedOff();
   }
 
   exploded(e: Explosion): void {

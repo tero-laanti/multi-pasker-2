@@ -44,13 +44,17 @@ export interface Curl {
 }
 
 /**
- * The thumb's joints in the holder's space: its knuckle (MCP), middle joint (IP) and tip. The
- * thumb's root turns every which way, so it is placed by points rather than angles.
+ * The thumb, in the holder's space: it points along `dir` with its knuckles towards `knuckle`
+ * (the side away from what it presses on). `lift` raises the base bone from `dir` towards the
+ * knuckle side; the two joints (`mcp`, `ip`) then curl it back the other way. Both joints bend
+ * in the same plane and the same direction, as a thumb's do.
  */
 export interface ThumbPose {
-  mcp: V3;
-  ip: V3;
-  tip: V3;
+  dir: V3;
+  knuckle: V3;
+  lift: number;
+  mcp: number;
+  ip: number;
 }
 
 export interface GlovePose {
@@ -78,7 +82,7 @@ export const GLOVE = {
     ring: { mcp: [0.011, 0.093, 0] as V3, len: [0.046, 0.028, 0.022], r: 0.01 },
     pinky: { mcp: [0.029, 0.085, 0] as V3, len: [0.036, 0.022, 0.02], r: 0.009 },
   },
-  thumb: { cmc: [-0.024, 0.026, -0.008] as V3, r: 0.0105, base: 0.0135 },
+  thumb: { cmc: [-0.024, 0.026, -0.008] as V3, len: [0.045, 0.031, 0.025], r: 0.0105, base: 0.0135 },
   palm: { width: 0.08, length: 0.094, thick: 0.026, round: 0.0125, wristWidth: 0.062, arch: 2.2 },
   /** Knuckles stand a little proud of the back of the hand. */
   knuckle: { r: 1.08, z: 0.0045 },
@@ -120,11 +124,32 @@ function fingerParts(name: keyof typeof GLOVE.fingers, c: Curl): THREE.BufferGeo
   return parts;
 }
 
+/** The thumb's joints from its root in the palm: [root, knuckle, middle joint, tip]. */
+export function thumbJoints(t: ThumbPose, root: THREE.Vector3): THREE.Vector3[] {
+  const d = v(t.dir).normalize();
+  const u = v(t.knuckle);
+  u.addScaledVector(d, -u.dot(d)).normalize();
+  const out = [root.clone()];
+  const angles = [t.lift, t.lift - Math.max(0, t.mcp), t.lift - Math.max(0, t.mcp) - Math.max(0, t.ip)];
+  for (let i = 0; i < 3; i++) {
+    const step = d.clone().multiplyScalar(Math.cos(angles[i]!)).addScaledVector(u, Math.sin(angles[i]!));
+    out.push(out[i]!.clone().addScaledVector(step, GLOVE.thumb.len[i]!));
+  }
+  return out;
+}
+
 /** The thumb in the holder's space: the ball of the thumb from its root in the palm, then two segments. */
 function thumbParts(t: ThumbPose, root: THREE.Vector3): THREE.BufferGeometry[] {
   const T = GLOVE.thumb;
-  const [mcp, ip, tip] = [v(t.mcp), v(t.ip), v(t.tip)];
-  return [capsule(root, mcp, T.base), capsule(mcp, ip, T.r), capsule(ip, tip, T.r * TAPER[1]!)];
+  const [a, b, c, e] = thumbJoints(t, root);
+  return [capsule(a!, b!, T.base), capsule(b!, c!, T.r), capsule(c!, e!, T.r * TAPER[1]!)];
+}
+
+/** Where the thumb's root sits in the holder's space. */
+export function thumbRoot(p: GlovePose): THREE.Vector3 {
+  const root = v(GLOVE.thumb.cmc);
+  if (p.left) root.x = -root.x;
+  return root.applyMatrix4(handMatrix(p));
 }
 
 /** The palm: a rounded slab, narrower at the wrist. */
@@ -213,9 +238,7 @@ export function glovePieces(p: GlovePose): Record<GlovePiece, THREE.BufferGeomet
     if (p.left) mirrorX(g);
     return g.applyMatrix4(m);
   };
-  const root = v(GLOVE.thumb.cmc);
-  if (p.left) root.x = -root.x;
-  const thumb = thumbParts(p.thumb, root.applyMatrix4(m));
+  const thumb = thumbParts(p.thumb, thumbRoot(p));
   for (const g of thumb) g.deleteAttribute('uv');
   return {
     palm: place([palmPart()]),

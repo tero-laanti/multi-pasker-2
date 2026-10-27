@@ -74,6 +74,12 @@ export class PhoneApp {
   private drafts = new Map<string, string>();
   private typing = new Set<string>();
   private sim = new URLSearchParams(location.search).has('sim');
+  /**
+   * The virtual phone: this app in a frame on the player's own screen, for those without a
+   * phone. Mouse only (no keyboard), and the phone is in the character's hand while it shows.
+   */
+  private virtual = new URLSearchParams(location.search).has('virtual');
+  private virtualShown = false;
   private dev = false;
   private replacedOld = false;
   private error = '';
@@ -104,6 +110,20 @@ export class PhoneApp {
       },
       () => this.net.touch(),
     );
+    if (this.virtual) {
+      document.body.classList.add('virtual');
+      // The game says when the virtual phone is on screen (the phone is out exactly then).
+      window.addEventListener('message', (e) => {
+        if (e.origin !== location.origin || (e.data as { t?: string })?.t !== 'virtualShown') return;
+        this.virtualShown = !!(e.data as { on: boolean }).on;
+        this.updateOut();
+      });
+      // No typing on the keyboard here; Esc only puts the virtual phone away.
+      window.addEventListener('keydown', (e) => {
+        e.preventDefault();
+        if (e.key === 'Escape') window.parent.postMessage({ t: 'virtualClose' }, location.origin);
+      });
+    }
     if (this.sim) {
       document.body.classList.add('sim');
       const t = h('div', 'sim-title', P.simTitle);
@@ -119,9 +139,10 @@ export class PhoneApp {
     this.net.onMessage = (m) => this.onMessage(m);
     this.net.onStatus = () => this.renderBanner();
     this.net.hello = () => {
-      if (this.pairSecret) return { pair: this.pairSecret, sim: this.sim };
-      if (this.token) return { token: this.token, sim: this.sim };
-      if (this.code.length === 4) return { code: this.code, sim: this.sim };
+      const how = { sim: this.sim, virtual: this.virtual };
+      if (this.pairSecret) return { pair: this.pairSecret, ...how };
+      if (this.token && !this.virtual) return { token: this.token, ...how };
+      if (this.code.length === 4) return { code: this.code, ...how };
       return null;
     };
   }
@@ -144,7 +165,8 @@ export class PhoneApp {
       case 'phoneWelcome': {
         const fresh = !!this.pairSecret || this.code.length === 4;
         this.token = m.token;
-        store('local')?.setItem(TOKEN_KEY, m.token);
+        // The virtual phone pairs afresh each time; a real phone keeps its token to resume.
+        if (!this.virtual) store('local')?.setItem(TOKEN_KEY, m.token);
         if (this.pairSecret) history.replaceState(null, '', location.pathname + location.search);
         this.pairSecret = '';
         this.code = '';
@@ -159,7 +181,9 @@ export class PhoneApp {
           break;
         }
         const started = store('session')?.getItem(STARTED_KEY) === '1';
-        if (fresh || !started || !this.media.started) this.show('confirm');
+        // On the computer there is no screen to keep awake: straight to the chats.
+        if (this.virtual) this.show('list');
+        else if (fresh || !started || !this.media.started) this.show('confirm');
         else this.openSaved();
         break;
       }
@@ -347,8 +371,15 @@ export class PhoneApp {
     this.sending = { rid, since, timer: window.setTimeout(check, 50) };
   }
 
-  /** The phone is "out" (in the character's hand) while a chat, the number pad or an upgrade is open. */
+  /**
+   * The phone is "out" (in the character's hand) while a chat, the number pad or an upgrade is
+   * open; the virtual phone whenever it is on screen.
+   */
   private updateOut(): void {
+    if (this.virtual) {
+      this.net.out(this.virtualShown);
+      return;
+    }
     const visible = document.visibilityState === 'visible';
     this.net.out(visible && (this.view === 'chat' || this.sheetOpen || this.upgrade !== null));
   }

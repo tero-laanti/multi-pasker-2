@@ -4,13 +4,13 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 124 passing
+## Automated tests (`npm test`): 128 passing
 
 | Area | What the tests check |
 |---|---|
 | Collision and movement | Box traces against every brush kind, slide moves, steps, ground snap, crouch, jump, the ledge assist, identical results at any frame rate |
 | Weapons | Fire rates, magazines, damage presets, recoil pattern, spread, reload timing, time to kill; the phone-out penalty (no ADS, wider hip spread); the spare magazine (R takes it once, an empty trigger reloads, nothing left clicks) |
-| Grenades | Bounces, fuse, blast blocked by cover; held while G is down and thrown when it is let go, a tap throws once the pin is out, a pause puts it back |
+| Grenades | Bounces, fuse, blast blocked by cover; the fuse burns from the G press, so a held grenade lands with less of it and one held too long goes off in the hand (a self-kill); a player shot with the pin out drops it, still burning; paused while holding it, it falls |
 | Range | Targets, drills, scoring |
 | Garrison | Spawns and navigation points are clear of solids, the nav graph is connected, the gate brush |
 | Match server | Rewind hits where the target was at the shooter's render time, cover blocks a claimed hit, fire rate and ammo caps, headshots, respawn, regeneration, reload refill timing, R taking only what the magazine needs from the spare, LATAA filling every magazine and spare (also during an R reload), token rejoin, 15 bots fighting for a minute within the tick budget, rounds and intermission; a browser on the server machine counts as the host by any of its addresses |
@@ -36,6 +36,10 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   screen freeing the mouse without the pause menu, the QR pairing, the radio check on the phone,
   YK typed on its keyboard filling magazine and spare (12 + 12), *Go to the match* spawning the
   player; a second first-timer skipping the phone gets the no-phone texts in the match.
+- `tools/e2e/virtual-phone-flow.ts`: a desktop without a phone opens the virtual phone from the Esc
+  menu: it pairs as a virtual phone, the character has the phone out exactly while it shows, the
+  keyboard types nothing, LATAA clicked on its keys refills 8 rounds to 12 + 12, and *Back to the
+  game* locks the mouse again. The training's radio check also works on it (YK clicked).
 - `tools/e2e/inventory-flow.ts`: an inventory check on a desktop and an emulated phone: the
   countdown on both, a wrong answer in the typo feed, the right one earning a grenade, and a
   timed-out check in the typo feed with the push-ups.
@@ -94,7 +98,7 @@ compiles mid-fight (earlier hitches came from the test tool's screenshots, not t
 | Damage, CoD preset | pistol 25 body / 50 head; rifle 20 → 17 body with range, 30 head |
 | Damage, Scramble preset | pistol 17 / 34; rifle 13 → 11 / 20 |
 | Player | 100 health, regeneration after 4.5 s at 40/s, respawn 2.5 s, spawn protection 1 s |
-| Grenade | 2.5 s fuse (starts when thrown, not while held), pin pull 0.28 s, carry 1 (2 with Kranaattivyö), supply cooldown 15 s |
+| Grenade | 2.5 s fuse from the G press (it can go off in the hand), pin pull 0.28 s, carry 1 (2 with Kranaattivyö), supply cooldown 15 s |
 | Phone in hand | hip spread ×1.8 + 3.5°, recoil ×1.5, speed ×0.92, no ADS, raise 0.3 s |
 | Rounds | 4 minutes, 12 s intermission; outer-ring gate opens above 8 players |
 | Ladder | offer every 3 kills and every 3 deaths, +1 per 4 players above 6 |

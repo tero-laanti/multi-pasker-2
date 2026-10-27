@@ -207,6 +207,58 @@ describe('life cycle', () => {
   });
 });
 
+describe('grenades', () => {
+  const tick = (room: Room, c: ReturnType<typeof clock>, ms: number) => {
+    for (let i = 0; i < ms / 10; i++) {
+      c.advance(10);
+      room.tick(0.01);
+    }
+  };
+
+  it('the fuse burns from the pin, so a cooked grenade lands with less of it', () => {
+    const c = clock();
+    const room = new Room(arena(), { dev: true, now: c.now });
+    const a = join(room, 'A');
+    a.p.grenades = 1;
+    room.onMessage(a.p, { t: 'pin' });
+    expect(a.p.grenades).toBe(0);
+    tick(room, c, 1000);
+    room.onMessage(a.p, { t: 'grenade', o: [a.p.x, a.p.eyeY(), a.p.z - 0.3], v: [0, 3, -10] });
+    tick(room, c, 10);
+    const nade = a.ws.events().find((e) => e.k === 'nade') as Extract<GameEvent, { k: 'nade' }>;
+    expect(nade.fuse).toBeCloseTo(TUNING.grenade.fuse - 1, 1);
+  });
+
+  it('held past its fuse, it goes off in the hand', () => {
+    const c = clock();
+    const room = new Room(arena(), { dev: true, now: c.now });
+    const a = join(room, 'A');
+    a.p.grenades = 1;
+    room.onMessage(a.p, { t: 'pin' });
+    tick(room, c, TUNING.grenade.fuse * 1000 + 50);
+    expect(a.p.alive).toBe(false);
+    expect(a.ws.events().some((e) => e.k === 'boom')).toBe(true);
+    expect(a.ws.events().some((e) => e.k === 'kill' && e.v === a.p.id && e.a === a.p.id)).toBe(true);
+  });
+
+  it('a player killed with the pin out drops the grenade, still burning', () => {
+    const c = clock();
+    const room = new Room(arena(), { dev: true, now: c.now });
+    const a = join(room, 'A');
+    const b = join(room, 'B');
+    a.p.grenades = 1;
+    room.onMessage(a.p, { t: 'pin' });
+    tick(room, c, 500);
+    a.p.protectedUntil = 0;
+    room.damage(a.p, b.p, 200, 'body', 'pistol', [0, 1, 5]);
+    tick(room, c, 10);
+    const nade = a.ws.events().find((e) => e.k === 'nade') as Extract<GameEvent, { k: 'nade' }>;
+    expect(nade).toBeDefined();
+    expect(nade.fuse).toBeCloseTo(TUNING.grenade.fuse - 0.5, 1);
+    expect(a.p.pinAt).toBe(0);
+  });
+});
+
 describe('bots in the garrison', () => {
   it('fifteen bots fight for a minute without errors and within the tick budget', () => {
     const c = clock();

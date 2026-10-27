@@ -188,7 +188,7 @@ export class Room {
 
   sendPairInfo(p: ServerPlayer): void {
     const base = this.opts.publicUrl ?? '';
-    p.send({ t: 'pairInfo', url: base ? `${base}phone#${p.phone.pairToken}` : '', token: p.phone.pairToken, code: p.phone.pairCode, phone: p.phone.status() });
+    p.send({ t: 'pairInfo', url: base ? `${base}phone#${p.phone.pairToken}` : '', token: p.phone.pairToken, code: p.phone.pairCode, phone: p.phone.status(), virtual: p.phone.virtual });
   }
 
   // ---- phones ----
@@ -231,6 +231,7 @@ export class Room {
     }
     phone.ws = ws;
     phone.sim = !!msg.sim;
+    phone.virtual = !!msg.virtual;
     ws.send(
       JSON.stringify({
         t: 'phoneWelcome',
@@ -555,6 +556,9 @@ export class Room {
       case 'switch':
         if (p.owned.includes(msg.w)) this.switchWeapon(p, msg.w);
         break;
+      case 'pin':
+        this.pinGrenade(p);
+        break;
       case 'grenade':
         this.throwGrenade(p, msg.o, msg.v);
         break;
@@ -836,6 +840,8 @@ export class Room {
   }
 
   kill(v: ServerPlayer, a: ServerPlayer | null, w: WeaponId | 'grenade', head: boolean): void {
+    // A grenade with its pin out falls where they fall, still burning.
+    if (v.pinAt) this.dropGrenade(v);
     v.alive = false;
     v.flags &= ~PF.ALIVE;
     v.deaths++;
@@ -862,10 +868,34 @@ export class Room {
     this.broadcastPlayers();
   }
 
-  throwGrenade(p: ServerPlayer, o: [number, number, number], v: [number, number, number]): void {
-    if (!p.alive || p.grenades <= 0) return;
+  /** G pressed: the pin is out and the fuse burns from now, thrown or not. */
+  pinGrenade(p: ServerPlayer): void {
+    if (!p.alive || p.pinAt || p.grenades <= 0) return;
     p.grenades--;
+    p.pinAt = this.now();
     p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
+  }
+
+  /** Fuse left (s) on the grenade in hand. */
+  private fuseLeft(p: ServerPlayer): number {
+    return TUNING.grenade.fuse - (this.now() - p.pinAt) / 1000;
+  }
+
+  /**
+   * The grenade leaves the hand: with what is left of its fuse if the pin came out earlier
+   * (the player's G press), else a fresh one (bots throw at once).
+   */
+  throwGrenade(p: ServerPlayer, o: [number, number, number], v: [number, number, number]): void {
+    if (!p.alive) return;
+    let fuse = TUNING.grenade.fuse;
+    if (p.pinAt) {
+      fuse = Math.max(0.05, this.fuseLeft(p));
+      p.pinAt = 0;
+    } else {
+      if (p.grenades <= 0) return;
+      p.grenades--;
+      p.outbox.push({ k: 'grenades', n: p.grenades, max: p.maxGrenades });
+    }
     // Start inside the thrower's reach and never inside a wall.
     let [ox, oy, oz] = o;
     if (Math.hypot(ox - p.x, oy - p.eyeY(), oz - p.z) > 1.5) {
@@ -877,9 +907,18 @@ export class Room {
     this.world.trace(this.tr, p.x, p.eyeY(), p.z, ox, oy, oz, r, r, r, MASK.GRENADE);
     const vl = Math.hypot(...v);
     const s = vl > 40 ? 40 / vl : 1;
-    const g = { id: this.nextGrenadeId++, owner: p.id, x: this.tr.x, y: this.tr.y, z: this.tr.z, vx: v[0] * s, vy: v[1] * s, vz: v[2] * s, fuse: TUNING.grenade.fuse, resting: false };
+    const g = { id: this.nextGrenadeId++, owner: p.id, x: this.tr.x, y: this.tr.y, z: this.tr.z, vx: v[0] * s, vy: v[1] * s, vz: v[2] * s, fuse, resting: false };
     this.grenades.push(g);
     this.emit({ k: 'nade', id: g.id, p: p.id, o: [g.x, g.y, g.z], v: [g.vx, g.vy, g.vz], fuse: g.fuse });
+  }
+
+  /** The grenade in hand falls at the player's feet with the fuse it has left. */
+  private dropGrenade(p: ServerPlayer): void {
+    const fuse = Math.max(0.05, this.fuseLeft(p));
+    p.pinAt = 0;
+    const g = { id: this.nextGrenadeId++, owner: p.id, x: p.x, y: p.y + 0.9, z: p.z, vx: 0, vy: -1, vz: 0, fuse, resting: false };
+    this.grenades.push(g);
+    this.emit({ k: 'nade', id: g.id, p: p.id, o: [g.x, g.y, g.z], v: [0, -1, 0], fuse });
   }
 
   private explode(g: Grenade & { owner: number }): void {
@@ -988,6 +1027,12 @@ export class Room {
       }
     }
 
+    // Held too long: it goes off in the hand.
+    for (const p of this.players.values()) {
+      if (!p.pinAt || this.fuseLeft(p) > 0) continue;
+      p.pinAt = 0;
+      if (p.alive) this.explode({ id: this.nextGrenadeId++, owner: p.id, x: p.x, y: p.eyeY() - 0.35, z: p.z, vx: 0, vy: 0, vz: 0, fuse: 0, resting: true });
+    }
     for (const g of this.grenades) stepGrenade(g, this.world, dt);
     const exploding = this.grenades.filter((g) => g.fuse <= 0);
     if (exploding.length) {

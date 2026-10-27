@@ -66,7 +66,7 @@ describe('first-person hands', () => {
     }
   });
 
-  it('bends fingers only towards the palm, and the wrist only as far as a wrist goes', () => {
+  it('bends fingers and thumbs only towards the palm, and the wrist only as far as a wrist goes', () => {
     for (const key of KEYS) {
       const p = HAND_POSES[key];
       for (const f of [p.index, p.middle, p.ring, p.pinky]) {
@@ -78,6 +78,11 @@ describe('first-person hands', () => {
         expect(f.dip).toBeLessThanOrEqual(1.4);
         expect(Math.abs(f.spread ?? 0)).toBeLessThanOrEqual(0.3);
       }
+      // The thumb's two joints curl the same way, within a thumb's range.
+      expect(p.thumb.mcp, `${key} thumb mcp`).toBeGreaterThanOrEqual(0);
+      expect(p.thumb.mcp, `${key} thumb mcp`).toBeLessThanOrEqual(1.0);
+      expect(p.thumb.ip, `${key} thumb ip`).toBeGreaterThanOrEqual(0);
+      expect(p.thumb.ip, `${key} thumb ip`).toBeLessThanOrEqual(1.3);
       const bend = (Math.acos(-forearmInHand(p).y) * 180) / Math.PI;
       expect(bend, `${key} wrist bend`).toBeLessThanOrEqual(28.01);
     }

@@ -140,7 +140,7 @@ describe('pistol', () => {
     expect(w.grenades).toBe(0);
   });
 
-  it('a tap of G throws once the pin is out; a pause puts the grenade back', () => {
+  it('a tap of G throws once the pin is out, with the fuse burning since the press', () => {
     const w = ready();
     w.grenades = 1;
     w.primeGrenade();
@@ -151,15 +151,27 @@ describe('pistol', () => {
       released = w.releaseGrenade;
     }
     expect(released).toBe(true);
+    // Thrown about 0.4 s after the press: that much of the fuse is gone.
+    expect(w.fuseLeft!).toBeLessThan(TUNING.grenade.fuse - 0.3);
+    expect(w.fuseLeft!).toBeGreaterThan(TUNING.grenade.fuse - 0.6);
+  });
+
+  it('held too long, it goes off in the hand; paused while holding it, it falls', () => {
+    const w = ready();
+    w.grenades = 1;
+    w.primeGrenade();
+    run(w, TUNING.grenade.fuse + 0.1, () => ({ grenadeHeld: true }));
+    expect(w.cookedOff).toBe(true);
+    expect(w.releaseGrenade).toBe(false);
+    expect(w.cooking).toBe(false);
     const v = ready();
     v.grenades = 1;
     v.primeGrenade();
     run(v, 0.5, () => ({ grenadeHeld: true }));
-    v.cancelGrenade();
-    expect(v.grenades).toBe(1);
-    run(v, 1, () => ({}));
-    expect(v.releaseGrenade).toBe(false);
-    expect(v.state).toBe('ready');
+    v.dropGrenade();
+    expect(v.droppedGrenade).toBe(true);
+    expect(v.grenades).toBe(0);
+    expect(v.fuseLeft!).toBeCloseTo(TUNING.grenade.fuse - 0.5, 1);
   });
 
   it('an empty gun with a spare reloads on the trigger instead of clicking', () => {

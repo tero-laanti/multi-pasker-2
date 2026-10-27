@@ -892,3 +892,11 @@ body.sim .upgrade-wrap {
 .btn:disabled {
   opacity: 0.45;
 }
+
+/* ---------- Virtual phone (a frame in the game, mouse only) ---------- */
+body.virtual {
+  background: var(--bg);
+}
+body.virtual .kb-key {
+  cursor: pointer;
+}

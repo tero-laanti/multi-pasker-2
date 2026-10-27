@@ -20,6 +20,8 @@ export class Phone {
   /** Short code for pairing by hand. */
   pairCode = '';
   sim = false;
+  /** The virtual phone on the player's own screen (no phone of their own). */
+  virtual = false;
   readonly convs = new Map<string, PhoneConversation>();
   /** What is in the compose field right now, and when it last changed (server ms). */
   draft: { conv: string; text: string; at: number } | null = null;

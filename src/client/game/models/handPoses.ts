@@ -3,7 +3,7 @@ import type { GlovePose, HandKey } from './hands';
 /**
  * Where each hand sits on its weapon (weapon model space: X right, Y up, muzzle towards -Z,
  * metres) or on the phone (phone space: X right, Y along the long side, Z out of the screen).
- * Finger curls are radians; the thumb's joints and the forearm are in the holder's space.
+ * Curls and thumb angles are radians; the thumb's directions and the forearm are in the holder's space.
  */
 
 // One-handed pistol grip: the web of the hand high on the back of the grip, the palm on its
@@ -18,7 +18,7 @@ const pistolRight: GlovePose = {
   middle: { mcp: 0.89, pip: 1.6, dip: 0.59 },
   ring: { mcp: 0.83, pip: 1.5, dip: 0.56 },
   pinky: { spread: -0.03, mcp: 0.71, pip: 1.24, dip: 0.48 },
-  thumb: { mcp: [-0.02, -0.024, 0.013], ip: [-0.0235, -0.022, -0.018], tip: [-0.0235, -0.021, -0.042] },
+  thumb: { dir: [0, 0.2, -0.98], knuckle: [-1, 0.15, 0], lift: 1.1, mcp: 0.95, ip: 0.1 },
 };
 
 // Left hand during pistol reloads, on the seated magazine (it rides with the magazine):
@@ -33,7 +33,7 @@ const pistolLeft: GlovePose = {
   middle: { mcp: 0.55, pip: 1.1, dip: 0.66 },
   ring: { mcp: 0.56, pip: 1.12, dip: 0.67 },
   pinky: { mcp: 0.65, pip: 1.3, dip: 0.78 },
-  thumb: { mcp: [-0.032, -0.128, 0.022], ip: [-0.027, -0.107, 0.024], tip: [-0.024, -0.093, 0.024] },
+  thumb: { dir: [0, 1, -0.45], knuckle: [-1, 0, 0], lift: 0.6, mcp: 0.8, ip: 0.7 },
 };
 
 // Left hand racking the pistol: from the left side, palm to the gun, the thumb over the
@@ -48,7 +48,7 @@ const pistolLeftRack: GlovePose = {
   middle: { mcp: 1.2, pip: 1.4, dip: 0.8 },
   ring: { mcp: 1.2, pip: 1.4, dip: 0.8 },
   pinky: { mcp: 1.25, pip: 1.4, dip: 0.8 },
-  thumb: { mcp: [-0.034, 0.024, 0.034], ip: [-0.022, 0.02, 0.018], tip: [-0.012, 0.016, 0.008] },
+  thumb: { dir: [0.4, -0.25, -0.88], knuckle: [-0.3, 1, 0], lift: 0.6, mcp: 0.25, ip: 0.1 },
 };
 
 // Rifle: right hand on the pistol grip, index finger on the trigger, thumb round the left.
@@ -61,21 +61,23 @@ const rifleRight: GlovePose = {
   middle: { mcp: 0.31, pip: 1.53, dip: 0.72 },
   ring: { spread: -0.03, mcp: 0.31, pip: 1.47, dip: 0.69 },
   pinky: { spread: -0.1, mcp: 0.3, pip: 1.26, dip: 0.61 },
-  thumb: { mcp: [-0.023, -0.042, 0.014], ip: [-0.0295, -0.052, -0.016], tip: [-0.0295, -0.06, -0.034] },
+  thumb: { dir: [0, -0.25, -0.97], knuckle: [-1, 0.3, 0], lift: 0.9, mcp: 0.45, ip: 0.05 },
 };
 
-// Left hand under the handguard: thumb along its left side, fingers round the right.
+// Left hand under the handguard, as you'd hold a stick: the handguard runs diagonally across
+// the palm from its heel into the web of the thumb, the wrist just below it, the thumb along its
+// left side, the fingers curled up round its right side.
 const rifleLeft: GlovePose = {
   left: true,
-  wrist: [-0.0616, -0.0998, -0.3025],
-  along: [0.77, 0.563, -0.299],
-  back: [0.59, -0.807, 0],
-  forearm: [-0.35, -0.55, 0.75],
-  index: { mcp: 0.24, pip: 0.72, dip: 0.32 },
-  middle: { mcp: 0.3, pip: 0.91, dip: 0.4 },
-  ring: { mcp: 0.3, pip: 0.9, dip: 0.4 },
-  pinky: { mcp: 0.27, pip: 0.8, dip: 0.36 },
-  thumb: { mcp: [-0.034, -0.03, -0.346], ip: [-0.034, -0.017, -0.378], tip: [-0.0335, -0.01, -0.4] },
+  wrist: [-0.029, -0.0565, -0.2976],
+  along: [0.701, 0.221, -0.678],
+  back: [0.301, -0.954, 0],
+  forearm: [-0.35, -0.6, 0.72],
+  index: { mcp: 0.41, pip: 1.24, dip: 0.55 },
+  middle: { mcp: 0.54, pip: 1.61, dip: 0.72 },
+  ring: { mcp: 0.57, pip: 1.7, dip: 0.76 },
+  pinky: { mcp: 0.5, pip: 1.45, dip: 0.65 },
+  thumb: { dir: [0, 0.45, -0.9], knuckle: [-1, 0, 0], lift: 0.6, mcp: 0.7, ip: 0.6 },
 };
 
 // Left hand holding the phone (phone space): the left edge in the web of the thumb, fingers
@@ -90,7 +92,7 @@ const phoneLeft: GlovePose = {
   middle: { mcp: 0, pip: 1.45, dip: 0.8 },
   ring: { spread: -0.04, mcp: 0, pip: 1.45, dip: 0.8 },
   pinky: { spread: -0.04, mcp: 0.05, pip: 1.4, dip: 0.8 },
-  thumb: { mcp: [-0.05, -0.026, -0.006], ip: [-0.032, -0.008, 0.0138], tip: [-0.02, 0.016, 0.0136] },
+  thumb: { dir: [0.86, 0.51, 0], knuckle: [0, 0, 1], lift: 0.76, mcp: 0.74, ip: 0.12 },
 };
 
 export const HAND_POSES: Record<HandKey, GlovePose> = {

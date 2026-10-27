@@ -58,8 +58,15 @@ export class RangeMode implements GameMode {
     this.range.events.length = 0;
   }
 
-  grenadeReleased(o: [number, number, number], v: [number, number, number]): void {
-    this.game.grenades.spawn(o[0], o[1], o[2], v, TUNING.grenade.fuse, 0);
+  grenadeReleased(o: [number, number, number], v: [number, number, number], fuse: number): void {
+    this.game.grenades.spawn(o[0], o[1], o[2], v, fuse, 0);
+  }
+
+  /** Held too long: it goes off in the hand (on the range nobody keeps score of that). */
+  cookedOff(): void {
+    const e = this.game.eye;
+    this.game.grenades.spawn(e.x, e.y - 0.35, e.z, [0, 0, 0], 0.01, 0);
+    this.game.deps.hud.note(UI.hud.cookedOff, 3);
   }
 
   exploded(e: Explosion): void {

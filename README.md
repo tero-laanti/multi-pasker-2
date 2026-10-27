@@ -89,9 +89,13 @@ pairing screen, which explains that the phone app is only a web page from the ho
 reply `YK` and the magazines are full. Train as long as you like, then Esc → **Go to the match**.
 The browser remembers that you've done it.
 
-**Without a phone:** the pairing screen has *Skip: play without a phone*, with heavy penalties:
-no LATAA refills (ammo only comes with a new life), no grenades and no promotions or upgrades.
-A phone can still be paired later from the Esc menu.
+**Without a phone:** the pairing panel (on the training's pairing screen and in the Esc menu)
+has **Open a virtual phone**: the same phone app on your screen, typed on by clicking its keys
+with the mouse (the keyboard does nothing). Your character has the phone out while it is open
+and the game waits for you, so it is slower than a real phone; *Back to the game* or Esc puts it
+away. Or *Skip: play without a phone*, with heavy penalties: no LATAA refills (ammo only comes
+with a new life), no grenades and no promotions or upgrades. A phone can still be paired later
+from the Esc menu.
 
 ## Ammo
 
@@ -109,7 +113,7 @@ Ammo and grenades come from the armourer, *varusmestari*, by text message from y
 2. The phone shows whose phone it is. Tap **Start** (keeps the screen on and enables sound) and
    check that you hear the chime.
 3. Open the **Asevarasto** chat and text `LATAA` for full magazines and a new spare, or
-   `KRANAATTI` for a grenade (hold G to keep it in your hand, let go to throw). Case, spaces and
+   `KRANAATTI` for a grenade (G pulls the pin, let go to throw). Case, spaces and
    punctuation don't matter; anything else gets a reply from the armourer, and typos, swearing
    and chatter are shown to everyone.
 
@@ -209,7 +213,7 @@ hit registration.
 | Space | jump (a small ledge assist lets you climb ledges just above jump height) |
 | C | crouch (toggle by default, hold in settings) |
 | 1 / 2 / wheel | rifle / pistol |
-| G | grenade: hold to keep it in your hand, let go to throw |
+| G | grenade: the pin comes out and the 2.5 s fuse starts; let go to throw. Hold it too long and it goes off in your hand |
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
 | R | reload with the spare magazine (more comes with LATAA) |
@@ -261,9 +265,10 @@ The gloved hands are built from plain shapes in
 [src/client/game/models/hands.ts](src/client/game/models/hands.ts): a rounded palm with knuckles,
 three capsule segments per finger, the thumb, a glove cuff and a sleeve, merged into one mesh per
 hand. A pose ([handPoses.ts](src/client/game/models/handPoses.ts)) is where the wrist sits on the
-gun (or phone), how far each finger joint curls, three points for the thumb and the direction of
-the forearm. Fingers only bend towards the palm, and the wrist never bends more than 28°: past
-that, the forearm turns with the hand. `tests/hands.test.ts` checks those limits and that no
+gun (or phone), how far each finger joint curls, where the thumb points and which side its
+knuckles face (its two joints curl the other way, in one plane), and the direction of the
+forearm. Fingers and thumbs only bend towards the palm, and the wrist never bends more than 28°:
+past that, the forearm turns with the hand. `tests/hands.test.ts` checks those limits and that no
 glove sinks more than 2.5 mm into what it holds.
 
 ![The hands on the pistol, the rifle and the phone](docs/hands/new-hands.jpg)

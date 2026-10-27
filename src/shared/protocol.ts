@@ -217,6 +217,8 @@ export type ClientMsg =
   | { t: 'fire'; seq: number; w: WeaponId; rt: number; o: [number, number, number]; d: [number, number, number]; hit?: ShotClaim; wall?: [number, number, number, number, number, number, number] }
   | { t: 'reload' }
   | { t: 'switch'; w: WeaponId }
+  /** G pressed: the pin is out and the fuse is burning (the throw comes with 'grenade'). */
+  | { t: 'pin' }
   | { t: 'grenade'; o: [number, number, number]; v: [number, number, number] }
   | { t: 'dev'; cmd: string; arg?: unknown };
 
@@ -231,7 +233,7 @@ export type ServerMsg =
   /** The evening scoreboard (after each round, and on joining). */
   | { t: 'evening'; rows: EveningRow[] }
   /** How to pair a phone to this player: QR link and the short code for typing in. */
-  | { t: 'pairInfo'; url: string; token: string; code: string; phone: 'none' | 'online' | 'offline' };
+  | { t: 'pairInfo'; url: string; token: string; code: string; phone: 'none' | 'online' | 'offline'; virtual: boolean };
 
 export interface RoundInfo {
   /** Round number this evening. */
@@ -365,7 +367,8 @@ export interface UpgradeOffer {
 }
 
 export type PhoneClientMsg =
-  | { t: 'phoneHello'; v: number; pair?: string; code?: string; token?: string; sim?: boolean }
+  /** `virtual`: the phone app on the player's own screen, typed on with the mouse only. */
+  | { t: 'phoneHello'; v: number; pair?: string; code?: string; token?: string; sim?: boolean; virtual?: boolean }
   | { t: 'send'; rid: string; conv: string; text: string; life: number; round: number }
   | { t: 'open'; conv: string }
   | { t: 'read'; conv: string }
