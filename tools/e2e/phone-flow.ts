@@ -106,7 +106,25 @@ await phone.waitForSelector('.v-chat');
 await wait(2600);
 await shot(phone, 'phone_4_replies');
 result.replies = await phone.evaluate(() => [...document.querySelectorAll('.bubble.them')].map((b) => b.textContent));
+
+// Killed with the phone out: back to the chats, the draft gone, and a note that says so.
+await type('Lataa nyt heti');
+await desktop.evaluate(() => (window as any).__pasker.app.devCommand('killMe'));
+await phone.waitForSelector('.killed-wrap', { timeout: 4000 });
+await wait(400);
+await shot(phone, 'phone_4b_killed');
+result.killed = await phone.evaluate(() => ({
+  screen: document.querySelector('.screen')?.className,
+  title: document.querySelector('.killed-title')?.textContent,
+  text: document.querySelector('.killed-text')?.textContent,
+  lost: document.querySelector('.bubble.lost')?.textContent,
+}));
+await phone.tap('.killed .btn');
+await phone.tap('.v-list .conv');
+await phone.waitForSelector('.v-chat');
+result.draftAfterDeath = await phone.evaluate(() => document.querySelector('.field .text')?.textContent ?? '');
 await phone.tap('.back');
+await wait(2600);
 
 // New chat to a number that doesn't exist.
 await phone.tap('.fab');

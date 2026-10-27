@@ -267,6 +267,35 @@ describe('public shame', () => {
     expect(kill && kill.k === 'kill' && kill.draft).toBe('pyydän lupaa puh');
   });
 
+  it('a kill with the phone out tells the phone who did it and what never got sent', () => {
+    const { join, pair, room } = setup();
+    const a = join('Aapo');
+    const b = join('Bertta');
+    const phone = pair(b.p);
+    room.onPhoneMessage(b.p, { t: 'out', on: true });
+    room.onPhoneMessage(b.p, { t: 'draft', conv: V.number, text: 'LAT' });
+    b.p.protectedUntil = 0;
+    room.damage(b.p, a.p, 500, 'head', 'rifle', [0, 1, 0]);
+    expect(phone.phone().filter((m) => m.t === 'killed')).toEqual([{ t: 'killed', by: 'Aapo', w: 'rifle', head: true, draft: 'LAT' }]);
+    // The draft is gone with the player: the next death has nothing to quote.
+    expect(b.p.phone.draft).toBeNull();
+  });
+
+  it('a kill with the phone put away, or your own grenade, says so only when the phone was out', () => {
+    const { join, pair, room } = setup();
+    const a = join('Aapo');
+    const b = join('Bertta');
+    const phone = pair(b.p);
+    b.p.protectedUntil = 0;
+    room.damage(b.p, a.p, 500, 'body', 'pistol', [0, 1, 0]);
+    expect(phone.phone().some((m) => m.t === 'killed')).toBe(false);
+    const c = join('Cecilia');
+    const cPhone = pair(c.p);
+    room.onPhoneMessage(c.p, { t: 'out', on: true });
+    room.kill(c.p, c.p, 'grenade', false);
+    expect(cPhone.phone().filter((m) => m.t === 'killed')).toEqual([{ t: 'killed', by: '', w: 'grenade', head: false, draft: '' }]);
+  });
+
   it('the phone is in the player\u2019s hand exactly while a chat is open', () => {
     const { join, pair, room } = setup();
     const a = join('Aapo');

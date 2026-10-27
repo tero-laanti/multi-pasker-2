@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 129 passing
+## Automated tests (`npm test`): 131 passing
 
 | Area | What the tests check |
 |---|---|
@@ -16,7 +16,7 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 | Match server | Rewind hits where the target was at the shooter's render time, cover blocks a claimed hit, fire rate and ammo caps, headshots, respawn, regeneration, reload refill timing, R taking only what the magazine needs from the spare, LATAA filling every magazine and spare (also during an R reload), token rejoin, 15 bots fighting for a minute within the tick budget, rounds and intermission; a browser on the server machine counts as the host by any of its addresses |
 | Training | A first-timer stays out of the match (no spawn, no snapshots, not counted, no awards or evening) until they deploy; the radio check sent when the phone is picked up (or right away if already paired), only YK answers it, then LATAA and KRANAATTI work for the range's guns |
 | Interpolation | Per-player timelines with state age, extrapolation cap, no blending across respawns, held states taking server-side changes, the adaptive delay and its render clock |
-| Phone and varusmestari | Pairing by QR token and code, replacement with a notice on both, token resume, the simulator refused outside development; LATAA refills only the sender, refuses when everything is full and never stacks; KRANAATTI carry limit and cooldown; duplicate request ids act once; requests from the dead, a previous life or an old round do nothing; a round restart; the PUNNERRETTU lockout; the typo feed's one-line-per-1.5 s rate limit preferring longer messages and keeping valid commands private; kill-feed drafts; the phone-in-hand flag exactly while a chat is open; command matching (case, spacing, punctuation, near misses, swearing, languages, greetings, numbers) |
+| Phone and varusmestari | Pairing by QR token and code, replacement with a notice on both, token resume, the simulator refused outside development; LATAA refills only the sender, refuses when everything is full and never stacks; KRANAATTI carry limit and cooldown; duplicate request ids act once; requests from the dead, a previous life or an old round do nothing; a round restart; the PUNNERRETTU lockout; the typo feed's one-line-per-1.5 s rate limit preferring longer messages and keeping valid commands private; kill-feed drafts; a death with the phone out tells the phone who did it and what never got sent (nothing when the phone was away); the phone-in-hand flag exactly while a chat is open; command matching (case, spacing, punctuation, near misses, swearing, languages, greetings, numbers) |
 | Inventory check | From the vääpeli, in his own chat, never in a player's first minute in the match; asked only of the living with a connected phone during a round; the answer time starts when the question arrives; the number when asked or when answered counts; a right answer gives a grenade and closes it, a wrong one keeps it open, a timeout locks the phone until PUNNERRETTU; bots answer (mostly right) and report their push-ups |
 | Messages | One new message per chat: an unasked-for message waits until the one before has been read (a ladder offer and its task arrive as one message; the radio check waits behind an unread welcome); replies are never held back |
 | TJ ladder | First offer on the first kill or death, every 3rd kill and every 3rd death on separate counters, self-kills don't count; codes unique between players; one open task with a queue; every stage 1–6 including the office number opened by hand, the 17-digit number and its voice note, the serial number, the Swedish stage and "svara på svenska"; TJ 0; munkkikahvit; upgrade choice applied once; round reset; upgrade weapon numbers |
@@ -30,8 +30,10 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 - `tools/e2e/phone-flow.ts`: a desktop and an emulated touch phone (390×844, 375×667, 360×740, and
   once in WebKit, Safari's engine). Pairing by QR link, the sound check, the phone in hand while a
   chat is open and put away after sending, LATAA reloading the right player, a typo appearing in
-  the desktop typo feed with the reply, a new chat to a number that doesn't exist, the phone page
-  reloaded and resumed with its conversations.
+  the desktop typo feed with the reply, dying with a half-typed message (the phone goes back to
+  the chats with the "never sent" note, and the chat's draft is empty), a new chat to a number
+  that doesn't exist, the phone page reloaded and resumed with its conversations. Run on Chrome
+  at 390×844 after the death note was added.
 - `tools/e2e/tutorial-flow.ts`: the training with a first-time desktop and an emulated phone: the
   walk (on the keyboard), the target knocked down, R finding no spare, E on the phone, the pairing
   screen freeing the mouse without the pause menu, the QR pairing, the radio check on the phone,

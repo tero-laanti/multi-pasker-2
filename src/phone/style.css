@@ -893,6 +893,89 @@ body.sim .upgrade-wrap {
   opacity: 0.45;
 }
 
+/* ---------- Killed with the phone out ---------- */
+.killed-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(20, 24, 16, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  animation: fade-in 0.15s ease-out;
+}
+body.sim .killed-wrap {
+  position: absolute;
+}
+.killed {
+  width: 100%;
+  max-width: 360px;
+  background: var(--bg);
+  border-top: 6px solid var(--danger);
+  border-radius: 18px;
+  padding: 20px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  animation: jolt 0.35s ease-out;
+}
+@keyframes jolt {
+  0% {
+    transform: translateX(0) scale(0.92);
+  }
+  20% {
+    transform: translateX(-10px) scale(1);
+  }
+  45% {
+    transform: translateX(8px);
+  }
+  70% {
+    transform: translateX(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .killed {
+    animation: none;
+  }
+}
+.killed-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--danger);
+}
+.killed-text {
+  font-size: 16px;
+  line-height: 1.4;
+}
+.killed-lost {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 2px;
+}
+.killed-label {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bubble.lost {
+  max-height: 7em;
+  overflow: hidden;
+  text-align: left;
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.killed .btn {
+  margin-top: 6px;
+  align-self: stretch;
+}
+
 /* ---------- Virtual phone (a frame in the game, mouse only) ---------- */
 body.virtual {
   background: var(--bg);

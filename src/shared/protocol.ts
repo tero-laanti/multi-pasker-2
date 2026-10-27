@@ -404,4 +404,6 @@ export type PhoneServerMsg =
   | { t: 'replaced' }
   | { t: 'pong'; id: number; st: number }
   /** An inventory check: seconds left to answer (0: answered or over). */
-  | { t: 'inventory'; left: number };
+  | { t: 'inventory'; left: number }
+  /** Killed with the phone out: by whom ('' when it was your own doing), how, and what never got sent. */
+  | { t: 'killed'; by: string; w: WeaponId | 'grenade'; head: boolean; draft: string };

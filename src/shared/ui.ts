@@ -317,6 +317,16 @@ export const UI = {
     desktopOff: 'Your computer is not in the game.',
     inventory: 'Inventory check: answer with a number · {s} s',
     dead: 'You are dead. The armourer serves the living.',
+    /** Killed with the phone out: a note over the chat list; what was typed is gone. {name}: the killer. */
+    killed: {
+      title: ['Killed mid-message', 'Message not delivered', 'Texting under fire'],
+      by: ['{name} didn’t wait for you to finish typing.', '{name} replied first.', 'Shot by {name}, mid-sentence.', '{name} thanks you for standing still.'],
+      head: ['{name} aimed for the screen and found your head.', 'Headshot by {name}. The phone is fine.'],
+      grenade: ['{name}’s grenade landed at your feet. You were busy typing.', 'A grenade from {name}. Your thumbs were full.'],
+      self: ['Your own grenade, while texting. The armourer will hear of this.', 'You pulled the pin and kept typing.', 'Killed by your own hand. It was holding a phone.'],
+      lost: 'Never sent',
+      ok: 'Understood',
+    },
     simTitle: 'Phone simulator (development)',
     simHint: 'Type on your keyboard. Enter sends.',
   },

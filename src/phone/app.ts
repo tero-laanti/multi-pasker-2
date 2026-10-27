@@ -219,6 +219,9 @@ export class PhoneApp {
       case 'upgrade':
         this.setUpgrade(m.offer);
         break;
+      case 'killed':
+        this.killed(m);
+        break;
       case 'conv':
         if (!this.convs.has(m.c.id)) this.convs.set(m.c.id, m.c);
         if (this.sheet && m.c.id === this.sheet.number) {
@@ -456,6 +459,43 @@ export class PhoneApp {
       take!.textContent = P.sendingScreen;
       this.net.choose(`${this.token.slice(0, 8)}-u${Date.now().toString(36)}`, id);
     };
+  }
+
+  /**
+   * Killed with the phone out: back to the chat list, the text typed in the open chat is gone,
+   * and a note over it all says so (quoting the message that never got sent).
+   */
+  private killed(m: Extract<PhoneServerMsg, { t: 'killed' }>): void {
+    const conv = this.chat;
+    const draft = (conv && this.drafts.get(conv)?.trim()) || m.draft;
+    if (conv) {
+      this.drafts.delete(conv);
+      this.net.draft(conv, '');
+    }
+    this.sheet = null;
+    if (this.view === 'chat') {
+      this.chat = null;
+      store('session')?.removeItem(CHAT_KEY);
+      this.show('list');
+    } else if (this.view === 'list') {
+      this.render();
+      this.updateOut();
+    }
+    if (navigator.vibrate) navigator.vibrate(300);
+    this.root.querySelector('.killed-wrap')?.remove();
+    const K = P.killed;
+    const pick = (list: readonly string[]) => list[Math.floor(Math.random() * list.length)]!;
+    const line = !m.by ? pick(K.self) : m.w === 'grenade' ? pick(K.grenade) : m.head ? pick(K.head) : pick(K.by);
+    const wrap = h('div', 'killed-wrap', undefined, this.root);
+    const box = h('div', 'killed', undefined, wrap);
+    h('div', 'killed-title', pick(K.title), box);
+    h('div', 'killed-text', fill(line, { name: m.by }), box);
+    if (draft) {
+      const lost = h('div', 'killed-lost', undefined, box);
+      h('div', 'killed-label', K.lost, lost);
+      h('div', 'bubble me lost', draft, lost);
+    }
+    h('button', 'btn primary big', K.ok, box).onclick = () => wrap.remove();
   }
 
   // ---- views ----

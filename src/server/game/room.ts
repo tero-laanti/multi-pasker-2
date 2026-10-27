@@ -877,6 +877,11 @@ export class Room {
       v.stats.deathsTyping++;
       if (typing.length > v.stats.deathDraft.length) v.stats.deathDraft = typing;
     }
+    // Killed with the phone out: the phone says so, closes the chat and drops what was typed.
+    if (v.phone.out) {
+      v.phone.send({ t: 'killed', by: a && a !== v ? a.name : '', w, head, draft: typing ?? '' });
+      v.phone.draft = null;
+    }
     const ev: GameEvent = { k: 'kill', a: a?.id ?? 0, v: v.id, w, head };
     if (typing) ev.draft = typing;
     this.emit(ev);

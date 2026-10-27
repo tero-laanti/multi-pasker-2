@@ -133,6 +133,8 @@ check).
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
 away. Messages you type on the phone use the app's own keyboard (no autocorrect or paste).
+Die with the phone out and it goes back to the chat list, what you were typing is gone, and a
+note tells you who did it and quotes the message that never got sent.
 
 One phone per player: pairing another phone replaces the first. A phone that loses its connection
 (screen lock, reload) comes back to the same chats. For testing without phones, the host can turn
