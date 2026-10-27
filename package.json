@@ -13,6 +13,7 @@
     "build": "vite build",
     "build:web": "vite build --mode web",
     "preview:web": "vite preview --mode web --port 8100",
+    "deploy:web": "npm run typecheck && npm test && npm run build:web && terraform -chdir=deploy/aws apply",
     "serve": "tsx src/server/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

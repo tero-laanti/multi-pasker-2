@@ -47,6 +47,7 @@ Other commands:
 | `npm run typecheck` | TypeScript type check |
 | `npm run build:web` | Build the web version (range and bot match, no server) into `dist-web/` |
 | `npm run preview:web` | Serve the web build at http://localhost:8100/ |
+| `npm run deploy:web` | Type check, test, build and deploy the web version (asks before changing anything) |
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
 | `npm run gen:voice` | Re-make placeholder voice lines and `docs/RECORDING.md` |
 
@@ -193,7 +194,9 @@ hit registration.
 ## The web version (mp2.laanti.fi)
 
 The game is made for a LAN, but a browser-only taste of it can go on a website: `npm run build:web`
-builds it into `dist-web/`, static files with no game server. In it:
+builds it into `dist-web/`, static files with no game server. Both versions come from the same
+code, so develop as usual: `npm start` builds the LAN version, `npm run deploy:web` the web one.
+What differs sits behind one switch, `WEB` in [src/client/web.ts](src/client/web.ts). In the web version:
 
 - **Bot match** replaces *Join game*: the game server runs inside the page (the same server code,
   started by `src/client/local/`) with 7 bots (`WEB_MATCH` in `config.ts`). A first bot match
@@ -214,20 +217,22 @@ needs AWS credentials on the machine for the account that holds that zone: prefe
 its own with only [deploy/aws/iam-policy.json](deploy/aws/iam-policy.json), which limits it to
 the site's own buckets and to DNS records under mp2.laanti.fi.
 
-```bash
-npm run build:web
-```
+The first time on a machine:
 
 ```bash
 terraform -chdir=deploy/aws init
 ```
 
+Then every deploy is one command. It runs the type check and the tests, builds the web version,
+and shows Terraform's plan; nothing changes until you type `yes`:
+
 ```bash
-terraform -chdir=deploy/aws apply
+npm run deploy:web
 ```
 
-Applying again after a new build uploads only the files that changed. Pages are checked on every
-load; sounds can take up to an hour to update.
+Only the files that changed are uploaded. Pages are checked on every load; sounds can take up to
+an hour to update. Terraform records what it created in `deploy/aws/terraform.tfstate` on the
+machine that deployed (not in git), so deploy from that machine.
 
 ## Troubleshooting
 
