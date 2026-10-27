@@ -10,20 +10,27 @@ export interface Explosion {
   owner: number;
 }
 
+/** The grenade's shapes and materials, made once: every grenade thrown all evening shares them. */
+let parts: { body: THREE.BufferGeometry; fuse: THREE.BufferGeometry; spoon: THREE.BufferGeometry; ring: THREE.BufferGeometry; olive: THREE.Material; metal: THREE.Material } | null = null;
+
 /** Hand grenade model: olive egg body, fuse head and spoon. Shared by world and viewmodel. */
 export function grenadeMesh(): THREE.Group {
+  parts ??= {
+    body: new THREE.SphereGeometry(0.03, 16, 12).scale(1, 1.25, 1),
+    fuse: new THREE.CylinderGeometry(0.011, 0.013, 0.022, 12),
+    spoon: new THREE.BoxGeometry(0.012, 0.06, 0.004),
+    ring: new THREE.TorusGeometry(0.009, 0.0016, 6, 14),
+    olive: new THREE.MeshStandardMaterial({ color: 0x4a5a34, roughness: 0.6, metalness: 0.2 }),
+    metal: new THREE.MeshStandardMaterial({ color: 0x8c8f88, roughness: 0.4, metalness: 0.8 }),
+  };
   const g = new THREE.Group();
-  const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.03, 16, 12).scale(1, 1.25, 1),
-    new THREE.MeshStandardMaterial({ color: 0x4a5a34, roughness: 0.6, metalness: 0.2 }),
-  );
-  const metal = new THREE.MeshStandardMaterial({ color: 0x8c8f88, roughness: 0.4, metalness: 0.8 });
-  const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.022, 12), metal);
+  const body = new THREE.Mesh(parts.body, parts.olive);
+  const fuse = new THREE.Mesh(parts.fuse, parts.metal);
   fuse.position.y = 0.044;
-  const spoon = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, 0.004), metal);
+  const spoon = new THREE.Mesh(parts.spoon, parts.metal);
   spoon.position.set(0, 0.025, 0.03);
   spoon.rotation.x = 0.25;
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.009, 0.0016, 6, 14), metal);
+  const ring = new THREE.Mesh(parts.ring, parts.metal);
   ring.position.set(0.016, 0.05, 0);
   g.add(body, fuse, spoon, ring);
   g.traverse((o) => ((o as THREE.Mesh).castShadow = true));

@@ -69,6 +69,10 @@ function avatarColor(name: string): string {
 }
 
 const STATE_LABEL: Record<MsgState, string> = { sending: P.sending, sent: P.sent, delivered: P.delivered, read: P.read, failed: P.failed };
+/** Messages kept per chat (as many as the server keeps), and how many of the latest are drawn. */
+const KEEP_MESSAGES = 200;
+const DRAW_MESSAGES = 100;
+const stateText = (m: PhoneMessage) => STATE_LABEL[m.state!] + (m.state === 'read' ? ` ${clock(m.at)}` : '');
 
 /** Kenttäposti: the phone app. One page, a few views, its own keyboard. */
 export class PhoneApp {
@@ -195,6 +199,8 @@ export class PhoneApp {
         this.dev = m.dev;
         this.replacedOld = m.replaced;
         this.convs = new Map(m.convs.map((c) => [c.id, c]));
+        // A "typing" that ended while the phone was away never got here: start clean.
+        this.typing.clear();
         this.store = m.store;
         if (this.view === 'chat' || this.view === 'list' || this.view === 'sotku') {
           this.render();
@@ -285,11 +291,17 @@ export class PhoneApp {
     }
     const i = c.messages.findIndex((x) => x.id === msg.id);
     if (i >= 0) {
+      const old = c.messages[i]!;
       c.messages[i] = msg;
-      if (this.view === 'chat' && this.chat === convId) this.renderMessages();
+      // The server's copy of one I sent: usually only its delivery state is new.
+      if (this.view === 'chat' && this.chat === convId) {
+        if (old.text === msg.text && !msg.voice && !old.voice) this.updateLabel(msg);
+        else this.renderMessages();
+      }
       return;
     }
     c.messages.push(msg);
+    if (c.messages.length > KEEP_MESSAGES) c.messages.splice(0, c.messages.length - KEEP_MESSAGES);
     const viewing = this.view === 'chat' && this.chat === convId && this.onScreen;
     if (msg.from === 'them') {
       if (viewing) this.net.read(convId);
@@ -297,9 +309,9 @@ export class PhoneApp {
       this.media.play('phone_in', 0.8);
       if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
     }
-    if (viewing) {
-      this.renderMessages(true);
-      this.renderChips();
+    if (this.view === 'chat' && this.chat === convId) {
+      this.appendMessage(msg);
+      if (viewing) this.renderChips();
     } else if (this.view === 'list') this.render();
   }
 
@@ -307,7 +319,16 @@ export class PhoneApp {
     const m = this.convs.get(convId)?.messages.find((x) => x.id === id);
     if (!m) return;
     m.state = state;
-    if (this.view === 'chat' && this.chat === convId) this.renderMessages();
+    if (this.view === 'chat' && this.chat === convId) this.updateLabel(m);
+  }
+
+  /** Sending, delivered, read: just the label under the message, when it has one. */
+  private updateLabel(m: PhoneMessage): void {
+    const label = [...(this.msgs?.querySelectorAll<HTMLElement>('.state') ?? [])].find((el) => el.dataset.id === m.id);
+    if (label && m.state) {
+      label.className = `state ${m.state}`;
+      label.textContent = stateText(m);
+    } else if (m.state === 'failed' || label) this.renderMessages();
   }
 
   // ---- keyboard ----
@@ -858,25 +879,28 @@ export class PhoneApp {
         nodes.set(id, node);
       }
     }
-    // The lines go in once the nodes are laid out.
+    // The lines go in once the nodes are laid out: every position measured first, then all the
+    // lines added at once (one layout, not one per line).
     requestAnimationFrame(() => {
       const box = tree.getBoundingClientRect();
+      const rects = new Map([...nodes].map(([id, node]) => [id, node.getBoundingClientRect()]));
       svg.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
-      for (const [id, node] of nodes) {
+      const lines = document.createDocumentFragment();
+      for (const id of nodes.keys()) {
         for (const need of shopItem(id).needs ?? []) {
-          const parent = nodes.get(need);
-          if (!parent) continue;
-          const a = parent.getBoundingClientRect();
-          const b = node.getBoundingClientRect();
+          const a = rects.get(need);
+          const b = rects.get(id)!;
+          if (!a) continue;
           const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
           line.setAttribute('x1', String(a.left + a.width / 2 - box.left));
           line.setAttribute('y1', String(a.bottom - box.top));
           line.setAttribute('x2', String(b.left + b.width / 2 - box.left));
           line.setAttribute('y2', String(b.top - box.top));
           if (bought.has(need)) line.classList.add('on');
-          svg.appendChild(line);
+          lines.appendChild(line);
         }
       }
+      svg.appendChild(lines);
     });
   }
 
@@ -1082,36 +1106,55 @@ export class PhoneApp {
     this.field.scrollTop = this.field.scrollHeight;
   }
 
+  /** When the last drawn message was sent (a time stamp goes in after five quiet minutes). */
+  private drawnAt = 0;
+
+  /** The open chat from scratch: its latest DRAW_MESSAGES messages. */
   private renderMessages(scrollToEnd = false): void {
     const list = this.msgs;
     const c = this.chat ? this.convs.get(this.chat) : undefined;
     if (!list || !c) return;
     const nearEnd = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
     list.innerHTML = '';
-    let prevAt = 0;
+    this.drawnAt = 0;
     const lastMine = [...c.messages].reverse().find((m) => m.from === 'me');
-    for (const m of c.messages) {
-      if (m.from === 'system') {
-        const mark = m.text?.match(/^#(round|match) (\d+)$/);
-        h('div', mark ? 'divider' : 'sys', mark ? fill(mark[1] === 'match' ? P.match : P.round, { n: mark[2]! }) : (m.text ?? ''), list);
-        prevAt = m.at;
-        continue;
-      }
-      if (m.at - prevAt > 5 * 60 * 1000) h('div', 'stamp', clock(m.at), list);
-      prevAt = m.at;
-      const row = h('div', `row ${m.from}`, undefined, list);
-      if (m.voice) this.voiceBubble(row, m);
-      else {
-        const b = h('div', `bubble ${m.from}`, undefined, row);
-        b.textContent = m.text ?? '';
-      }
-      if (m.from === 'me' && m.state && (m === lastMine || m.state === 'failed')) {
-        const st = h('div', `state ${m.state}`, STATE_LABEL[m.state] + (m.state === 'read' ? ` ${clock(m.at)}` : ''), list);
-        st.dataset.id = m.id;
-      }
-    }
+    for (const m of c.messages.slice(-DRAW_MESSAGES)) this.messageRow(list, m, m === lastMine);
     if (this.typing.has(c.id)) this.typingBubble(list);
     if (scrollToEnd || nearEnd) list.scrollTop = list.scrollHeight;
+  }
+
+  /** One message at the end of the open chat, without drawing the rest again. */
+  private appendMessage(m: PhoneMessage): void {
+    const list = this.msgs;
+    if (!list) return;
+    list.querySelector('.typing-row')?.remove();
+    // The delivery label goes with the newest message of mine (failed ones keep theirs).
+    if (m.from === 'me') for (const st of list.querySelectorAll('.state:not(.failed)')) st.remove();
+    this.messageRow(list, m, true);
+    if (this.chat && this.typing.has(this.chat)) this.typingBubble(list);
+    while (list.childElementCount > DRAW_MESSAGES * 2) list.firstElementChild!.remove();
+    list.scrollTop = list.scrollHeight;
+  }
+
+  private messageRow(list: HTMLElement, m: PhoneMessage, newestMine: boolean): void {
+    if (m.from === 'system') {
+      const mark = m.text?.match(/^#(round|match) (\d+)$/);
+      h('div', mark ? 'divider' : 'sys', mark ? fill(mark[1] === 'match' ? P.match : P.round, { n: mark[2]! }) : (m.text ?? ''), list);
+      this.drawnAt = m.at;
+      return;
+    }
+    if (m.at - this.drawnAt > 5 * 60 * 1000) h('div', 'stamp', clock(m.at), list);
+    this.drawnAt = m.at;
+    const row = h('div', `row ${m.from}`, undefined, list);
+    if (m.voice) this.voiceBubble(row, m);
+    else {
+      const b = h('div', `bubble ${m.from}`, undefined, row);
+      b.textContent = m.text ?? '';
+    }
+    if (m.from === 'me' && m.state && (newestMine || m.state === 'failed')) {
+      const st = h('div', `state ${m.state}`, stateText(m), list);
+      st.dataset.id = m.id;
+    }
   }
 
   private typingBubble(list: HTMLElement): void {

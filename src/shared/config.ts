@@ -308,6 +308,8 @@ export const VIEW = {
   /** Degrees of rotation per raw mouse count at sensitivity 1 (the Source/CS convention). */
   degreesPerCount: 0.022,
   defaultSensitivity: 2,
+  /** The shadow map is redrawn at most this often (per second); faster screens skip some frames. */
+  shadowHz: 60,
 };
 
 export const NET = {

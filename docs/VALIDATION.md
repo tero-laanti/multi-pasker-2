@@ -4,7 +4,7 @@ The state after the Checkpoint B feedback (milestone 7 plus the training, spare 
 held grenades). Everything below was run on a MacBook Pro M1 Max (macOS, Node 22.16,
 Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
 
-## Automated tests (`npm test`): 158 passing
+## Automated tests (`npm test`): 159 passing
 
 | Area | What the tests check |
 |---|---|
@@ -75,7 +75,8 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   the sniper rifle on key 3 at the hip and through its scope. Run with no bots in the match: one
   shot the player mid-message once and the phone's "Message not delivered" note stopped the run.
 - Screenshots in Chrome on the range: the red dot sight on the rifle at the hip and aimed (the dot
-  on the crosshair, the front post just under it, the rear sight taken off for it); the grenade
+  on the crosshair through a lightly tinted lens under a thin arched hood, both iron sights taken
+  off for it); the grenade
   in the left hand from the pin to the throw, with the rifle and with the pistol (the thumb across
   the spoon, the forearm out of view, the hand dropping away after the release and the rifle's
   support hand back on it); Hyvä heittäjä's dotted path with its bounces and the ring where the
@@ -103,6 +104,41 @@ chirp; the typo feed and kill feed are busy.
 
 About 130 draw calls and 0.38 M triangles. Shaders are compiled when a game starts, so nothing
 compiles mid-fight (earlier hitches came from the test tool's screenshots, not the game).
+
+## Performance review (October 2026)
+
+Measured on the M1 Max, then changed where it paid:
+
+- **Server:** 15 bots and a connected player for a simulated minute: a tick takes 0.08 ms on
+  average (p99 0.42 ms). Traffic to each desktop went from 19.7 to 17.4 KiB/s: snapshots
+  10.5 KiB/s (encoded once for everyone), the roster 4.0 → 2.8 KiB/s (when only the pings
+  changed, just they go, 0.1 KiB/s), shot events 3.9 → 2.7 KiB/s (coordinates to the
+  millimetre). Shared events and broadcasts are serialised once, not once per player; phones no
+  longer get the server's tick stats every second.
+- **Client CPU** (16 players): 1.5 ms of main-thread work per frame (p95 1.9 ms), mostly Three.js
+  drawing. Remote characters' matrices are no longer computed twice per frame, and particle
+  buffers are uploaded only while there are particles, and only their live part.
+- **GPU:** the shadow map was redrawn every frame; now at most 60 times a second. Uncapped:
+  441 → 467 fps at 1920×1080, 308 → 353 fps at twice the pixel density. A first start picks the
+  quality from the graphics chip (tested: High on the M1 Max, Low in software rendering).
+- **Hitches:** the first bullet hole of a page load compiled a shader mid-fight (the decals'
+  per-hole colour was switched on by it); it is now compiled with the rest (checked: no new
+  program at the first hole). The first voice note of the evening held the server for 25 ms
+  while its clips loaded; they now load at start (34 ms), and a note takes 3–5 ms.
+- **Long evenings:** a 5.5-minute, two-round soak of a 16-player bot match (web build): the heap
+  after garbage collection levels off at 17–18 MB, page elements at 4.2–4.6 k, listeners stay at
+  535, geometries level off; textures rise to about 114 as things first come into view (none are
+  swapped or lost: the set the scene uses stayed the same over a minute). Found by reading the
+  code: every thrown grenade built new shapes and materials on every client and never freed them
+  (now shared); each character's phone, suppressors, drum and red dot were its own shapes (now
+  shared); built voice notes (about 1 MB each) were all kept (now the 24 latest; older ones are
+  built again on demand, and the phone may cache a note for an hour). The scoreboard no longer
+  rebuilds itself every second of a break, and the minimap no longer throws while the HUD is
+  hidden.
+- **Phone:** the chat appends a new message and updates the delivery label in place (it redrew
+  every message about four times per sent command), draws the latest 100 and keeps 200; the
+  Sotku tree measures its lines in one layout; each socket has its own keep-alive (a late close
+  of a dead socket could switch off the new one's), and a stale "typing" is cleared on reconnect.
 
 ## Not verified
 

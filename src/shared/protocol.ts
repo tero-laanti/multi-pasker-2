@@ -8,7 +8,7 @@ import type { Upgrades } from './upgrades';
  * binary; everything else is JSON. Times are server milliseconds since the server started.
  */
 
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 export const BIN = { STATE: 1, SNAPSHOT: 2 } as const;
 
@@ -276,6 +276,8 @@ export type ServerMsg =
   | { t: 'pong'; id: number; st: number }
   | { t: 'stats'; tickMs: number; tickMaxMs: number; tickHz: number }
   | { t: 'players'; players: PlayerInfo[] }
+  /** The roster's pings alone ([id, ms]), when nothing else in it changed. */
+  | { t: 'pings'; p: [number, number][] }
   /** `st`: server time the events happened. */
   | { t: 'events'; e: GameEvent[]; st: number }
   /** Who won each match this evening (after each match, and on joining). */

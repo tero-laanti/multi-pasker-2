@@ -32,7 +32,8 @@ export default defineConfig(({ mode }) => {
   const web = mode === 'web';
   return {
     root: '.',
-    publicDir: false,
+    // Icons and the link-preview image, copied as they are to the build's root.
+    publicDir: 'public',
     appType: 'mpa',
     clearScreen: false,
     plugins: web ? [bundledAudio()] : [],

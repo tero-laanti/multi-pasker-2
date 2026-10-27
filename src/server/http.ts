@@ -35,7 +35,7 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
 }
 
 /** An in-memory body, with byte ranges (iOS Safari needs them to play audio). */
-export function sendBuffer(req: IncomingMessage, res: ServerResponse, buf: Uint8Array, type: string): void {
+export function sendBuffer(req: IncomingMessage, res: ServerResponse, buf: Uint8Array, type: string, cache = 'no-cache'): void {
   const range = req.headers.range;
   const m = range ? /bytes=(\d*)-(\d*)/.exec(range) : null;
   if (m) {
@@ -46,11 +46,11 @@ export function sendBuffer(req: IncomingMessage, res: ServerResponse, buf: Uint8
       res.end();
       return;
     }
-    res.writeHead(206, { 'content-type': type, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${buf.length}`, 'accept-ranges': 'bytes', 'cache-control': 'no-cache' });
+    res.writeHead(206, { 'content-type': type, 'content-length': end - start + 1, 'content-range': `bytes ${start}-${end}/${buf.length}`, 'accept-ranges': 'bytes', 'cache-control': cache });
     res.end(buf.subarray(start, end + 1));
     return;
   }
-  res.writeHead(200, { 'content-type': type, 'content-length': buf.length, 'accept-ranges': 'bytes', 'cache-control': 'no-cache' });
+  res.writeHead(200, { 'content-type': type, 'content-length': buf.length, 'accept-ranges': 'bytes', 'cache-control': cache });
   res.end(req.method === 'HEAD' ? undefined : buf);
 }
 

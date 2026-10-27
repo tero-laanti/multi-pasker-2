@@ -1,7 +1,7 @@
 import { MATCH } from '../../shared/config';
 import { cleanName, type MatchSettings } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
-import { DEFAULT_SETTINGS, type Quality, type Settings } from '../settings';
+import { DEFAULT_SETTINGS, defaultQuality, type Quality, type Settings } from '../settings';
 import { REPO_URL, WEB } from '../web';
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
@@ -382,7 +382,7 @@ export class Menu {
     };
     const reset = h('button', 'btn', UI.settings.reset, btns);
     reset.onclick = () => {
-      Object.assign(s, DEFAULT_SETTINGS);
+      Object.assign(s, DEFAULT_SETTINGS, { quality: defaultQuality() });
       this.actions.settingsChanged(s, s.quality !== quality0);
       this.showSettings(this.settingsReturn);
     };

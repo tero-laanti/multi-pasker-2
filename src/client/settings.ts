@@ -35,7 +35,10 @@ export const DEFAULT_SETTINGS: Settings = {
 
 const KEY = 'pasker.settings.v1';
 
-/** Per-viewer settings in localStorage; always falls back to defaults when storage is unavailable. */
+/**
+ * Per-viewer settings in localStorage; always falls back to defaults when storage is unavailable.
+ * A first-timer's quality comes from their graphics chip.
+ */
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
@@ -43,7 +46,33 @@ export function loadSettings(): Settings {
   } catch {
     // Storage blocked: defaults.
   }
-  return { ...DEFAULT_SETTINGS };
+  return { ...DEFAULT_SETTINGS, quality: defaultQuality() };
+}
+
+/** The quality to start with on this machine (see qualityFor); High if the chip can't be told. */
+export function defaultQuality(): Quality {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    if (!gl) return 'low';
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return qualityFor(name);
+  } catch {
+    return 'high';
+  }
+}
+
+/**
+ * Quality for a graphics chip, by the name WebGL gives it: software rendering and phone or tablet
+ * chips get Low, graphics built into the processor (Intel, AMD's Radeon Graphics, GeForce MX)
+ * Medium, and everything else (discrete cards, Apple's M chips) High.
+ */
+export function qualityFor(gpu: string): Quality {
+  const g = gpu.toLowerCase();
+  if (/swiftshader|llvmpipe|softpipe|software|basic render|mali|adreno|powervr/.test(g)) return 'low';
+  if ((/intel/.test(g) && !/\barc\b/.test(g)) || /radeon(\(tm\))? graphics|radeon vega|vega \d+ graphics|geforce mx/.test(g)) return 'medium';
+  return 'high';
 }
 
 export function saveSettings(s: Settings): void {

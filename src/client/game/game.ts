@@ -601,7 +601,7 @@ export class Game {
     const T = TUNING[w.current];
     const spreadDeg = this.currentSpread();
     const vfov = cam.fov * DEG;
-    const gap = (Math.tan(spreadDeg * DEG) / Math.tan(vfov / 2)) * (renderer.gl.domElement.clientHeight / 2);
+    const gap = (Math.tan(spreadDeg * DEG) / Math.tan(vfov / 2)) * (renderer.viewHeight / 2);
     hud.crosshair(Math.max(4, gap), !co && ads < 0.5 && this.weapons.sprintPose < 0.5 && w.state !== 'inspecting');
     hud.weapon(UI.hud.weapons[w.current] ?? w.current, w.ammo[w.current], w.stats().magazine, w.endlessSpare ? null : w.reserve[w.current], w.state === 'reloading' && w.progress < T.reloadRefill);
     if (w.refilledAt >= 0) {

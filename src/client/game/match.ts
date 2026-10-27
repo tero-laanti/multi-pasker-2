@@ -176,6 +176,12 @@ export class MatchMode implements GameMode {
       case 'players':
         this.setPlayers(msg.players);
         break;
+      case 'pings':
+        for (const [id, ping] of msg.p) {
+          const p = this.players.get(id);
+          if (p) p.ping = ping;
+        }
+        break;
       case 'events':
         for (const e of msg.e) this.onEvent(e);
         break;

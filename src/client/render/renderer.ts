@@ -68,11 +68,16 @@ export class Renderer {
   private hfov = VIEW.defaultFov;
   private renderScale = 1;
   private shadowCenter = new THREE.Vector3(Infinity, 0, 0);
+  /** Time since the shadow map was last drawn (ms), and when it was. */
+  private shadowClock = 0;
+  private lastRender = 0;
   private tmpQ = new THREE.Quaternion();
   private tmpV = new THREE.Vector3();
   zoom = 1;
   vmZoom = 1;
   info = { calls: 0, triangles: 0 };
+  /** The view's height in CSS pixels (kept on resize, so nothing reads the layout per frame). */
+  viewHeight = window.innerHeight;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -92,6 +97,8 @@ export class Renderer {
     this.gl.toneMappingExposure = 1.05;
     this.gl.shadowMap.enabled = true;
     this.gl.shadowMap.type = THREE.PCFShadowMap;
+    // Drawn when render() says so: the sun and the map stand still (see VIEW.shadowHz).
+    this.gl.shadowMap.autoUpdate = false;
     this.gl.autoClear = false;
 
     this.sunDir.set(...sunDir).normalize();
@@ -169,6 +176,7 @@ export class Renderer {
     const ratio = Math.min(window.devicePixelRatio || 1, this.preset.maxPixelRatio) * this.renderScale;
     this.gl.setPixelRatio(ratio);
     this.gl.setSize(w, h, false);
+    this.viewHeight = h;
     this.camera.aspect = w / h;
     this.vmCamera.aspect = w / h;
     this.applyFov();
@@ -188,10 +196,10 @@ export class Renderer {
     this.vmCamera.updateProjectionMatrix();
   }
 
-  /** Moves the shadow frustum with the player, snapped to shadow texels to avoid shimmering. */
-  private followShadow(): void {
+  /** Moves the shadow frustum with the player, snapped to shadow texels to avoid shimmering; true if it moved. */
+  private followShadow(): boolean {
     const c = this.camera.position;
-    if (Math.hypot(c.x - this.shadowCenter.x, c.z - this.shadowCenter.z) < 4) return;
+    if (Math.hypot(c.x - this.shadowCenter.x, c.z - this.shadowCenter.z) < 4) return false;
     const r = this.preset.shadowRange;
     const texel = (2 * r) / this.preset.shadowMapSize;
     this.shadowCenter.set(Math.round(c.x / texel) * texel, 0, Math.round(c.z / texel) * texel);
@@ -199,6 +207,7 @@ export class Renderer {
     this.sun.position.copy(this.shadowCenter).addScaledVector(this.sunDir, 200);
     this.sun.target.updateMatrixWorld();
     this.sun.updateMatrixWorld();
+    return true;
   }
 
   /** Viewmodel lights follow the world sun expressed in camera space; `sunShade` dims it in shadow. */
@@ -216,7 +225,15 @@ export class Renderer {
 
   render(sunShade: number): void {
     this.applyFov();
-    this.followShadow();
+    // Only moving things change the shadows, so on a fast screen the shadow map is drawn at most
+    // VIEW.shadowHz times a second (every frame at 60 Hz and below), and at once when it moves.
+    const now = performance.now();
+    this.shadowClock += Math.min(100, now - this.lastRender);
+    this.lastRender = now;
+    if (this.followShadow() || this.shadowClock >= 1000 / VIEW.shadowHz - 1) {
+      this.gl.shadowMap.needsUpdate = true;
+      this.shadowClock = Math.min(this.shadowClock % (1000 / VIEW.shadowHz), 1000 / VIEW.shadowHz);
+    }
     this.sky.position.copy(this.camera.position);
     this.updateViewmodelLights(sunShade);
     const gl = this.gl;

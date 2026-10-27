@@ -22,7 +22,7 @@ const X_AXIS = new THREE.Vector3(1, 0, 0);
 const GRIP_GONE = 0.75;
 
 /** Where the red dot sits in the rifle's model space: aiming puts it on the view axis. */
-const RED_DOT = { y: 0.066, z: -0.062 };
+const RED_DOT = { y: 0.072, z: -0.069 };
 
 /** The trigger finger's tap: seconds to pull and to let go, how far it curls (rad) and the trigger moves (m). */
 const TRIGGER = { pull: 0.03, release: 0.07, angle: 0.2, travel: 0.0025 };
@@ -172,6 +172,8 @@ export class ViewModel {
   /** Punapistetähtäin on the rifle, and the rifle's own sight (where aiming lines up without it). */
   private redDot = new THREE.Group();
   private ironSight = { y: 0, z: 0 };
+  /** The rifle's rear sight, and its front sight's hood and post: off while the red dot is on. */
+  private ironParts: THREE.Object3D[] = [];
   private upgradesKey = '';
   private phone: PhoneModel = buildPhone();
   /** How far the phone is up in view (0..1); it dips while the left hand is busy. */
@@ -211,22 +213,35 @@ export class ViewModel {
         m.mag.add(drum);
         entry.drum = drum;
         entry.mag = [...m.mag.children].filter((c) => c !== drum);
-        // The red dot sight: a raised reflex sight on the cover in place of the rear sight; the
-        // front post shows just under the dot.
+        // The red dot sight: a reflex sight on the cover in place of the iron sights (both come
+        // off): a low body with the brightness knob, a thin arched hood and a tinted lens.
         const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) =>
-          new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, Math.abs(z1 - z0)).translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), attachMat);
-        this.redDot.add(box(-0.011, 0.011, 0.026, 0.05, -0.03, -0.088));
-        for (const sx of [-1, 1]) this.redDot.add(box(sx > 0 ? 0.0125 : -0.0155, sx > 0 ? 0.0155 : -0.0125, 0.05, 0.083, -0.05, -0.074));
-        this.redDot.add(box(-0.0155, 0.0155, 0.079, 0.083, -0.05, -0.074));
-        const glass = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.025, 0.029).translate(0, 0.0645, RED_DOT.z - 0.001),
-          new THREE.MeshStandardMaterial({ color: 0x9fc3d6, metalness: 0.2, roughness: 0.05, transparent: true, opacity: 0.18, depthWrite: false }),
+          new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0).translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), attachMat);
+        const W = 0.019; // half the lens's width
+        const B = 0.053; // the lens's bottom, on the body (high enough to keep the gas tube low in view)
+        const P = 0.074; // where the hood's posts turn into its arch
+        const T = 0.0024; // the hood's thickness
+        const [zf, zb] = [RED_DOT.z - 0.005, RED_DOT.z + 0.005];
+        this.redDot.add(box(-0.013, 0.013, 0.025, B, -0.08, -0.022));
+        this.redDot.add(box(-W - T, W + T, B - 0.004, B, zf - 0.002, zb + 0.002));
+        this.redDot.add(box(-W - T, -W, B - 0.001, P, zf, zb), box(W, W + T, B - 0.001, P, zf, zb));
+        const arch = new THREE.Mesh(new THREE.TorusGeometry(W + T / 2, T / 2, 6, 28, Math.PI).scale(1, 1, (zb - zf) / T).translate(0, P, RED_DOT.z), attachMat);
+        const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.0062, 0.0062, 0.006, 18).rotateZ(Math.PI / 2).translate(-0.0155, 0.04, -0.042), attachMat);
+        const lensShape = new THREE.Shape().moveTo(-W, B).lineTo(W, B).lineTo(W, P).absarc(0, P, W, 0, Math.PI, false).lineTo(-W, B);
+        const lens = new THREE.Mesh(
+          new THREE.ShapeGeometry(lensShape, 16).translate(0, 0, RED_DOT.z - 0.001),
+          new THREE.MeshStandardMaterial({ color: 0xc4e2ec, metalness: 0.1, roughness: 0.08, transparent: true, opacity: 0.22, depthWrite: false }),
         );
-        const dot = new THREE.Mesh(new THREE.SphereGeometry(0.0011, 10, 8).translate(0, RED_DOT.y, RED_DOT.z), new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }));
-        this.redDot.add(glass, dot);
+        const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 16).translate(0, RED_DOT.y, RED_DOT.z), new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }));
+        const glow = new THREE.Mesh(
+          new THREE.CircleGeometry(0.0026, 16).translate(0, RED_DOT.y, RED_DOT.z - 0.0002),
+          new THREE.MeshBasicMaterial({ color: 0xff3a22, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+        );
+        this.redDot.add(arch, knob, lens, glow, dot);
         this.redDot.visible = false;
         m.root.add(this.redDot);
         this.ironSight = { y: m.sightY, z: m.sightZ };
+        this.ironParts = ['rearSight', 'frontSight'].map((n) => m.root.getObjectByName(n)).filter((o): o is THREE.Object3D => !!o);
       }
       this.attachments.push(entry);
     }
@@ -290,8 +305,7 @@ export class ViewModel {
     const rifle = this.models.rifle;
     this.redDot.visible = dot;
     if (rifle) {
-      const rear = rifle.root.getObjectByName('rearSight');
-      if (rear) rear.visible = !dot;
+      for (const o of this.ironParts) o.visible = !dot;
       rifle.sightY = dot ? RED_DOT.y : this.ironSight.y;
       rifle.sightZ = dot ? RED_DOT.z : this.ironSight.z;
     }

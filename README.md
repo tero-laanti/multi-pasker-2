@@ -208,7 +208,7 @@ of six nodes each, rows I–IV, each node needing one from the row above:
 | Path | Role | Nodes |
 |---|---|---|
 | Sotilaspoliisi | the pistol as a main weapon | quick draw, 18-round magazine, hip-fire accuracy, hollow points (+50 % damage), 20 % faster with the pistol out, full auto |
-| Tarkka-ampuja | rifle expert | muzzle brake, 50-round magazine, a red dot sight (quicker and steadier aiming), drum magazine, suppressor, and the sniper rifle on key 3 |
+| Tarkka-ampuja | rifle expert | muzzle brake, 50-round magazine, a red dot sight in place of the iron sights (quicker and steadier aiming), drum magazine, suppressor, and the sniper rifle on key 3 |
 | Viestimies | the phone and the minimap | dark mode, speed dial (`L`, `K`), a wider minimap, autofill of codes, enemies holding a phone on the minimap, and a recon drone (text LENNOKKI) |
 | Pioneeri | grenades | quicker resupply, a good arm (the throw's path shown while you hold the grenade, and 30 % farther), more shrapnel (+50 % damage), a third grenade, a heavier charge (+50 % blast radius), and a mortar strike where you are looking (text TULI) |
 
@@ -259,6 +259,10 @@ What differs sits behind one switch, `WEB` in [src/client/web.ts](src/client/web
 - Tools that need the server machine are left out (saving tuning to `config.ts`, the phone
   simulator), and the evening scoreboard is kept in the browser.
 
+Both versions' pages have a favicon and link-preview tags (a description, and the card
+`og-image.jpg` with the title and a phone chat), so a shared link shows the game. They are in
+`public/`, copied as they are to the build's root; the preview tags point at mp2.laanti.fi.
+
 `npm run preview:web` serves the build at http://localhost:8100/, and `tools/e2e/web-flow.ts`
 tests it in Chrome.
 
@@ -306,7 +310,9 @@ machine that deployed (not in git), so deploy from that machine.
   support it the game falls back to normal pointer lock (F3 shows which).
 - **No sound:** browsers start audio only after a click or key press; click the game once.
 - **Low frame rate on a laptop:** Settings → Graphics quality → *Low*, and lower
-  *Render resolution*. Plug the laptop in; Chrome's frame rate drops on battery.
+  *Render resolution*. Plug the laptop in; Chrome's frame rate drops on battery. (The first
+  start already picks the quality from the graphics chip: *Medium* for graphics built into the
+  processor, *Low* for software rendering, *High* otherwise; a choice made in the settings stays.)
 
 ## Controls
 
@@ -448,6 +454,8 @@ build, Chrome 156 on a MacBook Pro M1 Max (ANGLE Metal), 1920×1080, *High* pres
 | Main-thread time per frame | 1.55 ms | 1.9 ms | 2.2 ms | 7.4 ms |
 | Server tick (60 Hz, 16 players) | 0.20–0.38 ms | | | 1.34 ms |
 
-About 130 draw calls and 0.4 M triangles per frame. Not measured on an integrated GPU.
+About 130 draw calls and 0.4 M triangles per frame. Not measured on an integrated GPU. The
+shadow map is redrawn at most 60 times a second (faster screens reuse it in between), and each
+desktop receives about 17 KiB/s with 16 players.
 The full account of tests, what remains unverified and the default values is in
 [docs/VALIDATION.md](docs/VALIDATION.md).

@@ -22,8 +22,9 @@ export class Connection {
     loop: TickLoop,
     private log: (line: string) => void = () => {},
   ) {
+    // Desktops only: a phone has no overlay for it.
     this.stats = setInterval(() => {
-      if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs: loop.stats.avg, tickMaxMs: loop.stats.max, tickHz: NET.tickHz, ticks: loop.count }));
+      if (this.player && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ t: 'stats', tickMs: loop.stats.avg, tickMaxMs: loop.stats.max, tickHz: NET.tickHz, ticks: loop.count }));
     }, 1000);
   }
 

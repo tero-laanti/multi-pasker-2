@@ -116,10 +116,14 @@ class ParticleLayer {
     this.parts.push({ ...p, life: 0 });
   }
 
+  /** Particles drawn last frame (nothing to upload while there are none). */
+  private drawn = 0;
+
   update(dt: number): void {
     let n = 0;
-    const keep: Particle[] = [];
-    for (const p of this.parts) {
+    const parts = this.parts;
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i]!;
       p.life += dt;
       if (p.life >= p.max) continue;
       p.vy -= p.gravity * dt;
@@ -139,16 +143,28 @@ class ParticleLayer {
       this.col[n * 4 + 2] = p.b;
       this.col[n * 4 + 3] = p.a * (1 - k) * Math.min(1, p.life * 30);
       this.size[n] = p.size * (1 + p.grow * k);
-      keep.push(p);
-      n++;
+      parts[n++] = p; // the live ones packed to the front, in place
     }
-    this.parts = keep;
+    parts.length = n;
+    if (n === 0 && this.drawn === 0) return;
+    this.drawn = n;
     this.geo.setDrawRange(0, n);
-    (this.geo.getAttribute('position') as THREE.BufferAttribute).needsUpdate = true;
-    (this.geo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
-    (this.geo.getAttribute('size') as THREE.BufferAttribute).needsUpdate = true;
+    // Only the live part of each buffer goes to the GPU.
+    for (const [name, size] of PARTICLE_ATTRIBUTES) {
+      const a = this.geo.getAttribute(name) as THREE.BufferAttribute;
+      a.clearUpdateRanges();
+      a.addUpdateRange(0, Math.max(1, n) * size);
+      a.needsUpdate = true;
+    }
   }
 }
+
+/** The particle buffers and their item sizes. */
+const PARTICLE_ATTRIBUTES = [
+  ['position', 3],
+  ['color', 4],
+  ['size', 1],
+] as const;
 
 const SURFACE_STYLE: Record<number, { dust: [number, number, number]; chips: number; sparks: number; decal: [number, number, number] }> = {
   [SURFACE.concrete]: { dust: [0.78, 0.76, 0.72], chips: 6, sparks: 0, decal: [0.75, 0.75, 0.75] },
@@ -204,6 +220,9 @@ export class Effects {
       roughness: 1,
     });
     this.decals = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, EFFECTS.maxDecals);
+    // Per-hole colours from the start, so the shader warm-up compiles this variant and the first
+    // bullet hole of a match doesn't compile one mid-fight.
+    this.decals.setColorAt(0, this.c.setRGB(1, 1, 1));
     this.decals.count = 0;
     this.decals.frustumCulled = false;
     this.decals.receiveShadow = true;
@@ -234,19 +253,22 @@ export class Effects {
 
   private updateTracers(dt: number): void {
     let n = 0;
-    this.tracers = this.tracers.filter((tr) => {
+    const tracers = this.tracers;
+    for (let i = 0; i < tracers.length; i++) {
+      const tr = tracers[i]!;
       tr.t += dt;
       const head = Math.min(tr.dist, tr.t * TRACER_SPEED);
       const tail = Math.max(0, tr.t * TRACER_SPEED - TRACER_LENGTH);
-      if (tail >= tr.dist) return false;
+      if (tail >= tr.dist) continue;
       const mid = (head + tail) / 2;
       this.v.set(tr.dx, tr.dy, tr.dz);
       this.q.setFromUnitVectors(this.up, this.v);
       this.s.set(1, 1, Math.max(0.01, head - tail));
       this.m.compose(this.v.set(tr.ox + tr.dx * mid, tr.oy + tr.dy * mid, tr.oz + tr.dz * mid), this.q, this.s);
-      this.tracerMesh.setMatrixAt(n++, this.m);
-      return true;
-    });
+      this.tracerMesh.setMatrixAt(n, this.m);
+      tracers[n++] = tr;
+    }
+    tracers.length = n;
     this.tracerMesh.count = n;
     if (n > 0) this.tracerMesh.instanceMatrix.needsUpdate = true;
   }

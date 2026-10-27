@@ -22,6 +22,7 @@ export function buildRifle(): WeaponModel {
   const dark: THREE.BufferGeometry[] = [];
   const poly: THREE.BufferGeometry[] = [];
   const rear: THREE.BufferGeometry[] = [];
+  const front: THREE.BufferGeometry[] = [];
 
   // Receiver body and the top cover.
   steel.push(extrudeSide(RIFLE.receiver, 0.0152, 0.0012));
@@ -41,14 +42,15 @@ export function buildRifle(): WeaponModel {
   steel.push(cylZ(0.0108, 0.0098, -0.215, -0.66, 0, 0, 22));
   steel.push(boxAt(-0.012, 0.012, -0.016, 0.04, -0.43, -0.462));
   worn.push(cylZ(0.0108, 0.0108, -0.205, -0.432, 0.028, 0, 20));
-  // Front sight base with hood and post at the muzzle.
+  // Front sight base with hood and post at the muzzle (the hood and post a mesh of their own:
+  // they come off with a red dot sight too).
   steel.push(boxAt(-0.009, 0.009, -0.006, 0.031, -0.635, -0.668));
   {
     const hood = new THREE.CylinderGeometry(0.0115, 0.0115, 0.02, 20, 1, true, -Math.PI * 0.62, Math.PI * 1.24);
     hood.rotateX(Math.PI / 2);
     hood.translate(0, 0.041, -0.652);
-    steel.push(hood);
-    steel.push(boxAt(-0.0012, 0.0012, 0.031, SIGHT_Y, -0.648, -0.656));
+    front.push(hood);
+    front.push(boxAt(-0.0012, 0.0012, 0.031, SIGHT_Y, -0.648, -0.656));
   }
   // Three-prong flash hider.
   for (let i = 0; i < 3; i++) {
@@ -80,6 +82,7 @@ export function buildRifle(): WeaponModel {
   add(dark, M.bore);
   add(poly, M.polymer);
   add(rear, M.blued).name = 'rearSight';
+  add(front, M.blued).name = 'frontSight';
 
   // Bolt carrier with the charging handle (racks back).
   const boltGeo: THREE.BufferGeometry[] = [boxAt(0.0148, 0.0166, -0.005, 0.01, -0.06, -0.16), cylZ(0.0035, 0.0035, -0.135, -0.135, 0.004, 0.0165, 10)];

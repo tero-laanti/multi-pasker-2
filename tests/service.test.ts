@@ -382,7 +382,8 @@ describe('the service', () => {
     expect(serve(p, 3)).toBe(0);
     const c = p.service.open!;
     expect(c.kind).toBe('nylands');
-    run(8000);
+    // Behind P-kausi's text in the commander's chat: each is read, then typed (up to ~3.7 s each).
+    run(15000);
     expect(texts(a!.phone, C.number).some((m) => m.text?.includes(c.conv))).toBe(true);
     room.onPhoneMessage(p, { t: 'open', conv: c.conv });
     run(15000);

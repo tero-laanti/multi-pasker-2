@@ -268,6 +268,14 @@ const PHONE_ARM = (() => {
 
 const PHONE_BODY = new THREE.MeshStandardMaterial({ color: 0x1c1d20, roughness: 0.4, metalness: 0.3 });
 const ATTACHMENT = new THREE.MeshStandardMaterial({ color: 0x26282b, roughness: 0.55, metalness: 0.5 });
+/** Shapes every character shares (made once: players come and go all evening). */
+const SHAPES = {
+  phoneBody: new THREE.BoxGeometry(0.072, 0.145, 0.009),
+  phoneScreen: new THREE.PlaneGeometry(0.062, 0.128),
+  suppressor: { pistol: new THREE.CylinderGeometry(0.018, 0.018, 0.17, 12).rotateX(Math.PI / 2), long: new THREE.CylinderGeometry(0.022, 0.022, 0.17, 12).rotateX(Math.PI / 2) },
+  drum: new THREE.CylinderGeometry(0.075, 0.075, 0.07, 20).rotateZ(Math.PI / 2),
+  redDot: new THREE.BoxGeometry(0.03, 0.045, 0.06),
+};
 const PHONE_SCREEN = new THREE.MeshBasicMaterial({ color: 0xd8ecff, toneMapped: false });
 let glowTex: THREE.CanvasTexture | null = null;
 
@@ -289,8 +297,8 @@ function phoneGlowTexture(): THREE.CanvasTexture {
 
 function phoneModel(): THREE.Group {
   const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.BoxGeometry(0.072, 0.145, 0.009), PHONE_BODY);
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.128), PHONE_SCREEN);
+  const body = new THREE.Mesh(SHAPES.phoneBody, PHONE_BODY);
+  const screen = new THREE.Mesh(SHAPES.phoneScreen, PHONE_SCREEN);
   screen.position.z = 0.0052;
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: phoneGlowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false, opacity: 0.8 }));
   glow.scale.set(0.46, 0.46, 1);
@@ -432,20 +440,19 @@ export class Character {
       [B.pistol, 'pistol'],
       [B.sniper, 'sniper'],
     ] as const) {
-      const r = w === 'pistol' ? 0.018 : 0.022;
-      const sup = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.17, 12).rotateX(Math.PI / 2), ATTACHMENT);
+      const sup = new THREE.Mesh(w === 'pistol' ? SHAPES.suppressor.pistol : SHAPES.suppressor.long, ATTACHMENT);
       sup.position.copy(MUZZLE[w]).add(new THREE.Vector3(0, 0, -0.08));
       sup.visible = false;
       sup.castShadow = true;
       this.bones[bone]!.add(sup);
       this.suppressors.push(sup);
     }
-    this.drum = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 20).rotateZ(Math.PI / 2), ATTACHMENT);
+    this.drum = new THREE.Mesh(SHAPES.drum, ATTACHMENT);
     this.drum.position.set(0, -0.12, -0.36);
     this.drum.visible = false;
     this.drum.castShadow = true;
     this.bones[B.rifle]!.add(this.drum);
-    this.redDot = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.045, 0.06), ATTACHMENT);
+    this.redDot = new THREE.Mesh(SHAPES.redDot, ATTACHMENT);
     this.redDot.position.set(0, 0.065, -0.3);
     this.redDot.visible = false;
     this.redDot.castShadow = true;
@@ -590,13 +597,14 @@ export class Character {
       root.rotation.set(0, 0, 0);
       root.position.y = 0;
     }
-    this.object.updateMatrixWorld(true);
+    // (The renderer brings the whole rig's matrices up to date; only the flash needs the gun's now.)
 
     // Muzzle flash.
     this.flashTime += dt;
     const on = this.flashTime < 0.05;
     this.flash.visible = on;
     if (on) {
+      this.bones[GUN_BONE[this.weapon]]!.updateWorldMatrix(true, false);
       this.muzzleWorld(this.tmp);
       this.object.worldToLocal(this.tmp);
       this.flash.position.copy(this.tmp);

@@ -178,7 +178,9 @@ export class Minimap {
     if (!visible || !this.layer) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     if (!this.size) {
-      this.size = Math.max(1, Math.round(this.root.clientWidth * dpr));
+      // Laid out nowhere (the HUD hidden): nothing to draw, and no radius for the rim.
+      if (this.root.clientWidth < 8) return;
+      this.size = Math.round(this.root.clientWidth * dpr);
       this.canvas.width = this.canvas.height = this.size;
     }
     const ctx = this.ctx;

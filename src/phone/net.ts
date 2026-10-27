@@ -34,7 +34,6 @@ export class PhoneNet {
   private draftTimer = 0;
   private draftPending: { conv: string; text: string } | null = null;
   private lastDraft = 0;
-  private pingTimer = 0;
   private lastHeard = 0;
   /** Whether a chat is open (the phone is in the player's hand); resent after reconnects. */
   private outState = false;
@@ -62,12 +61,14 @@ export class PhoneNet {
     // Closing the virtual phone removes its frame; the in-page server must hear it went.
     if (local) window.addEventListener('pagehide', () => ws.close(), { once: true });
     this.ws = ws;
+    // Each socket its own keep-alive: a dead socket closing late must not stop the new one's.
+    let ping = 0;
     ws.onopen = () => {
       const h = this.hello();
       if (h) ws.send(JSON.stringify({ t: 'phoneHello', v: this.version, ...h }));
-      window.clearInterval(this.pingTimer);
+      window.clearInterval(ping);
       this.lastHeard = performance.now();
-      this.pingTimer = window.setInterval(() => {
+      ping = window.setInterval(() => {
         // Nothing heard for a while: the connection is dead even if the socket says open.
         if (performance.now() - this.lastHeard > 15000) ws.close();
         else this.raw({ t: 'ping', id: 0 });
@@ -93,7 +94,7 @@ export class PhoneNet {
       this.onMessage(m);
     };
     ws.onclose = () => {
-      window.clearInterval(this.pingTimer);
+      window.clearInterval(ping);
       if (this.ws !== ws) return;
       const was = this.connected;
       this.connected = false;

@@ -136,9 +136,14 @@ function noteId(key: string): string {
   return fnv(key, 0x811c9dc5) + fnv(`#${key}`, 0x9e3779b9);
 }
 
+/** Spliced notes kept ready (about 1 MB each); older ones are built again if asked for. */
+const KEEP_BUILT = 24;
+
 export class VoiceNotes {
   private notes = new Map<string, { parts: string[]; wav?: Uint8Array; url?: string; duration: number }>();
   private clips = new Map<string, Float32Array>();
+  /** Ids of the notes with a WAV in memory, least recently used first. */
+  private built = new Set<string>();
 
   /** Without a source (tests) every clip is silence. */
   constructor(private source: VoiceSource | null) {}
@@ -163,7 +168,17 @@ export class VoiceNotes {
   /** Forget cached clips (recordings were added while the server runs). */
   reload(): void {
     this.clips.clear();
+    this.built.clear();
     for (const n of this.notes.values()) n.wav = n.url = undefined;
+  }
+
+  /**
+   * Reads every clip a note is made of, once, so the first voice note of the evening doesn't
+   * hold up the game while they load (later notes take a few milliseconds).
+   */
+  warm(): void {
+    const V = FI.voice;
+    for (const name of [V.codeWord[0], ...V.intros.map((x) => x[0]), ...V.outros.map((x) => x[0]), ...V.alphabet.map((x) => x[2])]) this.clip(name);
   }
 
   /**
@@ -191,7 +206,14 @@ export class VoiceNotes {
   build(id: string): Uint8Array | null {
     const note = this.notes.get(id);
     if (!note) return null;
+    this.built.delete(id);
+    this.built.add(id);
     if (note.wav) return note.wav;
+    if (this.built.size > KEEP_BUILT) {
+      const oldest = this.built.values().next().value!;
+      this.built.delete(oldest);
+      this.notes.get(oldest)!.wav = undefined;
+    }
     const gap = (s: number) => new Float32Array(Math.round(RATE * s));
     const pieces: Float32Array[] = [gap(0.15)];
     note.parts.forEach((name, i) => {

@@ -36,6 +36,9 @@ import { Evening, matchAwards } from './awards';
 import { level, maxGrenades } from '../../shared/upgrades';
 import { FI } from '../../shared/fi';
 
+/** A coordinate rounded to the millimetre, for events that only draw something. */
+const mm = (v: number): number => Math.round(v * 1000) / 1000;
+
 const FI_NUMBER = FI.varusmestari.number;
 
 function randomBetween([a, b]: readonly [number, number]): number {
@@ -92,6 +95,8 @@ export class Room {
   private typos: TypoCandidate[] = [];
   private lastTypoAt = -1e9;
   private events: GameEvent[] = [];
+  /** The last full roster sent, without the pings (see broadcastPlayers). */
+  private rosterKey = '';
   private grenades: (Grenade & { owner: number })[] = [];
   private nextGrenadeId = 1;
   private tr = new TraceResult();
@@ -481,13 +486,22 @@ export class Room {
     this.broadcast({ t: 'evening', matches: this.evening.matches() });
   }
 
+  /** The same message to everyone, serialised once. */
   broadcast(msg: object): void {
-    for (const p of this.players.values()) p.send(msg);
+    const json = JSON.stringify(msg);
+    for (const p of this.players.values()) p.sendText(json);
   }
 
+  /**
+   * The roster to everyone. Pings change all the time and the rest seldom, so when only the
+   * pings differ from the last full roster, just they go out.
+   */
   broadcastPlayers(): void {
-    const msg = { t: 'players', players: this.playerList() };
-    for (const p of this.players.values()) p.send(msg);
+    const players = this.playerList();
+    const key = JSON.stringify(players.map(({ ping: _, ...rest }) => rest));
+    if (key === this.rosterKey) this.broadcast({ t: 'pings', p: players.map((p) => [p.id, p.ping]) });
+    else this.broadcast({ t: 'players', players });
+    this.rosterKey = key;
   }
 
   // ---- gate and spawning ----
@@ -906,10 +920,11 @@ export class Room {
       }
     }
     const end: [number, number, number] = victim ? [ox + dx * dist, oy + dy * dist, oz + dz * dist] : wall ? [wall.x, wall.y, wall.z] : [ox + dx * range, oy + dy * range, oz + dz * range];
-    const ev: GameEvent = { k: 'shot', p: p.id, w, o: [ox, oy, oz], e: end };
+    // Tracers and impacts only: millimetres are plenty, and the event about halves in size.
+    const ev: GameEvent = { k: 'shot', p: p.id, w, o: [mm(ox), mm(oy), mm(oz)], e: [mm(end[0]), mm(end[1]), mm(end[2])] };
     if (victim) ev.hp = victim.id;
     else if (wall) {
-      ev.n = [wall.nx, wall.ny, wall.nz];
+      ev.n = [mm(wall.nx), mm(wall.ny), mm(wall.nz)];
       ev.s = wall.s;
     }
     this.emit(ev);
@@ -967,7 +982,7 @@ export class Room {
     v.hp = Math.max(0, v.hp - amount);
     v.lastDamageAt = now;
     if (v.bot && a) this.bots.find((b) => b.p === v)?.hurtBy(a.id);
-    const hit: GameEvent = { k: 'hit', a: a?.id ?? 0, v: v.id, dmg: amount, hp: v.hp, z: zone, from };
+    const hit: GameEvent = { k: 'hit', a: a?.id ?? 0, v: v.id, dmg: amount, hp: Math.round(v.hp * 100) / 100, z: zone, from: from && [mm(from[0]), mm(from[1]), mm(from[2])] };
     v.outbox.push(hit);
     if (a && a !== v) a.outbox.push(hit);
     if (v.hp <= 0) this.kill(v, a, w, zone === 'head');
@@ -1318,11 +1333,18 @@ export class Room {
   private flushEvents(now: number): void {
     const shared = this.events;
     this.events = [];
+    // Most players get just the shared events: serialised once for all of them.
+    let json: string | null = null;
     for (const p of this.players.values()) {
       if (shared.length === 0 && p.outbox.length === 0) continue;
-      const e = p.outbox.length ? [...shared, ...p.outbox] : shared;
-      p.outbox = [];
-      if (p.ws) p.send({ t: 'events', e, st: now });
+      if (!p.ws) {
+        p.outbox = [];
+        continue;
+      }
+      if (p.outbox.length) {
+        p.send({ t: 'events', e: [...shared, ...p.outbox], st: now });
+        p.outbox = [];
+      } else p.sendText((json ??= JSON.stringify({ t: 'events', e: shared, st: now })));
     }
   }
 }

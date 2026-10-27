@@ -43,6 +43,7 @@ function parseArgs(argv: string[]): Args {
 const sfx = new AudioFolder(path.join(ROOT, 'assets/sfx'), path.join(ROOT, 'assets/sfx/_base'));
 const voice = new AudioFolder(path.join(ROOT, 'assets/voice'), path.join(ROOT, 'assets/voice/_placeholder'));
 const voiceNotes = new VoiceNotes(folderVoice(voice));
+voiceNotes.warm();
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
@@ -164,7 +165,8 @@ async function handleRequest(
       res.end();
       return;
     }
-    sendBuffer(req, res, wav, 'audio/wav');
+    // A note's id is its contents: the phone may keep it (it replays from its cache).
+    sendBuffer(req, res, wav, 'audio/wav', 'private, max-age=3600');
     return;
   }
   if (p === '/dev/tuning' && req.method === 'POST') {

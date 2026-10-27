@@ -76,6 +76,8 @@ export class MatchHud {
   private confirmTimer = 0;
   private last = new Map<string, string | number | boolean>();
   boardVisible = false;
+  /** The board's round line: between rounds its countdown ticks without rebuilding the board. */
+  private boardRound: HTMLElement | null = null;
 
   constructor(parent: HTMLElement) {
     this.root = el('div', 'match-hud', parent);
@@ -290,21 +292,21 @@ export class MatchHud {
       ended,
       round?.n,
       round?.of,
-      ended ? Math.ceil(((round?.endsAt ?? 0) - serverNow) / 1000) : 0,
       results ? awards : 0,
       results ? evening : 0,
     ]);
-    if (!this.changed('board', key)) return;
+    const roundLine = round ? (ended ? fill(results ? UI.hud.nextMatch : UI.hud.nextRound, { s: Math.max(0, Math.ceil((round.endsAt - serverNow) / 1000)) }) : fill(UI.hud.round, { n: round.round, of: round.of })) : '';
+    if (!this.changed('board', key)) {
+      if (this.boardRound && this.boardRound.textContent !== roundLine) this.boardRound.textContent = roundLine;
+      return;
+    }
     this.board.innerHTML = '';
+    this.boardRound = null;
     this.board.classList.toggle('wide', results);
     const main = results ? el('div', 'sb-col', this.board) : this.board;
     const head = el('div', 'sb-head', main);
-    const roundText = round ? fill(UI.hud.round, { n: round.round, of: round.of }) : '';
     el('div', 'sb-title', head, results ? UI.hud.matchOver : ended && round ? fill(UI.hud.roundOver, { n: round.round, of: round.of }) : UI.scoreboard.title);
-    if (round) {
-      const left = Math.max(0, Math.ceil((round.endsAt - serverNow) / 1000));
-      el('div', 'sb-round', head, ended ? fill(results ? UI.hud.nextMatch : UI.hud.nextRound, { s: left }) : roundText);
-    }
+    if (round) this.boardRound = el('div', 'sb-round', head, roundLine);
     // The match's winner is the server's (its awards); between rounds, whoever leads now.
     const winner = results ? awards.find((a) => a.id === 'winner')?.playerName : sorted[0] && sorted[0].kills > 0 ? sorted[0].name : undefined;
     if (ended && winner) el('div', 'sb-winner', main, fill(results ? UI.hud.matchWinner : UI.hud.leading, { name: winner }));

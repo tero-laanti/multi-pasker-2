@@ -159,6 +159,11 @@ export class ServerPlayer {
     if (this.ws && this.ws.readyState === this.ws.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
+  /** A message already serialised (one JSON for many players). */
+  sendText(json: string): void {
+    if (this.ws && this.ws.readyState === this.ws.OPEN) this.ws.send(json);
+  }
+
   sendBinary(buf: ArrayBuffer): void {
     if (this.ws && this.ws.readyState === this.ws.OPEN) this.ws.send(buf);
   }
