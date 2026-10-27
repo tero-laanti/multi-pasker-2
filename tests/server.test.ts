@@ -39,16 +39,16 @@ describe('LAN address', () => {
     const ifaces = {
       lo0: [{ address: '127.0.0.1', family: 'IPv4', internal: true }],
       en0: [
-        { address: '192.168.68.119', family: 'IPv4', internal: false },
+        { address: '192.168.1.23', family: 'IPv4', internal: false },
         { address: 'fe80::1c2b:3a4d%en0', family: 'IPv6', internal: false },
       ],
     } as never;
     expect(isOwnAddress('127.0.0.1', ifaces)).toBe(true);
     expect(isOwnAddress('::1', ifaces)).toBe(true);
-    expect(isOwnAddress('::ffff:192.168.68.119', ifaces)).toBe(true);
-    expect(isOwnAddress('192.168.68.119', ifaces)).toBe(true);
+    expect(isOwnAddress('::ffff:192.168.1.23', ifaces)).toBe(true);
+    expect(isOwnAddress('192.168.1.23', ifaces)).toBe(true);
     expect(isOwnAddress('fe80::1c2b:3a4d%en0', ifaces)).toBe(true);
-    expect(isOwnAddress('::ffff:192.168.68.120', ifaces)).toBe(false);
+    expect(isOwnAddress('::ffff:192.168.1.24', ifaces)).toBe(false);
     expect(isOwnAddress('', ifaces)).toBe(false);
   });
 });
