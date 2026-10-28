@@ -47,6 +47,7 @@ export const UI = {
       ['I', 'inspect weapon'],
       ['Tab', 'scoreboard'],
       ['R', 'reload (one spare magazine)'],
+      ['E', 'pick up, read'],
       ['Esc', 'menu'],
     ] as [string, string][],
     footer: 'F2 dev · F3 performance · F4 tuning',
@@ -234,7 +235,7 @@ export const UI = {
   tutorial: {
     label: 'Training',
     steps: {
-      walk: { title: 'Walk to your table', body: 'WASD to move, the mouse to look around. Go to the marked table at lane 3.' },
+      walk: { title: 'Walk to your table', body: 'WASD to move, the mouse to look around. Go to the marked table at lane 3. All the controls are on the note on the wall behind you: E reads it.' },
       shoot: { title: 'Shoot the target', body: 'Hold the right mouse button (or Q) to aim, click the left one to fire. Knock down the marked target.' },
       reload: { title: 'Reload', body: 'Press R.' },
       phone: { title: 'Get the phone', body: 'There is a phone on the duty table behind you. Walk up to it and press E.' },
@@ -263,6 +264,10 @@ export const UI = {
 
   range: {
     startSign: 'SHOOT TO START',
+    /** The note on the back wall, and reading it with E. */
+    controlsTitle: 'CONTROLS',
+    readControls: 'Read the controls',
+    closeControls: 'E or step back to close',
     drill: 'Drill',
     drillIntro: 'Pop-up targets are coming. Knock them down before they drop.',
     time: 'Time',

@@ -93,7 +93,7 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   the spoon, the forearm out of view, the hand dropping away after the release and the rifle's
   support hand back on it); Hyvä heittäjä's dotted path with its bounces and the ring where the
   grenade stops (into the firing-line table when aimed low); the knife's stab with the back of the
-  hand up. `tutorial-flow.ts`: the radio check is just "YK" and the reply is in English.
+  hand up. `tutorial-flow.ts`: the radio check is just "YK" and the reply is in English; the CONTROLS note behind the start shows "E Read the controls", E opens the list (all 15 keys, over the training's panel) and E puts it away, and a step back closes it too.
 - The soundtrack in Chrome: the song loads (MP3, 190 s) and the player switches as it should
   (from the top in the menu, on into the range, silent in a round, at 2:20 over a break and the
   results). The browsers here have no running audio clock (no sound device in the sandbox), so

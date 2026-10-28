@@ -27,6 +27,7 @@ export class Hud {
   private fuseEl: HTMLDivElement;
   private grenadeEl: HTMLDivElement;
   private scopeEl: HTMLDivElement;
+  private controlsEl: HTMLDivElement;
   private last = new Map<string, string | number | boolean>();
   private bannerTimer = 0;
   private hitTimer = 0;
@@ -55,6 +56,20 @@ export class Hud {
     this.scopeEl = el('div', 'scope hidden', this.root);
     el('div', 'scope-ring', this.scopeEl);
     for (const d of ['h', 'v']) el('div', `scope-line scope-${d}`, this.scopeEl);
+    // The range's CONTROLS note, read up close.
+    this.controlsEl = el('div', 'controls-note hidden', this.root);
+    el('div', 'controls-note-title', this.controlsEl, UI.range.controlsTitle);
+    const grid = el('div', 'controls-note-grid', this.controlsEl);
+    for (const [k, v] of UI.menu.controls) {
+      el('div', 'key', grid, k);
+      el('div', 'desc', grid, v);
+    }
+    el('div', 'controls-note-foot', this.controlsEl, `${UI.menu.footer} · ${UI.range.closeControls}`);
+  }
+
+  /** The CONTROLS note on the range, read up close (E). */
+  showControls(on: boolean): void {
+    if (this.changed('controls', on)) this.controlsEl.classList.toggle('hidden', !on);
   }
 
   /** The sniper rifle's scope over the whole view, while aiming down it. */

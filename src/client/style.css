@@ -275,6 +275,52 @@ canvas.view {
 .prompt.show {
   opacity: 1;
 }
+/* The range's CONTROLS note read up close: the same paper as on the wall. */
+.controls-note {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(540px, 92vw);
+  max-height: 92vh;
+  overflow: auto;
+  padding: 18px 28px 14px;
+  background: #ece6d4;
+  color: #1f241b;
+  border-radius: 2px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  text-shadow: none;
+  pointer-events: none;
+  /* Over the training's panel while it is being read. */
+  z-index: 5;
+}
+.controls-note-title {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: 0.04em;
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+  border-bottom: 4px solid #1f241b;
+}
+.controls-note-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 18px;
+  font-size: 20px;
+}
+.controls-note-grid .key {
+  font-weight: 700;
+  text-align: right;
+  white-space: nowrap;
+}
+.controls-note-foot {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 15px;
+  color: #5c5d4d;
+}
 /* The sniper rifle's scope: a black field with a round view and thin crosshairs. */
 .scope {
   position: absolute;

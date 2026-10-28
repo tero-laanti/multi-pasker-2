@@ -81,6 +81,19 @@ async function run(): Promise<void> {
   await wait(400);
   await shot(desktop, 'tut_1_walk');
 
+  // 0. The CONTROLS note on the wall behind the start: E opens it, E closes it.
+  await aimAt(desktop, -4.5, 1.6, 7.19);
+  await wait(300);
+  const note = () => desktop.evaluate(() => ({ prompt: document.querySelector('.prompt.show')?.textContent ?? '', open: !document.querySelector('.controls-note')!.classList.contains('hidden') }));
+  const before = await note();
+  await desktop.keyboard.press('KeyE');
+  await wait(300);
+  const opened = await note();
+  await shot(desktop, 'tut_0_controls');
+  await desktop.keyboard.press('KeyE');
+  await wait(300);
+  result.controlsNote = { before, opened, closed: await note(), rows: await desktop.$$eval('.controls-note-grid .key', (k) => k.length) };
+
   // 1. Walk to the table (the last metres on the keyboard).
   await desktop.evaluate(() => (window as any).__pasker.game.teleport(-2.5, 0.14, 1.6, 0));
   await desktop.keyboard.down('KeyW');

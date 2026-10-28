@@ -103,6 +103,10 @@ text is a radio check (*yhteyskoe*), just `YK`: reply `YK` and the magazines are
 else gets the explanation, and after that less patience). Train as long as you like, then Esc → **Go to the match**.
 The browser remembers that you've done it.
 
+A **CONTROLS** note is pinned to the wall right behind the start (the first step says so): look at
+it and press E to read every key up close, and E again (or a step back) to put it away. It stays
+on the range for later visits too.
+
 **Without a phone of your own:** the pairing panel (on the training's pairing screen and in the
 Esc menu) has **Open a virtual phone**: the same phone app on your screen, typed on by clicking
 its keys with the mouse (the keyboard does nothing). Your character has the phone out while it
@@ -352,7 +356,7 @@ machine that deployed (not in git), so deploy from that machine.
 | I | inspect weapon (SA stamp and the weapon's serial number) |
 | Tab | scoreboard |
 | R | reload with the spare magazine (more comes with LATAA) |
-| E | pick up (the training's phone) |
+| E | pick up (the training's phone), read (the CONTROLS note on the range) |
 | Esc | menu (the match keeps running) |
 | F2 | dev panel |
 | F3 | performance overlay (frame time, CPU time, RTT, jitter, snapshot rate, interpolation delay, server tick) |

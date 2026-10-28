@@ -257,12 +257,13 @@ export class TutorialMode implements GameMode {
       arrow = { x: T.phone.x, y: T.phone.y + 0.35, z: T.phone.z };
     }
     this.view.update(dt, ring, arrow, this.stage === 'walk' || this.stage === 'shoot' || this.stage === 'reload' || this.stage === 'phone');
-    this.game.deps.hud.setPrompt('E', this.nearPhone() ? UI.tutorial.pickUp : '');
+    this.game.deps.hud.setPrompt('E', this.nearPhone() ? UI.tutorial.pickUp : this.range.prompt);
   }
 
   dispose(): void {
     this.view.dispose();
     this.game.deps.hud.setPrompt('', '');
+    this.game.deps.hud.showControls(false);
   }
 }
 

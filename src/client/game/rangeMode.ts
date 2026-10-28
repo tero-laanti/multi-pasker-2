@@ -7,6 +7,7 @@ import type { Vec3 } from '../../shared/math';
 import { RangeSim, type RangeEvent } from '../../shared/rangeSim';
 import { UI } from '../../shared/ui';
 import { damageFor } from '../../shared/weapons';
+import { ControlsNote } from './controlsNote';
 import type { Game, GameMode } from './game';
 import type { Explosion } from './grenades';
 import { RangeView } from './rangeView';
@@ -29,11 +30,15 @@ export class RangeMode implements GameMode {
   readonly range: RangeSim;
   private view: RangeView;
   private best = loadBest();
+  private note = new ControlsNote();
+  /** The CONTROLS note is open on the screen. */
+  private reading = false;
 
   constructor(private game: Game) {
     this.range = new RangeSim(game.map.targets);
     this.view = new RangeView(this.range);
     game.root.add(this.view.group);
+    game.root.add(this.note.object);
     game.newSerials();
     game.weapons.endlessSpare = true;
     // The range has both guns: the pistol in hand, the rifle on 2.
@@ -58,6 +63,15 @@ export class RangeMode implements GameMode {
     this.range.update(dt);
     for (const e of this.range.events) this.onRangeEvent(e);
     this.range.events.length = 0;
+    // The CONTROLS note: E at it opens it, E again (or a step back, or the menu) closes it.
+    const g = this.game;
+    if (!g.paused && (this.reading || this.note.near(g.eye, g.yaw)) && g.deps.input.consumePress('KeyE')) this.reading = !this.reading;
+    if (this.reading && (g.paused || !this.note.inReach(g.eye))) this.reading = false;
+  }
+
+  /** What E does here right now ('' for nothing). */
+  get prompt(): string {
+    return !this.reading && !this.game.paused && this.note.near(this.game.eye, this.game.yaw) ? UI.range.readControls : '';
   }
 
   grenadeReleased(o: [number, number, number], v: [number, number, number], fuse: number): void {
@@ -155,7 +169,10 @@ export class RangeMode implements GameMode {
 
   render(): void {
     this.view.update();
-    if (this.showDrill) this.game.deps.hud.drillStatus(this.range.drillPhase, this.range.drillTime, this.range.drill.score);
-    else this.game.deps.hud.hideDrill();
+    const hud = this.game.deps.hud;
+    if (this.showDrill) hud.drillStatus(this.range.drillPhase, this.range.drillTime, this.range.drill.score);
+    else hud.hideDrill();
+    hud.showControls(this.reading);
+    hud.setPrompt('E', this.prompt);
   }
 }
