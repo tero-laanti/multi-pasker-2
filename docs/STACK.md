@@ -55,5 +55,5 @@ Colyseus 0.18 was considered as a framework. Its schema state sync doesn't fit s
 - **`unadjustedMovement` unsupported** in some browsers or OSes: feature-detect and fall back to plain pointer lock without smoothing.
 - **Integrated GPUs**: fixed light pool (no shader recompiles), merged static geometry, capped and pooled effects, and Low/Medium/High presets controlling shadow-map size, MSAA, render scale and light count.
 - **Wi-Fi jitter**: adaptive interpolation buffer sized from measured jitter, rewind capped at ~200 ms, and a dev network conditioner to exercise both.
-- **Windows host friction** (firewall on "Public" networks, Node install): documented in the README; the server prints the address it chose and accepts an override.
+- **Windows host friction** (firewall on "Public" networks, Node install): documented in docs/HOSTING.md; the server prints the address it chose and accepts an override.
 - **Three.js API churn**: pinned to an exact version.

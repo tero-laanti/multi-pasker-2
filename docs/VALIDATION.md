@@ -170,11 +170,14 @@ Measured on the M1 Max, then changed where it paid:
   played on real phones yet.
 - **Integrated GPUs and Windows hosts.** Performance was measured only on the M1 Max; the *Low*
   preset exists but hasn't been measured on weak hardware. Windows Firewall and guest-network
-  advice in the README comes from documentation, not a test.
+  advice in docs/HOSTING.md comes from documentation, not a test.
 - **A full evening.** No session longer than a few rounds was played; the evening file was tested
   through unit tests and short runs.
-- **Your recordings.** Only the machine-voice placeholders have been spliced; recordings in WAV
-  at other rates and bit depths are handled by the splicer's code paths but haven't been heard.
+- **The recordings.** All 52 lines are recorded (48 kHz mono WAV from the recording booth) and
+  cleaned by `tools/clean-voice.ts`, measured but not listened to after cleaning: the noise floor
+  came down 9–17 dB (a low-frequency rumble around 80–260 Hz, 25–30 dB under the voice), the
+  voice in the loud parts changed by −24 to −48 dB (what was taken away is the noise), and the
+  voice's level stayed within 1–4 dB. A KETTU voice note splices from them (12.4 s).
 
 ## Defaults (all in `src/shared/config.ts`)
 
