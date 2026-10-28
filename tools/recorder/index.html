@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recording booth · MULTI-PASKER 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* The game's own look: olive dark, sergeant yellow, a red recording light. One column of cue cards. */
+  :root {
+    --bg: #11140f;
+    --card: #1a1e17;
+    --card-hi: #23281f;
+    --line: rgba(241, 238, 228, 0.1);
+    --fg: #f1eee4;
+    --dim: #a3a596;
+    --accent: #e2b21f;
+    --rec: #e6553f;
+    --ok: #6cc489;
+    --display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+    --body: 'Barlow', 'Helvetica Neue', Arial, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.45 var(--body);
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  h1 { font: 700 40px/1 var(--display); letter-spacing: 0.02em; text-transform: uppercase; margin: 0 0 8px; text-wrap: balance; }
+  .lead { color: var(--dim); max-width: 68ch; margin: 0 0 18px; }
+  .lead b { color: var(--fg); font-weight: 600; }
+  kbd { font: 500 13px var(--mono); padding: 1px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--fg); background: var(--card); }
+
+  .bar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    padding: 12px 14px; margin: 0 -14px 22px;
+    background: rgba(17, 20, 15, 0.94); backdrop-filter: blur(6px);
+    border-bottom: 1px solid var(--line);
+  }
+  .bar .grow { flex: 1 1 220px; min-width: 0; }
+  .state { color: var(--dim); font-size: 14px; }
+  .state.good { color: var(--ok); }
+  .state.warn { color: var(--accent); }
+  .meter { width: 160px; height: 10px; border-radius: 5px; background: var(--card-hi); overflow: hidden; }
+  .meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width 60ms linear; }
+  .meter.hot i { background: var(--rec); }
+  .count { font: 600 22px var(--display); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
+
+  button {
+    font: 600 15px var(--body); color: var(--fg);
+    background: var(--card-hi); border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 14px; cursor: pointer;
+  }
+  button:hover { border-color: rgba(241, 238, 228, 0.3); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.primary { background: var(--accent); color: #1b1a12; border-color: transparent; }
+  button.rec { min-width: 108px; }
+  button.rec::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--rec); margin-right: 8px; vertical-align: 0; }
+  .live button.rec { background: var(--rec); color: #fff; border-color: transparent; }
+  .live button.rec::before { border-radius: 2px; background: #fff; }
+
+  h2 { font: 700 24px/1.1 var(--display); text-transform: uppercase; letter-spacing: 0.04em; margin: 34px 0 6px; }
+  .tip { color: var(--dim); margin: 0 0 12px; max-width: 70ch; font-size: 15px; }
+  .cards { display: grid; gap: 8px; }
+  .card {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: center;
+    padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-left: 4px solid transparent; border-radius: 6px;
+  }
+  .card.sel { border-color: rgba(226, 178, 31, 0.55); border-left-color: var(--accent); background: var(--card-hi); }
+  .card.live { border-left-color: var(--rec); }
+  .card.done .status { color: var(--ok); }
+  .say { font: 600 26px/1.2 var(--display); letter-spacing: 0.01em; overflow-wrap: anywhere; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--dim); font-size: 14px; }
+  .file { font: 400 13px var(--mono); color: var(--dim); }
+  .status { font-variant-numeric: tabular-nums; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .msg { min-height: 1.4em; font-size: 14px; color: var(--accent); }
+  @media (max-width: 640px) {
+    .card { grid-template-columns: 1fr; }
+    .actions { justify-content: flex-start; }
+  }
+  @media (prefers-reduced-motion: reduce) { .meter i { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Recording booth</h1>
+  <p class="lead">
+    Every voice line in MULTI-PASKER 2. Choose the game's <b>assets/voice</b> folder once, then for each card:
+    <b>Record</b>, say the line, <b>Stop</b>. The take is trimmed, evened out and saved there as WAV under the card's
+    file name, and plays back so you can hear it. Record a card again to replace it.
+    Keys: <kbd>Space</kbd> record / stop, <kbd>↑</kbd> <kbd>↓</kbd> pick a card, <kbd>Enter</kbd> play the take,
+    <kbd>P</kbd> play the machine-voice example.
+  </p>
+
+  <div class="bar">
+    <button id="folder" class="primary" type="button">Choose the assets/voice folder</button>
+    <div class="grow">
+      <div id="folderState" class="state">Until you choose it, takes download as files instead.</div>
+      <div id="msg" class="msg" role="status"></div>
+    </div>
+    <div class="meter" id="meter" title="Microphone level"><i></i></div>
+    <div class="count" id="count"></div>
+  </div>
+
+  <main id="list"></main>
+</div>
+
+<!-- lines: generated by `npm run gen:voice` from src/shared/fi.ts (edit the lines there) -->
+<script>window.VOICE = {"speakers":{"ammunnanjohtaja":"Range officer (range commands and the match rounds)","huoltopaallikko":"Huoltopäällikkö (voice notes, Finnish)","nylands":"Nylands brigad (voice note, Swedish)"},"lines":[{"file":"rata_positions","text":"Ampumapaikoille!","speaker":"ammunnanjohtaja","note":"Range command"},{"file":"rata_fire","text":"Tuli vapaa!","speaker":"ammunnanjohtaja","note":"Range command; also as each round of a match starts"},{"file":"rata_cease","text":"Tulitauko!","speaker":"ammunnanjohtaja","note":"Range command; also as each round of a match ends"},{"file":"rata_ended","text":"Ammunta päättyi. Varmista!","speaker":"ammunnanjohtaja","note":"Range command"},{"file":"aakkonen_tunnus","text":"Tunnus:","speaker":"huoltopaallikko","note":"Said before the letters"},{"file":"aakkonen_aarne","text":"Aarne","speaker":"huoltopaallikko","note":"Letter A. One word, clearly, short pause after"},{"file":"aakkonen_bertta","text":"Bertta","speaker":"huoltopaallikko","note":"Letter B. One word, clearly, short pause after"},{"file":"aakkonen_celsius","text":"Celsius","speaker":"huoltopaallikko","note":"Letter C. One word, clearly, short pause after"},{"file":"aakkonen_daavid","text":"Daavid","speaker":"huoltopaallikko","note":"Letter D. One word, clearly, short pause after"},{"file":"aakkonen_eemeli","text":"Eemeli","speaker":"huoltopaallikko","note":"Letter E. One word, clearly, short pause after"},{"file":"aakkonen_faarao","text":"Faarao","speaker":"huoltopaallikko","note":"Letter F. One word, clearly, short pause after"},{"file":"aakkonen_gideon","text":"Gideon","speaker":"huoltopaallikko","note":"Letter G. One word, clearly, short pause after"},{"file":"aakkonen_heikki","text":"Heikki","speaker":"huoltopaallikko","note":"Letter H. One word, clearly, short pause after"},{"file":"aakkonen_iivari","text":"Iivari","speaker":"huoltopaallikko","note":"Letter I. One word, clearly, short pause after"},{"file":"aakkonen_jussi","text":"Jussi","speaker":"huoltopaallikko","note":"Letter J. One word, clearly, short pause after"},{"file":"aakkonen_kalle","text":"Kalle","speaker":"huoltopaallikko","note":"Letter K. One word, clearly, short pause after"},{"file":"aakkonen_lauri","text":"Lauri","speaker":"huoltopaallikko","note":"Letter L. One word, clearly, short pause after"},{"file":"aakkonen_matti","text":"Matti","speaker":"huoltopaallikko","note":"Letter M. One word, clearly, short pause after"},{"file":"aakkonen_niilo","text":"Niilo","speaker":"huoltopaallikko","note":"Letter N. One word, clearly, short pause after"},{"file":"aakkonen_otto","text":"Otto","speaker":"huoltopaallikko","note":"Letter O. One word, clearly, short pause after"},{"file":"aakkonen_paavo","text":"Paavo","speaker":"huoltopaallikko","note":"Letter P. One word, clearly, short pause after"},{"file":"aakkonen_kuu","text":"Kuu","speaker":"huoltopaallikko","note":"Letter Q. One word, clearly, short pause after"},{"file":"aakkonen_risto","text":"Risto","speaker":"huoltopaallikko","note":"Letter R. One word, clearly, short pause after"},{"file":"aakkonen_sakari","text":"Sakari","speaker":"huoltopaallikko","note":"Letter S. One word, clearly, short pause after"},{"file":"aakkonen_tyyne","text":"Tyyne","speaker":"huoltopaallikko","note":"Letter T. One word, clearly, short pause after"},{"file":"aakkonen_urho","text":"Urho","speaker":"huoltopaallikko","note":"Letter U. One word, clearly, short pause after"},{"file":"aakkonen_vihtori","text":"Vihtori","speaker":"huoltopaallikko","note":"Letter V. One word, clearly, short pause after"},{"file":"aakkonen_wiski","text":"Wiski","speaker":"huoltopaallikko","note":"Letter W. One word, clearly, short pause after"},{"file":"aakkonen_aksa","text":"Äksä","speaker":"huoltopaallikko","note":"Letter X. One word, clearly, short pause after"},{"file":"aakkonen_yrjo","text":"Yrjö","speaker":"huoltopaallikko","note":"Letter Y. One word, clearly, short pause after"},{"file":"aakkonen_tseta","text":"Tseta","speaker":"huoltopaallikko","note":"Letter Z. One word, clearly, short pause after"},{"file":"aakkonen_ake","text":"Åke","speaker":"huoltopaallikko","note":"Letter Å. One word, clearly, short pause after"},{"file":"aakkonen_aiti","text":"Äiti","speaker":"huoltopaallikko","note":"Letter Ä. One word, clearly, short pause after"},{"file":"aakkonen_oljy","text":"Öljy","speaker":"huoltopaallikko","note":"Letter Ö. One word, clearly, short pause after"},{"file":"aani_alku_1","text":"Huoltopäällikkö täällä. Tunnus tulee, kirjoita ylös.","speaker":"huoltopaallikko","note":"Voice-note intro"},{"file":"aani_alku_2","text":"No niin. Kuuntele tarkkaan, en toista.","speaker":"huoltopaallikko","note":"Voice-note intro"},{"file":"aani_alku_3","text":"Huolto, päivää. Tässä tunnus.","speaker":"huoltopaallikko","note":"Voice-note intro"},{"file":"aani_loppu_1","text":"Siinä se. Loppu.","speaker":"huoltopaallikko","note":"Voice-note outro"},{"file":"aani_loppu_2","text":"Ei toisteta. Kiire odottamaan.","speaker":"huoltopaallikko","note":"Voice-note outro"},{"file":"aani_loppu_3","text":"Kuittaa viestillä. Loppu.","speaker":"huoltopaallikko","note":"Voice-note outro"},{"file":"ruotsi_alg","text":"Hej! Koden är älg.","speaker":"nylands","note":"Answer: ÄLG"},{"file":"ruotsi_rav","text":"Hej! Koden är räv.","speaker":"nylands","note":"Answer: RÄV"},{"file":"ruotsi_bjorn","text":"Hej! Koden är björn.","speaker":"nylands","note":"Answer: BJÖRN"},{"file":"ruotsi_varg","text":"Hej! Koden är varg.","speaker":"nylands","note":"Answer: VARG"},{"file":"ruotsi_hare","text":"Hej! Koden är hare.","speaker":"nylands","note":"Answer: HARE"},{"file":"ruotsi_lo","text":"Hej! Koden är lo.","speaker":"nylands","note":"Answer: LO"},{"file":"ruotsi_uggla","text":"Hej! Koden är uggla.","speaker":"nylands","note":"Answer: UGGLA"},{"file":"ruotsi_korp","text":"Hej! Koden är korp.","speaker":"nylands","note":"Answer: KORP"},{"file":"ruotsi_gadda","text":"Hej! Koden är gädda.","speaker":"nylands","note":"Answer: GÄDDA"},{"file":"ruotsi_abborre","text":"Hej! Koden är abborre.","speaker":"nylands","note":"Answer: ABBORRE"},{"file":"ruotsi_sill","text":"Hej! Koden är sill.","speaker":"nylands","note":"Answer: SILL"},{"file":"ruotsi_mas","text":"Hej! Koden är mås.","speaker":"nylands","note":"Answer: MÅS"}]};</script>
+<!-- /lines -->
+<script>
+  'use strict';
+  const VOICE = window.VOICE;
+  const LINES = VOICE.lines;
+  const TIPS = {
+    ammunnanjohtaja: 'Shouted range commands, the way a range officer calls them across the firing line. Tulitauko! and Tuli vapaa! also end and start each round of a match.',
+    huoltopaallikko: 'These are spliced into voice notes (an intro, Tunnus:, the letters of a code word, an outro). Say each word the same way, clearly, at the same distance from the microphone, with a short pause after.',
+    nylands: 'Finland-Swedish, like a duty officer at Nylands brigad: a whole sentence each.',
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const msg = (text) => { $('msg').textContent = text; };
+
+  /** What each card has: a take recorded now, or one found in the folder. */
+  const takes = new Map();
+  let dir = null;
+  let selected = 0;
+  let ctx = null;
+  let stream = null;
+  let analyser = null;
+  let rec = null;
+  let level = 0;
+  let player = null;
+
+  // ---- the list ----
+
+  const cards = [];
+  function build() {
+    const list = $('list');
+    let speaker = '';
+    let group = null;
+    LINES.forEach((line, i) => {
+      if (line.speaker !== speaker) {
+        speaker = line.speaker;
+        const h = document.createElement('h2');
+        h.textContent = VOICE.speakers[speaker] || speaker;
+        const tip = document.createElement('p');
+        tip.className = 'tip';
+        tip.textContent = TIPS[speaker] || '';
+        group = document.createElement('div');
+        group.className = 'cards';
+        list.append(h, tip, group);
+      }
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.innerHTML =
+        '<div><div class="say"></div><div class="meta"><span class="file"></span><span class="note"></span><span class="status"></span></div></div>' +
+        '<div class="actions"><button type="button" class="rec">Record</button><button type="button" class="take" disabled>Play take</button><button type="button" class="example">Example</button></div>';
+      card.querySelector('.say').textContent = line.text;
+      card.querySelector('.file').textContent = line.file + '.wav';
+      card.querySelector('.note').textContent = line.note;
+      card.querySelector('.rec').addEventListener('click', () => { select(i); toggle(i); });
+      card.querySelector('.take').addEventListener('click', () => { select(i); playTake(i); });
+      card.querySelector('.example').addEventListener('click', () => { select(i); playExample(i); });
+      card.addEventListener('click', (e) => { if (!(e.target instanceof HTMLButtonElement)) select(i); });
+      group.append(card);
+      cards.push(card);
+    });
+    select(0);
+    refresh();
+  }
+
+  function select(i) {
+    selected = Math.max(0, Math.min(LINES.length - 1, i));
+    cards.forEach((c, j) => c.classList.toggle('sel', j === selected));
+  }
+
+  function refresh() {
+    let done = 0;
+    LINES.forEach((line, i) => {
+      const t = takes.get(line.file);
+      const card = cards[i];
+      card.classList.toggle('done', !!t);
+      card.classList.toggle('live', !!rec && rec.i === i);
+      card.querySelector('.rec').textContent = rec && rec.i === i ? 'Stop' : t ? 'Record again' : 'Record';
+      card.querySelector('.rec').disabled = !!rec && rec.i !== i;
+      card.querySelector('.take').disabled = !t;
+      card.querySelector('.status').textContent = t ? (t.seconds ? `✓ ${t.seconds.toFixed(1)} s` : '✓ recorded') : '';
+      if (t) done++;
+    });
+    $('count').textContent = `${done} / ${LINES.length}`;
+  }
+
+  // ---- the folder ----
+
+  const canPickFolder = 'showDirectoryPicker' in window;
+  if (!canPickFolder) {
+    $('folder').disabled = true;
+    $('folderState').textContent = 'This browser can’t save into a folder (Chrome or Edge can): each take downloads as a file named for its card.';
+  }
+
+  $('folder').addEventListener('click', async () => {
+    try {
+      const d = await window.showDirectoryPicker({ id: 'pasker-voice', mode: 'readwrite' });
+      await useFolder(d);
+      remember(d);
+    } catch (e) {
+      if (e && e.name !== 'AbortError') msg(`The folder couldn’t be opened: ${e.message}`);
+    }
+  });
+
+  async function useFolder(d) {
+    dir = d;
+    const state = $('folderState');
+    state.className = 'state ' + (d.name === 'voice' ? 'good' : 'warn');
+    state.textContent = d.name === 'voice' ? 'Saving into assets/voice.' : `Saving into “${d.name}”. The game reads recordings from assets/voice.`;
+    $('folder').textContent = 'Change folder';
+    $('folder').classList.remove('primary');
+    // Recordings already there count as done.
+    for (const line of LINES) {
+      if (takes.get(line.file)?.blob) continue;
+      try {
+        const h = await d.getFileHandle(line.file + '.wav');
+        takes.set(line.file, { handle: h, seconds: 0 });
+      } catch {
+        takes.delete(line.file);
+      }
+    }
+    refresh();
+  }
+
+  // The folder is remembered for the next visit (Chrome asks again before writing to it).
+  function db() {
+    return new Promise((resolve, reject) => {
+      const r = indexedDB.open('pasker-booth', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+  }
+  async function remember(d) {
+    try {
+      const x = await db();
+      x.transaction('kv', 'readwrite').objectStore('kv').put(d, 'folder');
+    } catch {}
+  }
+  async function recall() {
+    if (!canPickFolder) return;
+    try {
+      const x = await db();
+      const d = await new Promise((resolve) => {
+        const r = x.transaction('kv').objectStore('kv').get('folder');
+        r.onsuccess = () => resolve(r.result || null);
+        r.onerror = () => resolve(null);
+      });
+      if (!d) return;
+      if ((await d.queryPermission({ mode: 'readwrite' })) === 'granted') return useFolder(d);
+      const b = $('folder');
+      b.textContent = `Reopen “${d.name}”`;
+      b.onclick = async (e) => {
+        e.stopImmediatePropagation();
+        b.onclick = null;
+        if ((await d.requestPermission({ mode: 'readwrite' })) === 'granted') useFolder(d);
+      };
+    } catch {}
+  }
+
+  // ---- the microphone ----
+
+  // Takes are recorded with MediaRecorder and decoded afterwards: it works on a page opened from
+  // the disk, where an audio worklet can't be loaded.
+  async function mic() {
+    if (stream) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error('This page needs a browser with microphone access (open it in Chrome).');
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    ctx = ctx || new AudioContext();
+    analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+  }
+
+  const levelBuf = new Float32Array(2048);
+  (function meter() {
+    if (analyser) {
+      analyser.getFloatTimeDomainData(levelBuf);
+      let peak = 0;
+      for (let i = 0; i < levelBuf.length; i++) peak = Math.max(peak, Math.abs(levelBuf[i]));
+      level = Math.max(peak, level * 0.9);
+    }
+    const m = $('meter');
+    m.firstElementChild.style.width = `${Math.min(100, Math.sqrt(level) * 100)}%`;
+    m.classList.toggle('hot', level > 0.97);
+    requestAnimationFrame(meter);
+  })();
+
+  // ---- recording ----
+
+  async function toggle(i) {
+    if (rec) return stop();
+    try {
+      await mic();
+      if (ctx.state === 'suspended') await ctx.resume();
+    } catch (e) {
+      msg(e.name === 'NotAllowedError' ? 'The microphone was refused: allow it from the address bar and try again.' : String(e.message || e));
+      return;
+    }
+    stopPlayback();
+    const type = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t));
+    const mr = new MediaRecorder(stream, type ? { mimeType: type, audioBitsPerSecond: 256000 } : undefined);
+    const chunks = [];
+    mr.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
+    const done = new Promise((resolve) => (mr.onstop = resolve));
+    mr.start();
+    rec = { i, mr, chunks, done };
+    msg(`Recording ${LINES[i].file}: say “${LINES[i].text}”`);
+    refresh();
+  }
+
+  async function stop() {
+    const r = rec;
+    rec = null;
+    refresh();
+    const line = LINES[r.i];
+    r.mr.stop();
+    await r.done;
+    let audio;
+    try {
+      audio = await ctx.decodeAudioData(await new Blob(r.chunks, { type: r.mr.mimeType }).arrayBuffer());
+    } catch {
+      msg('The take couldn’t be read back: record it again.');
+      return;
+    }
+    const rate = audio.sampleRate;
+    const voice = tidy(audio.getChannelData(0).slice(), rate);
+    if (!voice) {
+      msg('Nothing was heard: check the microphone level and record again.');
+      return;
+    }
+    const blob = wav(voice, rate);
+    const name = line.file + '.wav';
+    try {
+      if (dir) {
+        const h = await dir.getFileHandle(name, { create: true });
+        const w = await h.createWritable();
+        await w.write(blob);
+        await w.close();
+        msg(`Saved ${name}.`);
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        a.click();
+        msg(`Downloaded ${name}.`);
+      }
+    } catch (e) {
+      msg(`${name} couldn’t be saved: ${e.message}`);
+      return;
+    }
+    takes.set(line.file, { blob, seconds: voice.length / rate });
+    refresh();
+    playTake(r.i);
+    // On to the next card that has no take yet.
+    const next = LINES.findIndex((l, j) => j > r.i && !takes.has(l.file));
+    if (next >= 0) select(next);
+    cards[selected].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  /**
+   * The take as it goes into the game: no DC offset, silence trimmed from both ends (a little
+   * kept), short fades, and the peak brought to -1 dBFS (at most 10× louder).
+   */
+  function tidy(x, rate) {
+    let mean = 0;
+    for (let i = 0; i < x.length; i++) mean += x[i];
+    mean /= x.length || 1;
+    let peak = 0;
+    for (let i = 0; i < x.length; i++) {
+      x[i] -= mean;
+      peak = Math.max(peak, Math.abs(x[i]));
+    }
+    if (peak < 0.02) return null;
+    const win = Math.round(rate * 0.01);
+    const loud = Math.max(0.015, peak * 0.08);
+    let first = -1;
+    let last = -1;
+    for (let w = 0; w * win < x.length; w++) {
+      let m = 0;
+      for (let i = w * win; i < Math.min(x.length, (w + 1) * win); i++) m = Math.max(m, Math.abs(x[i]));
+      if (m > loud) {
+        if (first < 0) first = w;
+        last = w;
+      }
+    }
+    const start = Math.max(0, first * win - Math.round(rate * 0.08));
+    const end = Math.min(x.length, (last + 1) * win + Math.round(rate * 0.15));
+    const out = x.slice(start, end);
+    const fade = Math.min(Math.round(rate * 0.01), out.length >> 1);
+    for (let i = 0; i < fade; i++) {
+      out[i] *= i / fade;
+      out[out.length - 1 - i] *= i / fade;
+    }
+    const gain = Math.min(10, 0.89 / peak);
+    for (let i = 0; i < out.length; i++) out[i] *= gain;
+    return out;
+  }
+
+  /** 16-bit mono PCM WAV. */
+  function wav(x, rate) {
+    const buf = new ArrayBuffer(44 + x.length * 2);
+    const v = new DataView(buf);
+    const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+    str(0, 'RIFF');
+    v.setUint32(4, 36 + x.length * 2, true);
+    str(8, 'WAVE');
+    str(12, 'fmt ');
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true);
+    v.setUint16(22, 1, true);
+    v.setUint32(24, rate, true);
+    v.setUint32(28, rate * 2, true);
+    v.setUint16(32, 2, true);
+    v.setUint16(34, 16, true);
+    str(36, 'data');
+    v.setUint32(40, x.length * 2, true);
+    for (let i = 0; i < x.length; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+
+  // ---- listening ----
+
+  function stopPlayback() {
+    if (player) {
+      player.pause();
+      player = null;
+    }
+  }
+
+  async function playTake(i) {
+    const t = takes.get(LINES[i].file);
+    if (!t) return;
+    stopPlayback();
+    const blob = t.blob || (t.handle ? await t.handle.getFile() : null);
+    if (!blob) return;
+    player = new Audio(URL.createObjectURL(blob));
+    player.play().catch(() => {});
+  }
+
+  /** The machine-voice placeholder, for the words and the rhythm (from the game's own folder). */
+  function playExample(i) {
+    stopPlayback();
+    player = new Audio(`../../assets/voice/_placeholder/${LINES[i].file}.wav`);
+    player.play().catch(() => msg('The example plays only when this page is opened from the game’s folder.'));
+  }
+
+  // ---- keys ----
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLButtonElement && (e.key === ' ' || e.key === 'Enter')) e.preventDefault();
+    if (e.key === ' ') {
+      e.preventDefault();
+      toggle(rec ? rec.i : selected);
+    } else if (e.key === 'ArrowDown' || e.key === 'j') {
+      e.preventDefault();
+      if (!rec) select(selected + 1);
+      cards[selected].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp' || e.key === 'k') {
+      e.preventDefault();
+      if (!rec) select(selected - 1);
+      cards[selected].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      playTake(selected);
+    } else if (e.key === 'p' || e.key === 'P') {
+      playExample(selected);
+    }
+  });
+
+  build();
+  recall();
+</script>
+</body>
+</html>

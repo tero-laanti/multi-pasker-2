@@ -49,7 +49,7 @@ Other commands:
 | `npm run preview:web` | Serve the web build at http://localhost:8100/ |
 | `npm run deploy:web` | Type check, test, build and deploy the web version (asks before changing anything) |
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
-| `npm run gen:voice` | Re-make placeholder voice lines and `docs/RECORDING.md` |
+| `npm run gen:voice` | Re-make placeholder voice lines, `docs/RECORDING.md` and the recording booth's list |
 
 ### Choosing the address and port
 
@@ -393,7 +393,10 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
 - To replace any sound, drop a file with the same base name (e.g. `pistol_shot_1.wav`) into
   `assets/sfx/`; it overrides `assets/sfx/_base/`.
 - Voice lines are machine-voice placeholders in `assets/voice/_placeholder/`. Record the real
-  ones using [docs/RECORDING.md](docs/RECORDING.md) and drop them into `assets/voice/`.
+  ones using [docs/RECORDING.md](docs/RECORDING.md) and drop them into `assets/voice/`, or record
+  them in the recording booth: open `tools/recorder/index.html` in Chrome (no server needed),
+  choose `assets/voice` once and record line by line; each take is trimmed, evened out and saved
+  as WAV under its file name.
 - The soundtrack is one song, `assets/music/main-menu.mp3`: the main menu plays it from the top,
   the shooting range keeps it going very quietly, and a match is silent except a clip from 2:20
   that fades in and out over each break between rounds (and a longer one over the match's

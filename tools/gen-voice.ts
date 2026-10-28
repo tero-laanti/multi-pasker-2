@@ -1,5 +1,6 @@
 /**
- * Makes clearly marked placeholder voice lines with an offline TTS and writes docs/RECORDING.md.
+ * Makes clearly marked placeholder voice lines with an offline TTS and writes docs/RECORDING.md
+ * and the recording booth's list (tools/recorder/lines.js).
  *
  *   npm run gen:voice
  *
@@ -11,41 +12,14 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { FI } from '../src/shared/fi';
+import { SPEAKERS, voiceLines, writeRecorderLines, type Line } from './lib/voiceLines';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const OUT = path.join(ROOT, 'assets/voice/_placeholder');
 const DOC = path.join(ROOT, 'docs/RECORDING.md');
 fs.mkdirSync(OUT, { recursive: true });
 
-interface Line {
-  file: string;
-  text: string;
-  speaker: string;
-  lang: 'fi' | 'sv';
-  note: string;
-}
-
-const V = FI.voice;
-const SPEAKERS: Record<string, string> = {
-  ammunnanjohtaja: 'Range officer (range commands and the match rounds)',
-  huoltopaallikko: 'Huoltopäällikkö (voice notes, Finnish)',
-  nylands: 'Nylands brigad (voice note, Swedish)',
-};
-const lines: Line[] = [
-  ...V.range.map(([file, text]) => ({
-    file,
-    text,
-    speaker: 'ammunnanjohtaja',
-    lang: 'fi' as const,
-    note: file === V.roundEnd ? 'Range command; also as each round of a match ends' : file === V.roundStart ? 'Range command; also as each round of a match starts' : 'Range command',
-  })),
-  { file: V.codeWord[0], text: V.codeWord[1], speaker: 'huoltopaallikko', lang: 'fi', note: 'Said before the letters' },
-  ...V.alphabet.map(([letter, word, file]) => ({ file, text: word, speaker: 'huoltopaallikko', lang: 'fi' as const, note: `Letter ${letter}. One word, clearly, short pause after` })),
-  ...V.intros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Voice-note intro' })),
-  ...V.outros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Voice-note outro' })),
-  ...V.swedish.map(([file, code, text]) => ({ file, text, speaker: 'nylands', lang: 'sv' as const, note: `Answer: ${code}` })),
-];
+const lines = voiceLines();
 
 const hasSay = os.platform() === 'darwin' && spawnSync('which', ['say']).status === 0;
 const VOICES: Record<string, string> = {
@@ -81,6 +55,10 @@ Every voice line in the game. Each one currently has a machine-voice placeholder
 with exactly the file name below (extension .wav, .mp3, .m4a or .ogg). It replaces the placeholder
 on the next page load; no code changes needed.
 
+The easy way is the recording booth: open \`tools/recorder/index.html\` in Chrome (straight from
+the disk, no server), choose the \`assets/voice\` folder once, then Record, say the line, Stop.
+Each take is trimmed, evened out and saved there as WAV under the right name.
+
 Tips:
 
 - Mono, 44.1 or 48 kHz. Trim silence at both ends (leave about 50 ms).
@@ -103,3 +81,4 @@ for (const [speaker, list] of bySpeaker) {
 md += `${lines.length} lines in total.\n`;
 fs.writeFileSync(DOC, md);
 console.log(`Wrote ${DOC}`);
+console.log(`Wrote ${writeRecorderLines(ROOT, lines)}`);

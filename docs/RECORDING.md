@@ -5,6 +5,10 @@ Every voice line in the game. Each one currently has a machine-voice placeholder
 with exactly the file name below (extension .wav, .mp3, .m4a or .ogg). It replaces the placeholder
 on the next page load; no code changes needed.
 
+The easy way is the recording booth: open `tools/recorder/index.html` in Chrome (straight from
+the disk, no server), choose the `assets/voice` folder once, then Record, say the line, Stop.
+Each take is trimmed, evened out and saved there as WAV under the right name.
+
 Tips:
 
 - Mono, 44.1 or 48 kHz. Trim silence at both ends (leave about 50 ms).
