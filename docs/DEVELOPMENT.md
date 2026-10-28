@@ -22,6 +22,8 @@ How MULTI-PASKER 2 is built, tuned, tested and measured. The technology choices 
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
 | `npm run gen:voice` | Re-make the placeholder voice lines and the recording booth's list |
 | `npm run clean:voice -- <folder>` | Filter the background noise out of recorded takes and put them in `assets/voice/` |
+| `npm run https:setup` / `https:policy` | Store the HTTPS name's Route 53 details / print the key's IAM policy ([HOSTING.md](HOSTING.md)) |
+| `tools/test-acme.sh` | Certificate tests against Pebble, Let's Encrypt's test server (needs Go) |
 
 ## Tuning
 
@@ -115,7 +117,7 @@ glove sinks more than 2.5 mm into what it holds.
 src/shared/    config.ts, ui.ts, fi.ts, protocol.ts, service.ts (pay, ranks, the Sotku tree), upgrades.ts, collision/, map/, nav.ts, history.ts, movement.ts, weapons.ts, grenade.ts, hitbox.ts, rangeSim.ts
 src/client/    app.ts, net.ts, game/ (core loop, range and match modes, remote players, weapons, viewmodel, models, effects), render/, audio/, ui/
 src/phone/     the phone app: app.ts, keyboard.ts, net.ts, media.ts
-src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari, service), voicenotes.ts, lan.ts, http.ts, tuningWriter.ts
+src/server/    main.ts (HTTP + WebSocket), game/ (room, players, bots, phones, varusmestari, service), https/ (the name: Route 53, Let's Encrypt, certificates), voicenotes.ts, lan.ts, http.ts, tuningWriter.ts
 tools/         sound import/synthesis, voice placeholders, the recording booth and voice cleaning, e2e browser flows
 assets/        sfx/ and voice/ (drop-in overrides), with _base/ and _placeholder/ defaults; phone/ (wake video, icon)
 ```
@@ -130,7 +132,13 @@ rifle's scope), `tools/e2e/tutorial-flow.ts` runs the
 training from the first step to the match, once with a phone and once with the virtual phone, and
 `tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out,
 and `tools/e2e/teams-flow.ts` plays pairs from the host's seat (the host alone with an odd number,
-the pair line, the scoreboard by pairs, the round calls and the aiming toggle).
+the pair line, the scoreboard by pairs, the round calls and the aiming toggle). The match and phone
+flows also run over HTTPS against a server started with `--local-https` (`--url=https://localhost:8443/`).
+
+`npm test` checks the HTTPS name's pieces against a stand-in Route 53 (`tests/fakeRoute53.ts`).
+`tools/test-acme.sh` builds Pebble, Let's Encrypt's test server, with Go, and runs
+`tests/acme.test.ts` against it: certificates through a real DNS challenge, then a first start and
+a restart of the HTTPS server.
 
 ## Measured performance
 

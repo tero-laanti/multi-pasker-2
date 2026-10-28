@@ -5,6 +5,8 @@
  *
  *   npx tsx tools/e2e/match-flow.ts <outDir> [--url=http://localhost:8088/]
  *
+ * The URL can be the HTTPS test server (--local-https); its self-signed certificate is accepted.
+ *
  * Needs a server where this browser is the host (`npm run dev`, or running on this machine).
  */
 import fs from 'node:fs';
@@ -16,7 +18,7 @@ const base = args.find((a) => a.startsWith('--url='))?.slice(6) ?? 'http://local
 fs.mkdirSync(out, { recursive: true });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--autoplay-policy=no-user-gesture-required'] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
 const errors: string[] = [];
 page.on('pageerror', (e) => errors.push(e.message));
 const result: Record<string, unknown> = {};

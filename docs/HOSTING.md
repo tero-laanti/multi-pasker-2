@@ -39,6 +39,95 @@ npm start -- --host 192.168.1.23 --port 8088
 
 or set the environment variables `PASKER_HOST` and `PASKER_PORT`.
 
+## A name of your own, over HTTPS (optional)
+
+Players can open a name such as `https://play-mp2.laanti.fi` instead of the address. Once it is
+set up, `npm start` also:
+
+- points the name at the host's address on the network through Route 53;
+- gets a free Let's Encrypt certificate for the name and renews it, using a DNS challenge, so
+  nothing on the internet needs to reach the host;
+- serves the game at `https://<name>` beside the address, and checks that the name reaches the
+  host with a trusted certificate. Once the check passes, the phones' QR codes use the name too.
+
+It needs a domain whose DNS is in Route 53. It is HTTPS because Chrome asks before opening a
+plain-http page on a public name. It doesn't ask for the address, or for HTTPS. Without the setup
+nothing changes.
+
+### 1. An access key for the zone
+
+The key may change only the two records the server needs, `play-mp2.laanti.fi` (A) and
+`_acme-challenge.play-mp2.laanti.fi` (TXT), in one hosted zone.
+
+1. In the AWS console, open **Route 53 → Hosted zones →** the domain (`laanti.fi`) and copy its
+   **Hosted zone ID** (it starts with `Z`).
+2. Print the policy with the zone ID and the name filled in:
+   `npm run https:policy -- --zone YOUR_ZONE_ID --domain play-mp2.laanti.fi`
+   (after the setup, `npm run https:policy` alone).
+3. Open **IAM → Policies → Create policy**, choose **JSON**, paste the policy and name it `mp2-host`.
+   `GetChange` can't be limited to one zone; it only reads whether a change has reached every Route 53 server.
+4. Open **IAM → Users → Create user**, name it `mp2-host`, leave console access off, and attach
+   the `mp2-host` policy directly.
+5. On the new user, open **Security credentials → Create access key**, choose **Application
+   running outside AWS**, and keep the access key ID and secret for the setup.
+
+### 2. Setup
+
+```bash
+npm run https:setup
+```
+
+It asks for the name (`play-mp2.laanti.fi` unless you type another), the zone ID, the access key
+ID and the secret (hidden as you type), and stores them in the state folder below. Run it again to
+change them. With the key left empty, the server uses the AWS SDK's own credentials (environment
+variables or `~/.aws`).
+
+### 3. Start
+
+`npm start` as usual. With a certificate in hand it prints:
+
+```
+ Players: open  https://play-mp2.laanti.fi/  in Chrome or Edge
+ If it does not open:  http://192.168.1.23:8088/
+```
+
+and then `[https]` lines: the name pointed at the host (up to a minute), the certificate, and
+`Check passed`. On the first start getting the certificate takes about a minute, and players use
+the address until then. The first start also registers with Let's Encrypt, which accepts its
+[subscriber agreement](https://letsencrypt.org/repository/). Allow incoming connections for `node`
+if the firewall asks. Port 443 needs no administrator rights on macOS or Windows; elsewhere use
+`--https-port 8443`, and players add `:8443` to the name. If port 80 is free, `http://<name>`
+redirects to `https://<name>`.
+
+| Option | Use |
+| --- | --- |
+| `--no-https` | Serve only the address, even when set up. |
+| `--staging` | Practise with Let's Encrypt's staging service. Browsers don't trust its certificates. |
+| `--https-port 8443` | Serve HTTPS on another port. |
+| `--https` | Use the name with `npm run dev` too (off there by default). |
+| `--local-https` | Test HTTPS on this computer only, at `https://localhost:8443/`, with a self-signed certificate and no AWS or Let's Encrypt. |
+
+### At the venue
+
+- Start the server at home in the week before the party. The certificate lasts for weeks, so the
+  server starts at the venue even without internet. Only the name's address can't change there,
+  so players use the address instead.
+- A name looked up before it first pointed anywhere stays unknown on that network for up to 15
+  minutes (DNS remembers the miss). The check keeps trying, and phones switch to the name once it
+  passes. The record stays after the server stops, so this happens only on the first start.
+- Some routers refuse public names that point to local addresses (DNS rebinding protection). The
+  check reports it. Allow the name in the router's DNS rebinding settings, or players use the address.
+- To the browser the name and the address are different sites, so player names, settings and the
+  finished training are saved separately for each.
+
+### The state folder
+
+The settings with the Route 53 secret, the Let's Encrypt account key and the certificates are in
+`~/Library/Application Support/MultiPasker2` on a Mac, `%AppData%\MultiPasker2` on Windows and
+`~/.config/multi-pasker-2` elsewhere (`PASKER_STATE` sets another folder). Only your user can read
+it, so keep it on your own computers. To host from another computer, copy the folder to the same
+place on it: the setup and the certificate come along.
+
 ## Troubleshooting
 
 - **Other computers can't connect (Windows host):** Windows Firewall blocks Node.js on networks

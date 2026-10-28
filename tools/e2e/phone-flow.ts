@@ -4,7 +4,8 @@
  *
  *   npx tsx tools/e2e/phone-flow.ts <outDir> [--url=http://localhost:8088/] [--phone=390x844] [--webkit]
  *
- * --webkit runs the phone in Playwright's WebKit (Safari's engine) instead of Chrome.
+ * --webkit runs the phone in Playwright's WebKit (Safari's engine) instead of Chrome. The URL can be
+ * the HTTPS test server (--local-https); its self-signed certificate is accepted.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,12 +19,13 @@ fs.mkdirSync(outDir, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=metal', '--enable-gpu', '--autoplay-policy=no-user-gesture-required'] });
 const phoneBrowser = args.includes('--webkit') ? await webkit.launch({ headless: true }) : browser;
-const desktop = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const desktop = await browser.newPage({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true });
 const phoneCtx = await phoneBrowser.newContext({
   viewport: { width: pw!, height: ph! },
   deviceScaleFactor: 3,
   isMobile: true,
   hasTouch: true,
+  ignoreHTTPSErrors: true,
   userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
 });
 const phone = await phoneCtx.newPage();

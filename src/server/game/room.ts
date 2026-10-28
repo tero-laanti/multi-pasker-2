@@ -63,7 +63,10 @@ const BOT_NAMES = ['Virtanen', 'Korhonen', 'Mäkinen', 'Nieminen', 'Mäkelä', '
 export interface RoomOptions {
   dev: boolean;
   now?: () => number;
-  /** Address phones use to reach the server, e.g. http://192.168.1.23:8088/ (never localhost). */
+  /**
+   * Address phones use to reach the server, e.g. http://192.168.1.23:8088/ (never localhost). The
+   * server changes it to its HTTPS name once that works.
+   */
   publicUrl?: string;
   /** Spliced phonetic-alphabet voice notes (tests run without). */
   voiceNotes?: VoiceNotes;
