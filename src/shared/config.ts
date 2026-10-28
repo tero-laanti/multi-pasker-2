@@ -393,6 +393,8 @@ export const SERVICE = {
     [166, 10],
     [256, 15],
   ] as [number, number][],
+  /** € paid once for each promotion (sotamies, the two pay rises, reservin kersantti), on top of the päiväraha. */
+  promotionBonus: 100,
   /** P-kausi (six weeks): after this many days, and its gear signed for, the Sotku App opens and alokas becomes sotamies. */
   pkausi: 42,
   /** P-kausi's gear, handed out by text on the day given. */

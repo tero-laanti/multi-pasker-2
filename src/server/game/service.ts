@@ -265,10 +265,9 @@ export class ServiceDesk {
       }
     }
     this.pkausiPassed(p, wasOpen);
-    for (const from of rises()) if (passed(from)) this.commander(p, s.shopOpen ? C.rise : C.raise, { eur: payFor(from), rank: FI.ranks[s.rank] ?? '' });
+    for (const from of rises()) if (passed(from)) this.commander(p, s.shopOpen ? C.rise : C.raise, { eur: payFor(from), rank: FI.ranks[s.rank] ?? '', bonus: SERVICE.promotionBonus });
     if (passed(SERVICE.days)) s.waiting.push('discharge');
-    const promoted = p.rank !== s.rank;
-    p.rank = s.rank;
+    const promoted = this.promote(p);
     this.next(p);
     this.notify(p);
     if (promoted) this.room.broadcastPlayers();
@@ -278,7 +277,7 @@ export class ServiceDesk {
   /** P-kausi was just passed (its days and its gear): the company commander opens the Sotku App. */
   private pkausiPassed(p: ServerPlayer, wasOpen: boolean): void {
     if (wasOpen || !p.service.shopOpen) return;
-    this.commander(p, C.pkausi);
+    this.commander(p, C.pkausi, { rank: FI.ranks[p.service.rank] ?? '', bonus: this.bonusDue(p) });
   }
 
   /**
@@ -295,10 +294,28 @@ export class ServiceDesk {
       if (!s.owned.has(id)) this.hand(p, id, null);
     }
     this.pkausiPassed(p, wasOpen);
-    p.rank = s.rank;
+    this.promote(p);
     this.room.broadcastPlayers();
     this.next(p);
     this.notify(p);
+  }
+
+  /** The promotion bonus not paid yet: SERVICE.promotionBonus for each rank p.rank is behind. */
+  private bonusDue(p: ServerPlayer): number {
+    return Math.max(0, p.service.rank - p.rank) * SERVICE.promotionBonus;
+  }
+
+  /** The rank catches up with the service, and the promotion bonus is paid. True if the rank changed. */
+  private promote(p: ServerPlayer): boolean {
+    const s = p.service;
+    const bonus = this.bonusDue(p);
+    if (bonus) {
+      s.money += bonus;
+      s.dirty = true;
+    }
+    if (p.rank === s.rank) return false;
+    p.rank = s.rank;
+    return true;
   }
 
   /** A text from the company commander, in its own chat. */
@@ -490,17 +507,14 @@ export class ServiceDesk {
       s.dirty = true;
       this.say(p, pick(L.nylandsDone), c.conv, undefined, true);
       p.stats.swedishAt = this.room.now();
-      this.commander(p, C.discharged);
+      this.commander(p, C.discharged, { bonus: this.bonusDue(p) });
       this.say(p, L.tj0);
-      p.rank = s.rank;
+      this.promote(p);
       this.room.broadcastPlayers();
     } else this.hand(p, c.due, c.conv);
     // The last piece of P-kausi's gear may be what passes it.
     this.pkausiPassed(p, wasOpen);
-    if (p.rank !== s.rank) {
-      p.rank = s.rank;
-      this.room.broadcastPlayers();
-    }
+    if (this.promote(p)) this.room.broadcastPlayers();
     this.next(p);
     this.notify(p);
   }

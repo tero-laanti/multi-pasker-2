@@ -305,9 +305,9 @@ describe('the service', () => {
     // The commander's text comes after the asevarasto's replies on their way.
     run(15000);
     expect(store(a!.phone)?.open).toBe(true);
-    expect(store(a!.phone)?.money).toBe(210);
+    expect(store(a!.phone)?.money).toBe(210 + SERVICE.promotionBonus);
     expect(a!.p.rank).toBe(1);
-    expect(texts(a!.phone, C.number).pop()?.text).toBe(C.pkausi[0]);
+    expect(texts(a!.phone, C.number).pop()?.text).toBe('Congratulations on passing P-kausi. You are promoted to sotamies and get a 100 € promotion bonus. You may now use the Sotku App to buy goods and services.');
     expect(a!.p.phone.convs.get(C.number)?.name).toBe(C.name);
   });
 
@@ -331,7 +331,7 @@ describe('the service', () => {
     serve(a!.p, 166 - SERVICE.pkausi);
     run(20000);
     const rise = texts(a!.phone, C.number).find((m) => m.text?.includes('10 €'));
-    expect(rise?.text).toBe('TJ 181! You are promoted to korpraali. Your Päiväraha is now 10 € a day.');
+    expect(rise?.text).toBe('TJ 181! You are promoted to korpraali and get a 100 € promotion bonus. Your Päiväraha is now 10 € a day.');
     expect(a!.p.rank).toBe(2);
     expect(texts(b!.phone, C.number).length).toBe(0);
     serve(a!.p, 90);
@@ -342,6 +342,24 @@ describe('the service', () => {
     serve(b!.p, 166);
     run(20000);
     expect(texts(b!.phone, C.number).pop()?.text).toBe('TJ 181! Your Päiväraha is now 10 € a day.');
+  });
+
+  it('each promotion pays a bonus once, and passing P-kausi late pays it for every rank skipped', () => {
+    const { all, room, serve } = setup();
+    const [a, b] = all;
+    room.service.skipPkausi(a!.p);
+    expect(a!.p.service.money).toBe(earn(0, SERVICE.pkausi) + SERVICE.promotionBonus);
+    const money = a!.p.service.money;
+    serve(a!.p, 166 - SERVICE.pkausi);
+    expect(a!.p.service.money).toBe(money + earn(SERVICE.pkausi, 166 - SERVICE.pkausi) + SERVICE.promotionBonus);
+    serve(a!.p, 3);
+    expect(a!.p.service.money).toBe(money + earn(SERVICE.pkausi, 169 - SERVICE.pkausi) + SERVICE.promotionBonus);
+    // Still in P-kausi at the pay rise: the pay, no bonus. Its gear signed for late: sotamies and korpraali at once.
+    serve(b!.p, 166);
+    expect(b!.p.service.money).toBe(earn(0, 166));
+    room.service.skipPkausi(b!.p);
+    expect(b!.p.rank).toBe(2);
+    expect(b!.p.service.money).toBe(earn(0, 166) + 2 * SERVICE.promotionBonus);
   });
 
   it('the shop: row I at once, the rest after paperwork; needs, money and P-kausi are checked', () => {
@@ -426,9 +444,12 @@ describe('the service', () => {
     run(8000);
     expect(p.service.discharged).toBe(false);
     expect(texts(a!.phone, c.conv).some((m) => FI.ladder.nylandsFinnish.includes(m.text ?? ''))).toBe(true);
+    const money = p.service.money;
     send(p, c.code, c.conv);
     expect(p.service.discharged).toBe(true);
     expect(p.rank).toBe(4);
+    // No päiväraha after TJ 0, but the last promotion pays its bonus.
+    expect(p.service.money).toBe(money + SERVICE.promotionBonus);
     expect(p.info().star).toBe(true);
     expect(p.service.voucher).toBe(true);
     p.service.money = 0;

@@ -176,8 +176,8 @@ into their service) 1 more, and catching someone texting (a chat open on their p
 the kill feed shows a 📱 by their name, and now and then the armourer texts you about it
 (*Ammuit jonkun kesken lauseen. Tehokasta.*). Every day
 served pays the päiväraha: 5 € a day for days 1–165, 10 € for days 166–255 and 15 € after that,
-3,105 € for the whole service. The money shows only on the phone; the game shows what a kill paid
-under the kill confirmation.
+3,105 € for the whole service. Each of the four promotions pays a 100 € bonus on top. The money
+shows only on the phone; the game shows what a kill paid under the kill confirmation.
 
 The first six weeks are P-kausi. Gear comes by text, as paperwork at the asevarasto:
 
@@ -200,7 +200,7 @@ of six nodes each, rows I–IV, each node needing one from the row above:
 | Viestimies | the phone and the minimap | dark mode, speed dial (`L`, `K`), a wider minimap, autofill of codes, enemies holding a phone on the minimap, and a recon drone (text LENNOKKI) |
 | Pioneeri | grenades | quicker resupply, a good arm (the throw's path shown while you hold the grenade, and 30 % farther), more shrapnel (+50 % damage), a third grenade, a heavier charge (+50 % blast radius), and a mortar strike where you are looking (text TULI) |
 
-The whole tree costs 7,190 €, so a service buys about one and a half paths. Row I is handed over at
+The whole tree costs 7,190 €, so a service buys nearly two paths. Row I is handed over at
 once; the rows above need paperwork like P-kausi's (a word, a phrase or an office, the supply
 chief's voice note, and for the sniper rifle your rifle's serial number). One paperwork is open at
 a time and the rest queue. The café sells *Munkkikahvit* (the next paperwork is done by texting
@@ -210,7 +210,8 @@ texting.
 The pay rises (TJ 181 and TJ 91) come as texts from the company commander with a promotion
 (korpraali, then alikersantti). At TJ 0 the discharge paperwork sends you to Nylands brigad, in
 Swedish (*Svara på svenska, tack.*); after it you are *reservin kersantti*, with a star in the kill
-feed and the scoreboard, and one Sotku item of your choice free. Nothing is paid after TJ 0.
+feed and the scoreboard, and one Sotku item of your choice free. No päiväraha is paid after TJ 0,
+so the discharge's promotion bonus is the last money of the service.
 
 Every price and rule is in `SERVICE`, `SOTKU` and `GEAR` in `src/shared/config.ts`. F2 → *Skip
 P-kausi (its days and its gear)*, *Do the paperwork (or serve 10 days)* and *Add 500 €* skip the

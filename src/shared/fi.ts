@@ -160,20 +160,20 @@ export const FI = {
    * The company commander: a higher-up who texts the milestones of your service (only to you).
    * In English on purpose, so everyone understands the rules they announce; Päiväraha and the
    * ranks keep their Finnish names. {name} the player, {tj} days left, {eur} the new Päiväraha,
-   * {rank} the new rank, {number} where to write.
+   * {rank} the new rank, {bonus} the promotion bonus in €, {number} where to write.
    */
   commander: {
     name: 'Komppanian päällikkö',
     number: '7400',
-    /** P-kausi is passed: the Sotku App opens. */
-    pkausi: ['Congratulations on passing P-kausi. You may now use the Sotku App to buy goods and services.'],
+    /** P-kausi is passed: the Sotku App opens, and alokas becomes sotamies. */
+    pkausi: ['Congratulations on passing P-kausi. You are promoted to {rank} and get a {bonus} € promotion bonus. You may now use the Sotku App to buy goods and services.'],
     /** A pay rise, which is also a promotion (just the pay for someone still in P-kausi). */
-    rise: ['TJ {tj}! You are promoted to {rank}. Your Päiväraha is now {eur} € a day.'],
+    rise: ['TJ {tj}! You are promoted to {rank} and get a {bonus} € promotion bonus. Your Päiväraha is now {eur} € a day.'],
     raise: ['TJ {tj}! Your Päiväraha is now {eur} € a day.'],
     /** TJ 0: the discharge paperwork, at Nylands brigad. */
     tj0: ['TJ 0! Your discharge papers are waiting. The last counter is in Dragsvik: Nylands brigad, number {number}. Svenska, tack.'],
     /** Discharged: the reservist star and a free pick from the Sotku. */
-    discharged: ['Discharged. Reservin kersantti {name}, you have earned the reservist star. Your discharge gift: one item from the Sotku, free.'],
+    discharged: ['Discharged. Reservin kersantti {name}, you have earned the reservist star and a {bonus} € promotion bonus. Your discharge gift: one item from the Sotku, free.'],
     /** Anything texted to the company commander. */
     reply: ['The company commander does not answer text messages.', 'Go through the vääpeli.', 'This number is for announcements only.'],
   },
