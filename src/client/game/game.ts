@@ -305,18 +305,19 @@ export class Game {
 
     const canFire = controls && this.mode.firing !== false;
     const firePressed = controls && input.consumeLeftPress() && canFire;
-    const rightPressed = controls && input.consumeRightPress();
+    // Q aims too, for a mouse without a right button to hold (a Magic Mouse, a trackpad).
+    const aimPressed = controls && [input.consumeRightPress(), input.consumePress('KeyQ')].some(Boolean);
     const forward = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
     const right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
-    // Aiming: held on the right button, or (the setting) toggled by a click. A toggle ends with
-    // a death, a change of weapon, or Shift pressed to sprint.
+    // Aiming: held on the right button (or Q), or (the setting) toggled by a press. A toggle ends
+    // with a death, a change of weapon, or Shift pressed to sprint.
     const toggleAds = this.deps.settings.adsToggle;
     const shiftPressed = controls && [input.consumePress('ShiftLeft'), input.consumePress('ShiftRight')].some(Boolean);
     if (!toggleAds || !this.mode.alive || this.weapons.current !== this.adsWeapon) this.adsOn = false;
-    else if (rightPressed) this.adsOn = !this.adsOn;
+    else if (aimPressed) this.adsOn = !this.adsOn;
     else if (shiftPressed && forward > 0) this.adsOn = false;
     this.adsWeapon = this.weapons.current;
-    const adsHeld = controls && (toggleAds ? this.adsOn : input.mouseRight);
+    const adsHeld = controls && (toggleAds ? this.adsOn : input.mouseRight || k.has('KeyQ'));
     const fireHeld = canFire && input.mouseLeft;
     const shift = k.has('ShiftLeft') || k.has('ShiftRight');
     // Firing while sprinting drops the sprint so the gun comes up and the shot goes out.

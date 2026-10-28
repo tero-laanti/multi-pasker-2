@@ -70,8 +70,9 @@ Chrome 156 with ANGLE Metal, Playwright 1.64 with Chrome and WebKit).
   host alone ("Playing alone") and the bots in two pairs, with 3 bots the host paired ("Paired with
   …" beside the timer, in the pair's colour), the partner's tag marked, the scoreboard by pairs
   with the *Total kills* column, *Tulitauko!* (`rata_cease`) fetched as the round ends and *Tuli vapaa!*
-  (`rata_fire`) as the next starts, and *Right click toggles aiming*: a click aims and stays aimed,
-  the next lets go, and without the setting a click alone doesn't aim. Screenshots: the partner in
+  (`rata_fire`) as the next starts, and *Right click / Q toggles aiming*: a click (or Q) aims and
+  stays aimed, the next lets go, and without the setting a click alone doesn't aim while Q held
+  down aims until it is let go. Screenshots: the partner in
   blue with the pair line and the minimap's ringed dot; a pairs match's results ("Korhonen &
   Mäkinen win the match", *Most kills together*, the evening's list) and a 📱 in the kill feed by a
   bot caught texting.

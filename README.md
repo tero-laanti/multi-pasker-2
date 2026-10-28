@@ -342,7 +342,7 @@ machine that deployed (not in git), so deploy from that machine.
 | WASD | move |
 | Mouse | look |
 | Left mouse | fire |
-| Right mouse | aim down sights (hold by default; *Right click toggles aiming* in the settings: a click aims, the next lets go, and Shift to sprint ends it) |
+| Right mouse / Q | aim down sights (hold by default; *Right click / Q toggles aiming* in the settings: a press aims, the next lets go, and Shift to sprint ends it). Q is there for a mouse without a right button to hold, such as Apple's Magic Mouse or a trackpad |
 | Shift | sprint |
 | Space | jump (a small ledge assist lets you climb ledges just above jump height) |
 | C | crouch (toggle by default, hold in settings) |

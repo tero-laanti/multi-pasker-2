@@ -2,7 +2,7 @@
  * Team mode from the host's seat: Match settings → Mode: Pairs with 4 bots (five of us, so the
  * host plays alone), then 3 bots (paired up), the pair line beside the timer, the scoreboard by
  * pairs, the round calls (Tulitauko! as a round ends, Tuli vapaa! as the next starts) and the
- * Right click toggles aiming setting.
+ * Right click / Q toggles aiming setting (and Q aiming like the right button).
  *
  *   npx tsx tools/e2e/teams-flow.ts <outDir> [--url=http://localhost:8088/]
  *
@@ -88,10 +88,24 @@ try {
   await click();
   await wait(700);
   result.adsAfterSecond = await ads();
+  // Q does the same: a press toggles, the next lets go.
+  await page.keyboard.press('KeyQ');
+  await wait(700);
+  result.adsAfterQ = await ads();
+  await page.keyboard.press('KeyQ');
+  await wait(700);
+  result.adsAfterSecondQ = await ads();
   await page.evaluate(() => ((window as any).__pasker.game.deps.settings.adsToggle = false));
   await click();
   await wait(700);
   result.adsHoldMode = await ads();
+  // Held, Q aims for as long as it is down.
+  await page.keyboard.down('KeyQ');
+  await wait(700);
+  result.adsQHeld = await ads();
+  await page.keyboard.up('KeyQ');
+  await wait(700);
+  result.adsQReleased = await ads();
   // Leave the server in free-for-all for whatever runs next.
   await page.evaluate(() => (window as any).__pasker.match.send({ t: 'settings', s: { teams: false } }));
   await wait(300);
