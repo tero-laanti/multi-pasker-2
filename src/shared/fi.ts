@@ -252,7 +252,7 @@ export const FI = {
   training: {
     radioCheck: ['YK'],
     radioCheckExplain: ["Asevarasto, radio check. If this message got through, reply YK. If it didn't, don't reply at all."],
-    radioCheckOk: ['Loud and clear. Magazines on the way.\nFrom now on: LATAA when you run out of rounds, KRANAATTI when you need a grenade. There is nothing else.'],
+    radioCheckOk: ["Alright, the comms work. Here's full ammo for you.\nIn the future you can send me the code word LATAA for full ammo and KRANAATTI for a grenade."],
     radioCheckWrong: ['Reply YK. Two letters, {rank}.', 'YK. Nothing else. A radio check is not a conversation.', "Type YK. Capitals or not, as long as it's two letters."],
   },
   ladder: {

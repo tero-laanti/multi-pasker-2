@@ -241,7 +241,7 @@ export const UI = {
       phone: { title: 'Get the phone', body: 'There is a phone on the duty table behind you. Walk up to it and press E.' },
       pair: { title: 'Pair your phone', body: 'Scan the code on the screen with your phone.' },
       reply: { title: 'Answer the radio check', body: 'Asevarasto texted you. Open the chat on your phone and reply YK.' },
-      done: { title: 'Training complete', body: 'R puts in your spare magazine. Text LATAA for full magazines, KRANAATTI for a grenade (G pulls the pin, let go to throw). V stabs with the knife: two stabs kill. The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.' },
+      done: { title: 'Training complete', body: 'Press R to reload your gun. Text LATAA for full magazines, KRANAATTI for a grenade (G pulls the pin, let go to throw). V stabs with the knife. The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.' },
     } as Record<string, { title: string; body: string }>,
     noSpareTitle: 'No spare magazine',
     noSpare: 'Nothing to reload. Maybe text the armoury for more?',
