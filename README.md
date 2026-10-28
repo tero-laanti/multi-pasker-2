@@ -38,5 +38,4 @@ pairs.
   and the web version and its deploy.
 - [Development](docs/DEVELOPMENT.md): commands, tuning, sounds and voice lines, the hands, the
   technical overview, tests and performance.
-- [The voice lines](docs/RECORDING.md), [what was tested](docs/VALIDATION.md), [the original
-  brief](docs/BRIEF.md) and [the technology choices](docs/STACK.md).
+- [The technology choices](docs/STACK.md): the client engine and the server runtime, and why.

@@ -1,13 +1,13 @@
 # Development
 
-How MULTI-PASKER 2 is built, tuned, tested and measured. The original brief is in [BRIEF.md](BRIEF.md), the technology choices in [STACK.md](STACK.md), and what was tested in [VALIDATION.md](VALIDATION.md).
+How MULTI-PASKER 2 is built, tuned, tested and measured. The technology choices are in [STACK.md](STACK.md).
 
-> **Status:** all seven milestones are in: the shooting range, LAN matches on the garrison map
+> **Status:** everything in these docs is in: the shooting range, LAN matches on the garrison map
 > with bots (free-for-all or pairs), the phone (pairing, the messaging app with its own keyboard,
 > the varusmestari), the service from TJ 347 to 0 with the päiväraha, P-kausi's gear by text and
 > the Sotku App's four upgrade paths, end-of-round awards, the evening scoreboard and the recorded
-> voice lines. Not yet tried on real phones: see [CHECKPOINT-B.md](CHECKPOINT-B.md) for the
-> real-device test and [VALIDATION.md](VALIDATION.md) for what was tested.
+> voice lines. Not yet tried on real phones: [CHECKPOINT-B.md](CHECKPOINT-B.md) is the
+> real-device test.
 
 ## Commands
 
@@ -20,7 +20,7 @@ How MULTI-PASKER 2 is built, tuned, tested and measured. The original brief is i
 | `npm run preview:web` | Serve the web build at http://localhost:8100/ |
 | `npm run deploy:web` | Type check, test, build and deploy the web version (asks before changing anything) |
 | `npm run gen:sfx` | Re-synthesise footsteps, impacts, hit markers, grenade sounds |
-| `npm run gen:voice` | Re-make placeholder voice lines, `docs/RECORDING.md` and the recording booth's list |
+| `npm run gen:voice` | Re-make the placeholder voice lines and the recording booth's list |
 | `npm run clean:voice -- <folder>` | Filter the background noise out of recorded takes and put them in `assets/voice/` |
 
 ## Tuning
@@ -35,7 +35,7 @@ ADS time, time to top speed, stopping distance, jump height) and plots the recoi
 **Show as text** shows them as text. Unsaved changes survive a page reload within the
 browser session.
 
-The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's values) and
+The dev panel (F2) switches the kill-speed preset between *CoD* (the default) and
 *Scramble* (~0.75 s body kills), refills ammo, gives the rifle and grenades, and starts a drill.
 
 ## Sounds and voice
@@ -48,12 +48,14 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
   `assets/sfx/`; it overrides `assets/sfx/_base/`.
 - Voice lines are recordings in `assets/voice/` (WAV, so the voice notes can splice them); a
   line without one falls back to its machine-voice placeholder in `assets/voice/_placeholder/`.
-  Every line and its file name is in [RECORDING.md](RECORDING.md). The recording booth records
-  them: open `tools/recorder/index.html` in Chrome (no server needed), choose a folder and record
-  line by line; each take is trimmed, evened out and saved as WAV under its file name. Then
+  The lines and their file names come from the `voice` section of `src/shared/fi.ts`. The
+  recording booth lists them all and records them: open `tools/recorder/index.html` in Chrome (no
+  server needed), choose a folder and record line by line; each take is trimmed, evened out and
+  saved as WAV under its file name. Then
   `npm run clean:voice -- <that folder>` filters out the room's background (a low cut for rumble
   and hum, and a noise gate that learns each take's background from its silent lead-in, about
-  15 dB quieter without touching the voice) and writes the takes into `assets/voice/`.
+  15 dB quieter without touching the voice) and writes the takes into `assets/voice/`. Restart the
+  server after adding recordings: it keeps the voice notes' words in memory.
 - The soundtrack is one song, `assets/music/main-menu.mp3`: the main menu plays it from the top,
   the shooting range keeps it going very quietly, and a match is silent except a clip from 2:20
   that fades in and out over each break between rounds (and a longer one over the match's
@@ -145,5 +147,3 @@ build, Chrome 156 on a MacBook Pro M1 Max (ANGLE Metal), 1920×1080, *High* pres
 About 130 draw calls and 0.4 M triangles per frame. Not measured on an integrated GPU. The
 shadow map is redrawn at most 60 times a second (faster screens reuse it in between), and each
 desktop receives about 17 KiB/s with 16 players.
-The full account of tests, what remains unverified and the default values is in
-[docs/VALIDATION.md](VALIDATION.md).

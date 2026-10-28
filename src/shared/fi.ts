@@ -12,7 +12,7 @@ export const FI = {
       office: 'RATATOIMISTO',
       duty: 'PÄIVYSTÄJÄ',
     },
-    /** Range commands shown with the voice lines (see docs/RECORDING.md). */
+    /** Range commands shown with the voice lines (the recording booth, tools/recorder/, lists them all). */
     commands: {
       positions: 'Ampumapaikoille!',
       fire: 'Tuli vapaa!',
@@ -22,8 +22,8 @@ export const FI = {
   },
 
   /**
-   * Voice lines. `tools/gen-voice.ts` makes placeholders from these and writes
-   * docs/RECORDING.md; recordings dropped into assets/voice/ with the same file name replace them.
+   * Voice lines. `tools/gen-voice.ts` makes placeholders from these and the recording booth's list
+   * (tools/recorder/); recordings in assets/voice/ with the same file name replace them.
    */
   voice: {
     range: [

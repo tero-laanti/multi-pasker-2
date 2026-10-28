@@ -224,7 +224,7 @@ describe('rifle', () => {
 });
 
 describe('time to kill', () => {
-  it('matches the brief for the CoD preset', () => {
+  it('matches the designed times for the CoD preset', () => {
     expect(timeToKill('pistol', 'body', 10, 'cod').seconds).toBeCloseTo(0.45, 2);
     expect(timeToKill('pistol', 'head', 10, 'cod').seconds).toBeCloseTo(0.15, 2);
     expect(timeToKill('rifle', 'body', 10, 'cod').seconds).toBeCloseTo(0.4, 2);

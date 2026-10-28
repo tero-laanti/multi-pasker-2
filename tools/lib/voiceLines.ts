@@ -1,6 +1,6 @@
 /**
  * Every voice line in the game, from the `voice` section of src/shared/fi.ts: the placeholders
- * (tools/gen-voice.ts), docs/RECORDING.md and the recording booth (tools/recorder/) use this list.
+ * (tools/gen-voice.ts) and the recording booth (tools/recorder/) use this list.
  */
 import fs from 'node:fs';
 import path from 'node:path';
