@@ -107,7 +107,8 @@ await wait(2600);
 await shot(phone, 'phone_4_replies');
 result.replies = await phone.evaluate(() => [...document.querySelectorAll('.bubble.them')].map((b) => b.textContent));
 
-// Killed with the phone out: back to the chats, the draft gone, and a note that says so.
+// Killed with the phone out: back to the chats, the draft gone, and a note that says so and
+// keeps the phone out of use until the respawn.
 await type('Lataa nyt heti');
 await desktop.evaluate(() => (window as any).__pasker.app.devCommand('killMe'));
 await phone.waitForSelector('.killed-wrap', { timeout: 4000 });
@@ -119,7 +120,9 @@ result.killed = await phone.evaluate(() => ({
   text: document.querySelector('.killed-text')?.textContent,
   lost: document.querySelector('.bubble.lost')?.textContent,
 }));
-await phone.tap('.killed .btn');
+// Dead: the phone stays locked (no button to wave the note away) until the respawn clears it.
+result.lockedWhileDead = await phone.evaluate(() => document.querySelector('.killed-wait')?.textContent);
+await phone.waitForSelector('.killed-wrap', { state: 'detached', timeout: 8000 });
 await phone.tap('.v-list .conv');
 await phone.waitForSelector('.v-chat');
 result.draftAfterDeath = await phone.evaluate(() => document.querySelector('.field .text')?.textContent ?? '');

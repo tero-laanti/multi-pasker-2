@@ -1,4 +1,5 @@
 import { AUDIO } from '../../shared/config';
+import { Music } from './music';
 
 export interface PlayOptions {
   volume?: number;
@@ -43,6 +44,9 @@ export class AudioEngine {
   readonly sfx: GainNode;
   readonly ui: GainNode;
   readonly voice: GainNode;
+  /** The soundtrack (its own volume in the settings). */
+  readonly music: Music;
+  private musicBus: GainNode;
   private buffers = new Map<string, AudioBuffer[]>();
   private last = new Map<string, number>();
   private gunVoices: Voice[] = [];
@@ -68,17 +72,22 @@ export class AudioEngine {
     this.ui.connect(this.master);
     this.voice = this.ctx.createGain();
     this.voice.connect(this.master);
+    this.musicBus = this.ctx.createGain();
+    this.musicBus.connect(this.master);
+    this.music = new Music(this.ctx, this.musicBus);
   }
 
   /** Must be called from a user gesture before anything is audible. */
   unlock(): void {
     if (this.ctx.state !== 'running') void this.ctx.resume();
+    this.music.resume();
   }
 
-  setVolumes(master: number, effects: number, guns = 1): void {
+  setVolumes(master: number, effects: number, guns = 1, music = 1): void {
     this.master.gain.value = master;
     this.sfx.gain.value = effects;
     this.guns = guns;
+    this.musicBus.gain.value = music;
   }
 
   /** The player's gunshot level (Settings), on top of AUDIO.gunVolume. */

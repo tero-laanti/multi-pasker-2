@@ -1074,7 +1074,7 @@ input[type='range'] {
 }
 .sb-row {
   display: grid;
-  grid-template-columns: 34px 1fr 72px 72px 72px;
+  grid-template-columns: 34px 1fr 72px 72px 64px 72px;
   align-items: center;
   height: 30px;
   font-size: 19px;

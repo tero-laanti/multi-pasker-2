@@ -14,6 +14,8 @@ export interface Settings {
   effectsVolume: number;
   /** Gunshots relative to their default level (AUDIO.gunVolume). */
   gunVolume: number;
+  /** The soundtrack (its levels per place are AUDIO.music). */
+  musicVolume: number;
   quality: Quality;
   renderScale: number;
 }
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   masterVolume: 0.8,
   effectsVolume: 1,
   gunVolume: 1,
+  musicVolume: 0.8,
   quality: 'high',
   renderScale: 1,
 };

@@ -336,7 +336,9 @@ export class Room {
     switch (msg.t) {
       case 'send':
         if (typeof msg.text !== 'string' || typeof msg.rid !== 'string' || typeof msg.conv !== 'string') return;
-        this.varusmestari.receive(p, msg);
+        // No phone for the dead (on the range everyone may use theirs).
+        if (!p.alive && !p.training) this.varusmestari.bounceDead(p, msg);
+        else this.varusmestari.receive(p, msg);
         break;
       case 'open': {
         const id = String(msg.conv).replace(/[^\d+]/g, '').slice(0, 24);
@@ -346,8 +348,8 @@ export class Room {
       case 'buy': {
         if (typeof msg.rid !== 'string' || phone.rids.has(msg.rid)) break;
         phone.rids.add(msg.rid);
-        // A refused buy (no money, already had) just sends the shop as it is.
-        if (!this.service.buy(p, String(msg.id))) this.service.notify(p);
+        // A refused buy (dead, no money, already had) just sends the shop as it is.
+        if ((!p.alive && !p.training) || !this.service.buy(p, String(msg.id))) this.service.notify(p);
         break;
       }
       case 'read': {

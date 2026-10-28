@@ -200,6 +200,15 @@ export class MatchMode implements GameMode {
     }
   }
 
+  /** The soundtrack for the round's state: a clip over a break or the results, else silence. */
+  syncMusic(): void {
+    const r = this.round;
+    if (this.training || !r) return;
+    const music = this.game.deps.audio.music;
+    if (r.state === 'ended') music.clip((r.endsAt - this.net.serverNow()) / 1000, r.matchOver);
+    else music.off();
+  }
+
   private setPlayers(list: PlayerInfo[]): void {
     this.players = new Map(list.map((p) => [p.id, p]));
     this.remotes.syncPlayers(list);
@@ -208,6 +217,7 @@ export class MatchMode implements GameMode {
   private setRound(r: RoundInfo): void {
     const prev = this.round;
     this.round = r;
+    if (!prev || prev.n !== r.n || prev.state !== r.state) this.syncMusic();
     if (r.gateOpen !== this.gate) {
       this.setGate(r.gateOpen);
       if (r.gateOpen && prev) this.hud.notice(UI.hud.gateOpen);

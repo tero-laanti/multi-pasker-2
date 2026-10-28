@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { normalize } from '../src/shared/chat';
 import { GEAR, MATCH, SERVICE, SOTKU, TUNING } from '../src/shared/config';
 import { FI } from '../src/shared/fi';
+import { UI } from '../src/shared/ui';
 import { explosionDamage } from '../src/shared/grenade';
 import { MapBuilder } from '../src/shared/map/builder';
 import { PROTOCOL_VERSION, type GameEvent, type PhoneServerMsg } from '../src/shared/protocol';
@@ -428,6 +429,30 @@ describe('the service', () => {
     second.room.onMessage(again, { t: 'dev', cmd: 'newEvening' });
     expect(again.service.days).toBe(0);
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('the phone while dead', () => {
+  it('a message bounces and the Sotku sells nothing until the respawn', () => {
+    const { all, room, send, buy, run } = setup();
+    const [a, b] = all;
+    const p = a!.p;
+    room.service.skipPkausi(p);
+    p.service.money = 1000;
+    p.protectedUntil = 0;
+    room.damage(p, b!.p, 1000, 'body', 'rifle', [0, 1, 0]);
+    expect(p.alive).toBe(false);
+    send(p, 'LATAA');
+    const msgs = p.phone.convs.get(V.number)!.messages;
+    expect(msgs.at(-2)).toMatchObject({ from: 'me', text: 'LATAA', state: 'failed' });
+    expect(msgs.at(-1)).toMatchObject({ from: 'system', text: UI.phone.dead });
+    buy(p, 'tumma');
+    expect(p.service.owned.has('tumma')).toBe(false);
+    // Back alive: both work again.
+    run(4000);
+    expect(p.alive).toBe(true);
+    buy(p, 'tumma');
+    expect(p.service.owned.has('tumma')).toBe(true);
   });
 });
 

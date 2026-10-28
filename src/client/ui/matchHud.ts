@@ -288,7 +288,7 @@ export class MatchHud {
     const ended = round?.state === 'ended';
     const results = ended && !!round?.matchOver;
     const key = JSON.stringify([
-      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.ping, p.connected, p.phone, p.rank, p.training, p.star]),
+      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.tj, p.ping, p.connected, p.phone, p.rank, p.training, p.star]),
       ended,
       round?.n,
       round?.of,
@@ -317,6 +317,7 @@ export class MatchHud {
     el('div', 'sb-name', h, UI.scoreboard.name);
     el('div', 'sb-num', h, UI.scoreboard.kills);
     el('div', 'sb-num', h, UI.scoreboard.deaths);
+    el('div', 'sb-num', h, UI.scoreboard.tj);
     el('div', 'sb-num', h, UI.scoreboard.ping);
     sorted.forEach((p, i) => {
       const r = row(p.id === myId ? 'me' : '');
@@ -337,6 +338,7 @@ export class MatchHud {
       else if (p.training) el('span', 'sb-tag', n, UI.scoreboard.training);
       el('div', 'sb-num', r, String(p.kills));
       el('div', 'sb-num', r, String(p.deaths));
+      el('div', 'sb-num', r, String(p.tj));
       el('div', 'sb-num dim', r, p.bot ? '–' : String(p.ping));
     });
     if (!results) return;

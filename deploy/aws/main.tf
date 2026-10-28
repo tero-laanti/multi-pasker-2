@@ -83,6 +83,7 @@ locals {
     json  = "application/json"
     png   = "image/png"
     jpg   = "image/jpeg"
+    mp3   = "audio/mpeg"
     svg   = "image/svg+xml"
     woff  = "font/woff"
     woff2 = "font/woff2"

@@ -127,6 +127,7 @@ export class ServerPlayer {
       ping: Math.round(this.rtt),
       phone: this.phone.status(),
       rank: this.rank,
+      tj: this.service.tj,
       upgrades: { ...this.service.upgrades },
       star: this.service.discharged,
       training: this.training,

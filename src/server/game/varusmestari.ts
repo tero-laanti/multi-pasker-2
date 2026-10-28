@@ -1,6 +1,7 @@
 import { GEAR, INVENTORY, PHONE, TUNING } from '../../shared/config';
 import { classify, normalize, type Classified, type CommandId } from '../../shared/chat';
 import { FI } from '../../shared/fi';
+import { UI } from '../../shared/ui';
 import { level } from '../../shared/upgrades';
 import type { PhoneMessage } from '../../shared/protocol';
 import type { InventoryKind, ServerPlayer } from './player';
@@ -145,6 +146,20 @@ export class Varusmestari {
   }
 
   /** A message sent from a phone (or a bot pretending to have one). */
+  /**
+   * Sent while dead (the phone locks when you die, but one can cross the moment of death): it
+   * bounces, and nothing comes of it.
+   */
+  bounceDead(p: ServerPlayer, req: SendRequest): void {
+    const phone = p.phone;
+    if (phone.rids.has(req.rid)) return;
+    phone.rids.add(req.rid);
+    phone.draft = null;
+    const conv = phone.convs.get(req.conv) ?? phone.conv(req.conv, req.conv);
+    phone.add(conv.id, { id: req.rid, from: 'me', text: req.text.slice(0, 300), at: Date.now(), state: 'failed' });
+    phone.add(conv.id, { id: phone.newId(), from: 'system', text: UI.phone.dead, at: Date.now() });
+  }
+
   receive(p: ServerPlayer, req: SendRequest): Classified['kind'] | 'retry' | 'unknownNumber' {
     const phone = p.phone;
     const now = this.room.now();

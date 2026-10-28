@@ -149,7 +149,7 @@ export class App {
     const map = buildRange();
     this.renderer = new Renderer(this.canvas, this.settings.quality, map.sunDir);
     this.renderer.setView(this.settings.fov, this.settings.renderScale);
-    this.audio.setVolumes(this.settings.masterVolume, this.settings.effectsVolume, this.settings.gunVolume);
+    this.audio.setVolumes(this.settings.masterVolume, this.settings.effectsVolume, this.settings.gunVolume, this.settings.musicVolume);
     await document.fonts.ready.catch(() => undefined);
     const audioLoad = this.audio.load((done, total) => this.menu.showLoading(`${UI.menu.loading} ${done}/${total}`));
     const t0 = performance.now();
@@ -204,7 +204,7 @@ export class App {
       players: () => (this.match ? [...this.match.players.values()] : []),
     });
     await audioLoad;
-    this.mode = 'menu';
+    this.switchMode('menu');
     this.menu.showMain();
     this.exposeDebug();
     requestAnimationFrame((t) => this.loop(t));
@@ -215,6 +215,21 @@ export class App {
 
   /** Time spent building weapon models and hands at start-up (ms). */
   viewmodelBuildMs = 0;
+
+  /**
+   * The app's state, and the soundtrack that goes with it: the song in the main menu, quietly on
+   * the range, and in a match whatever its round calls for (silence, or a clip over a break).
+   */
+  private switchMode(mode: Mode): void {
+    this.mode = mode;
+    const music = this.audio.music;
+    if (mode === 'menu') music.menu();
+    else if (mode === 'range' || mode === 'training') music.range();
+    else if (mode === 'match') {
+      if (this.match) this.match.syncMusic();
+      else music.off();
+    }
+  }
 
   private devCommand(cmd: string, arg?: unknown): void {
     this.match?.send({ t: 'dev', cmd, arg });
@@ -265,7 +280,7 @@ export class App {
 
   private startRange(): void {
     this.audio.unlock();
-    this.mode = 'range';
+    this.switchMode('range');
     this.hud.setVisible(true);
     this.matchHud.setVisible(false);
     const g = this.rangeGame;
@@ -379,7 +394,7 @@ export class App {
     window.clearTimeout(this.joinTimer);
     const g = this.rangeGame!;
     const range = this.range!;
-    this.mode = 'training';
+    this.switchMode('training');
     this.menu.setInMatch(false);
     this.menu.setTraining(true, false);
     this.hud.setMatch(false);
@@ -449,7 +464,7 @@ export class App {
     window.clearTimeout(this.joinTimer);
     this.rangeGame?.deactivate();
     this.matchGame!.activate();
-    this.mode = 'match';
+    this.switchMode('match');
     this.menu.setInMatch(true);
     this.hud.setMatch(true);
     this.hud.setVisible(true);
@@ -519,7 +534,7 @@ export class App {
       this.matchHud.reset();
       this.rangeGame?.activate();
     }
-    this.mode = 'menu';
+    this.switchMode('menu');
     this.attractTime = 0;
     this.hud.setVisible(false);
     this.input.unlock();
@@ -529,7 +544,7 @@ export class App {
   private applySettings(s: Settings, reloadNeeded: boolean): void {
     saveSettings(s);
     this.renderer.setView(s.fov, s.renderScale);
-    this.audio.setVolumes(s.masterVolume, s.effectsVolume, s.gunVolume);
+    this.audio.setVolumes(s.masterVolume, s.effectsVolume, s.gunVolume, s.musicVolume);
     if (reloadNeeded) location.reload();
   }
 
@@ -565,7 +580,7 @@ export class App {
         this.renderer.renderViewmodelOrbit(target, (yawDeg * Math.PI) / 180, (pitchDeg * Math.PI) / 180, dist, fov);
       },
       play: () => {
-        if (this.mode === 'menu' || this.mode === 'loading') this.mode = 'range';
+        if (this.mode === 'menu' || this.mode === 'loading') this.switchMode('range');
         this.hud.setVisible(true);
         this.menu.hide();
         this.input.locked = true;

@@ -1309,6 +1309,10 @@ body.sim .killed-wrap {
   font-size: 16px;
   line-height: 1.4;
 }
+.killed-wait {
+  font-size: 14px;
+  opacity: 0.7;
+}
 .killed-lost {
   display: flex;
   flex-direction: column;
@@ -1342,4 +1346,51 @@ body.virtual {
 }
 body.virtual .kb-key {
   cursor: pointer;
+}
+
+/* Copy and paste: a small menu at a long press (or a click), and a note that it worked. */
+.ctx-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.ctx-menu {
+  position: fixed;
+  min-width: 150px;
+  max-width: calc(100vw - 16px);
+  background: var(--bg);
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.ctx-item {
+  border: 0;
+  background: none;
+  padding: 13px 16px;
+  font: inherit;
+  font-size: 16px;
+  text-align: left;
+  color: var(--in-fg);
+}
+.ctx-item + .ctx-item {
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+.ctx-item:disabled {
+  color: var(--muted);
+  font-size: 14px;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 60;
+  background: rgba(30, 34, 26, 0.92);
+  color: #f1eee4;
+  padding: 9px 16px;
+  border-radius: 18px;
+  font-size: 15px;
+  pointer-events: none;
 }

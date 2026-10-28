@@ -64,6 +64,7 @@ export const UI = {
     masterVolume: 'Master volume',
     effectsVolume: 'Effects',
     gunVolume: 'Gunshots',
+    musicVolume: 'Music',
     quality: 'Graphics quality',
     qualityLow: 'Low (integrated graphics)',
     qualityMedium: 'Medium',
@@ -178,6 +179,7 @@ export const UI = {
     name: 'Name',
     kills: 'Kills',
     deaths: 'Deaths',
+    tj: 'TJ',
     ping: 'Ping',
     bot: 'BOT',
     away: 'left',
@@ -313,6 +315,11 @@ export const UI = {
     chats: 'Chats',
     newChat: 'New chat',
     enterNumber: 'Enter a number',
+    /** Copying a number out of a message (long press, or a click) and pasting it as a new chat's number. */
+    copyNumber: 'Copy {n}',
+    pasteNumber: 'Paste {n}',
+    nothingCopied: 'Nothing copied: long-press a number in a message',
+    copied: 'Copied {n}',
     open: 'Open',
     cancel: 'Cancel',
     typeMessage: 'Message',
@@ -359,6 +366,10 @@ export const UI = {
     desktopOff: 'Your computer is not in the game.',
     inventory: 'Inventory check: answer with a number · {s} s',
     dead: 'You are dead. The armourer serves the living.',
+    /** The phone is out of use while the player is dead (the killed note says why, if it was out). */
+    deadTitle: 'You are dead',
+    deadText: 'The armourer serves the living.',
+    backOnRespawn: 'The phone is back when you respawn.',
     /** Killed with the phone out: a note over the chat list; what was typed is gone. {name}: the killer. */
     killed: {
       title: ['Killed mid-message', 'Message not delivered', 'Texting under fire'],

@@ -497,6 +497,12 @@ export const AUDIO = {
   hearingRange: 120,
   /** Every gunshot (yours and others', near and far, tails and suppressed), relative to the other sounds. */
   gunVolume: 0.7,
+  /**
+   * The soundtrack (assets/music/main-menu.mp3): its level in the main menu, on the range and
+   * over a break; fades (s); where the break clip starts in the song (s) and how long it may run
+   * over a round's break and over the match's results (it ends with the break, faded out).
+   */
+  music: { menu: 0.55, range: 0.07, clip: 0.5, fadeIn: 1.5, fadeOut: 2.5, clipFrom: 140, breakClip: 15, resultsClip: 25 },
 };
 
 export const EFFECTS = {

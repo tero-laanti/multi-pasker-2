@@ -197,6 +197,8 @@ export interface PlayerInfo {
   phone: 'none' | 'online' | 'offline';
   /** Rank index from days served (alokas 0 … kersantti 4). */
   rank: number;
+  /** Days left in the service (TJ). */
+  tj: number;
   /** Discharged at TJ 0: the reservist star. */
   star: boolean;
   /** Upgrade levels: everyone needs them (suppressors, drum magazines, dark mode). */

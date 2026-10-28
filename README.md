@@ -153,9 +153,11 @@ check).
 
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
-away. Messages you type on the phone use the app's own keyboard (no autocorrect or paste).
-Die with the phone out and it goes back to the chat list, what you were typing is gone, and a
-note tells you who did it and quotes the message that never got sent.
+away. Messages you type on the phone use the app's own keyboard (no autocorrect). Phone numbers
+in a message can be copied: long-press the message (or click it with a mouse) and pick *Copy*;
+then long-press (or click) the number in a new chat (**+**) and pick *Paste*.
+The dead have no phone: die and the phone shows a note until you respawn (who did it, and the
+message that never got sent if you were typing), and nothing can be texted or bought meanwhile.
 
 One phone per player: pairing another phone replaces the first. A phone that loses its connection
 (screen lock, reload) comes back to the same chats. For testing without phones, the host can turn
@@ -172,8 +174,9 @@ with the computer's keyboard (only on `npm run dev` servers or the host machine)
 A match is a set number of rounds: 6 rounds of 4 minutes by default, with a 12-second break
 between rounds and the match's results after the last one. Everything lasts one match: TJ,
 money, gear, kills, deaths and awards. The next match starts everyone again at TJ 347 with a
-pistol. The scoreboard counts kills and deaths over the match, and its winner is whoever has the
-most kills (then the fewest deaths). Nobody gets hurt between rounds, so the scores stand.
+pistol. The scoreboard counts kills and deaths over the match and shows everyone's TJ, and its
+winner is whoever has the most kills (then the fewest deaths). Nobody gets hurt between rounds,
+so the scores stand.
 
 The host sets the match in the pause menu (*Match settings*, shown only on the host): rounds per
 match, round length, how many days a kill serves, the number of bots and the kill speed. Changes
@@ -373,6 +376,11 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the brief's val
   `assets/sfx/`; it overrides `assets/sfx/_base/`.
 - Voice lines are machine-voice placeholders in `assets/voice/_placeholder/`. Record the real
   ones using [docs/RECORDING.md](docs/RECORDING.md) and drop them into `assets/voice/`.
+- The soundtrack is one song, `assets/music/main-menu.mp3`: the main menu plays it from the top,
+  the shooting range keeps it going very quietly, and a match is silent except a clip from 2:20
+  that fades in and out over each break between rounds (and a longer one over the match's
+  results). Its levels and the clip are `AUDIO.music` in `config.ts`; Settings → *Music* sets
+  its volume.
 
 ## First-person hands
 

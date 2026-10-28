@@ -12,6 +12,12 @@ const S = UI.sotku;
 const TOKEN_KEY = 'kenttaposti.token';
 const STARTED_KEY = 'kenttaposti.started';
 const CHAT_KEY = 'kenttaposti.chat';
+const CLIP_KEY = 'kenttaposti.clip';
+
+/** Phone numbers in a message: the 4-digit office numbers and the long +358 ones. */
+function numbersIn(text: string | undefined): string[] {
+  return [...new Set(text?.match(/\+?\d{4,}/g) ?? [])];
+}
 
 type View = 'connecting' | 'pair' | 'confirm' | 'sound' | 'list' | 'chat' | 'sotku' | 'replaced';
 
@@ -104,6 +110,8 @@ export class PhoneApp {
   private error = '';
   private rid = 0;
   private sheet: { number: string } | null = null;
+  /** The phone's own clipboard (the keyboard is the app's, so the system's can't be pasted from). */
+  private clip: string | null = store('session')?.getItem(CLIP_KEY) ?? null;
   private screen: HTMLDivElement;
   private msgs: HTMLDivElement | null = null;
   /** Where the autofill chips go, between the message field and the keyboard. */
@@ -204,6 +212,7 @@ export class PhoneApp {
         this.store = m.store;
         if (this.view === 'chat' || this.view === 'list' || this.view === 'sotku') {
           this.render();
+          this.renderDead();
           break;
         }
         const started = store('session')?.getItem(STARTED_KEY) === '1';
@@ -234,6 +243,7 @@ export class PhoneApp {
         this.status = m.s;
         this.renderBanner();
         this.renderRank();
+        this.renderDead();
         break;
       case 'inventory':
         this.inventoryEnd = m.left > 0 ? performance.now() + m.left * 1000 : 0;
@@ -334,6 +344,7 @@ export class PhoneApp {
   // ---- keyboard ----
 
   private input(ch: string): void {
+    if (this.isDead() && this.view !== 'pair') return;
     if (this.view === 'pair') {
       if (!/\d/.test(ch) || this.code.length >= 4) return;
       this.code += ch;
@@ -393,7 +404,7 @@ export class PhoneApp {
 
   private sendDraft(): void {
     const conv = this.chat;
-    if (!conv) return;
+    if (!conv || this.isDead()) return;
     const text = (this.drafts.get(conv) ?? '').trim();
     if (!text) return;
     const rid = `${this.token.slice(0, 8)}-${Date.now().toString(36)}-${++this.rid}`;
@@ -512,12 +523,41 @@ export class PhoneApp {
       h('div', 'killed-label', K.lost, lost);
       h('div', 'bubble me lost', draft, lost);
     }
-    h('button', 'btn primary big', K.ok, box).onclick = () => wrap.remove();
+    // Dead: the phone is out of use until the respawn takes this away (renderDead).
+    h('div', 'killed-wait', P.backOnRespawn, box);
+  }
+
+  /** In the match and dead: nothing on the phone works until the respawn. */
+  private isDead(): boolean {
+    return !!this.status && !this.status.alive && this.status.desktop;
+  }
+
+  /** The dead screen over everything (the killed note serves as it when the phone was out). */
+  private renderDead(): void {
+    const shown = this.root.querySelector('.killed-wrap');
+    if (!this.isDead()) {
+      shown?.remove();
+      return;
+    }
+    if (shown) return;
+    this.sheet = null;
+    this.sotkuItem = null;
+    if (this.view === 'chat' || this.view === 'sotku') {
+      this.chat = null;
+      store('session')?.removeItem(CHAT_KEY);
+      this.show('list');
+    }
+    const wrap = h('div', 'killed-wrap', undefined, this.root);
+    const box = h('div', 'killed', undefined, wrap);
+    h('div', 'killed-title', P.deadTitle, box);
+    h('div', 'killed-text', P.deadText, box);
+    h('div', 'killed-wait', P.backOnRespawn, box);
   }
 
   // ---- views ----
 
   private show(view: View): void {
+    this.closeMenu();
     this.view = view;
     if (this.sending && view !== 'chat') {
       window.clearTimeout(this.sending.timer);
@@ -947,6 +987,7 @@ export class PhoneApp {
     } else if (state === 'buy') {
       btn.textContent = isShopId(id) && st.voucher ? S.take : fill(S.buy, { eur: price });
       btn.onclick = () => {
+        if (this.isDead()) return;
         this.buying = id;
         this.net.buy(`${this.token.slice(0, 8)}-b${Date.now().toString(36)}`, id);
         this.render();
@@ -981,6 +1022,20 @@ export class PhoneApp {
     h('div', 'sheet-title', P.newChat, head);
     h('button', 'link strong', P.open, head).onclick = () => this.submitSheet();
     this.sheetDisplay = h('div', 'sheet-number', '', sheet);
+    this.pressMenu(this.sheetDisplay, () => {
+      const n = this.clip;
+      if (!n) return [{ label: P.nothingCopied }];
+      return [
+        {
+          label: fill(P.pasteNumber, { n: formatNumber(n) }),
+          act: () => {
+            if (!this.sheet) return;
+            this.sheet.number = n;
+            this.renderSheet();
+          },
+        },
+      ];
+    });
     this.kb.setMode('numpad');
     sheet.appendChild(this.kb.root);
     this.renderSheet();
@@ -1002,6 +1057,78 @@ export class PhoneApp {
       return;
     }
     this.net.openConversation(n);
+  }
+
+  // ---- copy and paste ----
+
+  /** A long press (touch) or a click (mouse) on `el` opens a small menu of `items` at the press. */
+  private pressMenu(el: HTMLElement, items: () => { label: string; act?: () => void }[]): void {
+    let timer = 0;
+    let from: { x: number; y: number } | null = null;
+    let mouse = false;
+    const cancel = () => {
+      window.clearTimeout(timer);
+      from = null;
+    };
+    el.addEventListener('pointerdown', (e) => {
+      mouse = e.pointerType === 'mouse';
+      if (mouse) return;
+      from = { x: e.clientX, y: e.clientY };
+      timer = window.setTimeout(() => {
+        if (!from) return;
+        this.openMenu(items(), from.x, from.y);
+        from = null;
+      }, 450);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (from && Math.hypot(e.clientX - from.x, e.clientY - from.y) > 10) cancel();
+    });
+    el.addEventListener('pointerup', cancel);
+    el.addEventListener('pointercancel', cancel);
+    el.addEventListener('click', (e) => {
+      if (mouse) this.openMenu(items(), e.clientX, e.clientY);
+    });
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  private openMenu(items: { label: string; act?: () => void }[], x: number, y: number): void {
+    this.closeMenu();
+    const wrap = h('div', 'ctx-wrap', undefined, this.root);
+    wrap.addEventListener('pointerdown', (e) => {
+      if (e.target === wrap) this.closeMenu();
+    });
+    const menu = h('div', 'ctx-menu', undefined, wrap);
+    for (const it of items) {
+      const b = h('button', 'ctx-item', it.label, menu);
+      if (!it.act) b.disabled = true;
+      else
+        b.onclick = () => {
+          this.closeMenu();
+          it.act!();
+        };
+    }
+    // At the press, kept on the screen.
+    const r = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 8, x - r.width / 2))}px`;
+    menu.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 8, y - r.height - 12))}px`;
+  }
+
+  private closeMenu(): void {
+    this.root.querySelector('.ctx-wrap')?.remove();
+  }
+
+  private copyNumber(n: string): void {
+    this.clip = n;
+    store('session')?.setItem(CLIP_KEY, n);
+    // The system clipboard too, where the browser allows it (https, or this machine).
+    void navigator.clipboard?.writeText(n).catch(() => undefined);
+    this.toast(fill(P.copied, { n: formatNumber(n) }));
+  }
+
+  private toast(text: string): void {
+    this.root.querySelector('.toast')?.remove();
+    const t = h('div', 'toast', text, this.root);
+    window.setTimeout(() => t.remove(), 1600);
   }
 
   /** The number sheet may be open over the list or over a chat. */
@@ -1150,6 +1277,8 @@ export class PhoneApp {
     else {
       const b = h('div', `bubble ${m.from}`, undefined, row);
       b.textContent = m.text ?? '';
+      const numbers = numbersIn(m.text);
+      if (numbers.length) this.pressMenu(b, () => numbers.map((n) => ({ label: fill(P.copyNumber, { n: formatNumber(n) }), act: () => this.copyNumber(n) })));
     }
     if (m.from === 'me' && m.state && (newestMine || m.state === 'failed')) {
       const st = h('div', `state ${m.state}`, stateText(m), list);
