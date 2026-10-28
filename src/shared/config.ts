@@ -519,7 +519,7 @@ export const AUDIO = {
    * over a break; fades (s); where the break clip starts in the song (s) and how long it may run
    * over a round's break and over the match's results (it ends with the break, faded out).
    */
-  music: { menu: 0.55, range: 0.07, clip: 0.5, fadeIn: 1.5, fadeOut: 2.5, clipFrom: 140, breakClip: 15, resultsClip: 25 },
+  music: { menu: 0.55, range: 0.2, clip: 0.5, fadeIn: 1.5, fadeOut: 2.5, clipFrom: 140, breakClip: 15, resultsClip: 25 },
 };
 
 export const EFFECTS = {

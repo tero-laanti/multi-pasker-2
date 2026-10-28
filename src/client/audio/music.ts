@@ -5,7 +5,7 @@ type Scene = 'off' | 'menu' | 'range' | 'clip';
 
 /**
  * The soundtrack: one song, streamed through the mixer (an <audio> element, not a decoded
- * buffer). The main menu plays it from the top; on the range it carries on very quietly; a match
+ * buffer). The main menu plays it from the top; on the range it carries on quietly; a match
  * is silent, except a clip from 2:20 that fades in and out over a break and the match's results.
  */
 export class Music {
@@ -30,7 +30,7 @@ export class Music {
     this.to('menu', AUDIO.music.menu);
   }
 
-  /** On the range: the same song, very quietly. */
+  /** On the range: the same song, quietly. */
   range(): void {
     this.to('range', AUDIO.music.range);
   }

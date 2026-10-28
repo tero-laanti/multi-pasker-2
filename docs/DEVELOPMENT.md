@@ -57,7 +57,7 @@ The dev panel (F2) switches the kill-speed preset between *CoD* (the default) an
   15 dB quieter without touching the voice) and writes the takes into `assets/voice/`. Restart the
   server after adding recordings: it keeps the voice notes' words in memory.
 - The soundtrack is one song, `assets/music/main-menu.mp3`: the main menu plays it from the top,
-  the shooting range keeps it going very quietly, and a match is silent except a clip from 2:20
+  the shooting range keeps it going quietly, and a match is silent except a clip from 2:20
   that fades in and out over each break between rounds (and a longer one over the match's
   results). Its levels and the clip are `AUDIO.music` in `config.ts`; Settings → *Music* sets
   its volume.

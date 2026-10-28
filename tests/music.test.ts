@@ -57,7 +57,7 @@ const M = AUDIO.music;
 const last = (p: FakeParam) => p.events[p.events.length - 1]!;
 
 describe('the soundtrack', () => {
-  it('plays from the top in the main menu, and on very quietly on the range', () => {
+  it('plays from the top in the main menu, and on quietly on the range', () => {
     const { m, el, gain } = setup();
     m.menu();
     expect(el.paused).toBe(false);
@@ -69,7 +69,7 @@ describe('the soundtrack', () => {
     // The same song carries on, turned down.
     expect(el.currentTime).toBe(42);
     expect(last(gain)).toEqual(['ramp', M.range, 10 + M.fadeOut]);
-    expect(M.range).toBeLessThan(M.menu / 4);
+    expect(M.range).toBeLessThan(M.menu / 2);
   });
 
   it('a round is silent; a break gets the clip from 2:20, faded in and out within it', () => {
