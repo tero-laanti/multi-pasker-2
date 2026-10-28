@@ -400,10 +400,15 @@ export class Character {
   private fallDir = -1;
   private tmp = new THREE.Vector3();
 
+  private name: string;
+  /** Our partner in team mode: the name tag shows through walls. */
+  private mate = false;
+
   constructor(
     name: string,
-    readonly accent: number,
+    private accent: number,
   ) {
+    this.name = name;
     for (let i = 0; i < B.count; i++) {
       const b = new THREE.Bone();
       const o = OFFSET[i]!;
@@ -468,11 +473,24 @@ export class Character {
     this.redDot.visible = (u.punapiste ?? 0) > 0;
   }
 
-  setName(name: string): void {
+  /** A new name, or a new colour (team mode dresses a pair alike: beret, bands and tag). */
+  setLook(name: string, accent: number): void {
+    if (name === this.name && accent === this.accent) return;
+    if (accent !== this.accent) this.mesh.geometry = characterGeometry(accent);
+    this.name = name;
+    this.accent = accent;
     const m = this.tag.material;
     m.map?.dispose();
-    m.map = nameTagTexture(name, this.accent);
+    m.map = nameTagTexture(name, accent);
     m.needsUpdate = true;
+  }
+
+  /** Team mode: our partner's tag shows through walls, so we can find each other. */
+  setMate(mate: boolean): void {
+    if (mate === this.mate) return;
+    this.mate = mate;
+    this.tag.material.depthTest = !mate;
+    this.tag.renderOrder = mate ? 6 : 5;
   }
 
   private setWeapon(w: WeaponId): void {

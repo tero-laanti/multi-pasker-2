@@ -28,12 +28,18 @@ interface Line {
 
 const V = FI.voice;
 const SPEAKERS: Record<string, string> = {
-  ammunnanjohtaja: 'Range officer (range commands)',
+  ammunnanjohtaja: 'Range officer (range commands and the match rounds)',
   huoltopaallikko: 'Huoltopäällikkö (voice notes, Finnish)',
   nylands: 'Nylands brigad (voice note, Swedish)',
 };
 const lines: Line[] = [
-  ...V.range.map(([file, text]) => ({ file, text, speaker: 'ammunnanjohtaja', lang: 'fi' as const, note: 'Range command' })),
+  ...V.range.map(([file, text]) => ({
+    file,
+    text,
+    speaker: 'ammunnanjohtaja',
+    lang: 'fi' as const,
+    note: file === V.roundEnd ? 'Range command; also as each round of a match ends' : file === V.roundStart ? 'Range command; also as each round of a match starts' : 'Range command',
+  })),
   { file: V.codeWord[0], text: V.codeWord[1], speaker: 'huoltopaallikko', lang: 'fi', note: 'Said before the letters' },
   ...V.alphabet.map(([letter, word, file]) => ({ file, text: word, speaker: 'huoltopaallikko', lang: 'fi' as const, note: `Letter ${letter}. One word, clearly, short pause after` })),
   ...V.intros.map(([file, text]) => ({ file, text, speaker: 'huoltopaallikko', lang: 'fi' as const, note: 'Voice-note intro' })),

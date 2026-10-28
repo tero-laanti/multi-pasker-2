@@ -35,6 +35,9 @@ export class Phone {
   /** Recent messages to the varusmestari, for spam detection. */
   recent: { at: number; text: string }[] = [];
   lastGrenadeAt = -1e9;
+  /** When the asevarasto last texted about a kill of someone caught texting, and last quoted a typo back. */
+  lastCaughtAt = -1e9;
+  lastRoastAt = -1e9;
   private queue: Scheduled[] = [];
   private nextId = 1;
   private lastStatus = '';

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { classify, normalize } from '../src/shared/chat';
-import { TUNING } from '../src/shared/config';
+import { PHONE, TUNING } from '../src/shared/config';
 import { FI } from '../src/shared/fi';
 import { MapBuilder } from '../src/shared/map/builder';
 import { PF, PROTOCOL_VERSION, decodeSnapshot, type GameEvent, type PhoneServerMsg } from '../src/shared/protocol';
@@ -211,6 +211,44 @@ describe('the varusmestari', () => {
     a.p.ammo.pistol = 1;
     send(a.p, 'Lataa', { round: oldRound });
     expect(a.p.reload).toBeNull();
+  });
+
+  it('remembers typos all evening and now and then quotes an old one back with a service', () => {
+    const { join, pair, send, run, replies, clock, room } = setup();
+    const a = join('Aapo');
+    const pa = pair(a.p);
+    const kept = () => room.evening.typos('Aapo').map((t) => t.text);
+    send(a.p, 'LATAAA');
+    send(a.p, 'anna ammuksia');
+    expect(kept()).toEqual(['LATAAA', 'anna ammuksia']);
+    // The roast's dice always say yes here; a typo this fresh is not quoted yet.
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const roasts = () => replies(pa).filter((x) => x?.includes('”'));
+    const reload = () => {
+      a.p.ammo.pistol = 0;
+      send(a.p, 'LATAA');
+      run(TUNING.pistol.reloadTime * 1000 + 3000);
+    };
+    reload();
+    expect(roasts()).toEqual([]);
+    // Older, it is: the latest one first, and only once.
+    for (const t of room.evening.typos('Aapo')) t.at -= PHONE.roastAge * 1000;
+    reload();
+    const quoted = `${V.reloadOk[0]} ${V.roast[0]!.replace('{rank}', 'alokas').replace('{typo}', 'anna ammuksia')}`;
+    expect(roasts()).toEqual([quoted]);
+    expect(kept()).toEqual(['LATAAA']);
+    // Not again so soon. A new match starts the service again, not the asevarasto's memory.
+    reload();
+    expect(roasts().length).toBe(1);
+    room.startRound(true);
+    expect(kept()).toEqual(['LATAAA']);
+    clock.advance(PHONE.roastGap * 1000);
+    send(a.p, 'Kranaatti');
+    run(3000);
+    expect(roasts().length).toBe(2);
+    expect(roasts()[1]).toContain('”LATAAA”');
+    expect(kept()).toEqual([]);
+    random.mockRestore();
   });
 
   it('swearing locks every service until PUNNERRETTU', () => {

@@ -18,13 +18,13 @@ Tips:
 - Texts and file names come from `src/shared/fi.ts` (the `voice` section). This document and
   the placeholders are regenerated with `npm run gen:voice`.
 
-## Range officer (range commands)
+## Range officer (range commands and the match rounds)
 
 | File | Line (Finnish/Swedish) | Note |
 |---|---|---|
 | `rata_positions` | Ampumapaikoille! | Range command |
-| `rata_fire` | Tuli vapaa! | Range command |
-| `rata_cease` | Tulitauko! | Range command |
+| `rata_fire` | Tuli vapaa! | Range command; also as each round of a match starts |
+| `rata_cease` | Tulitauko! | Range command; also as each round of a match ends |
 | `rata_ended` | Ammunta päättyi. Varmista! | Range command |
 
 ## Huoltopäällikkö (voice notes, Finnish)

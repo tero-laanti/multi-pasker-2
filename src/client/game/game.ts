@@ -144,6 +144,9 @@ export class Game {
   private landVel = 0;
   private stepDist = 0;
   private crouchWanted = false;
+  /** Aiming toggled on by a right click (the setting), and with which weapon. */
+  private adsOn = false;
+  private adsWeapon: WeaponId | null = null;
   private sprintLock = 0;
   private lookX = 0;
   private lookY = 0;
@@ -250,6 +253,7 @@ export class Game {
     this.landDip = 0;
     this.landVel = 0;
     this.crouchWanted = false;
+    this.adsOn = false;
     this.acc = 0;
   }
 
@@ -301,10 +305,18 @@ export class Game {
 
     const canFire = controls && this.mode.firing !== false;
     const firePressed = controls && input.consumeLeftPress() && canFire;
-    if (controls) input.consumeRightPress();
+    const rightPressed = controls && input.consumeRightPress();
     const forward = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
     const right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
-    const adsHeld = controls && input.mouseRight;
+    // Aiming: held on the right button, or (the setting) toggled by a click. A toggle ends with
+    // a death, a change of weapon, or Shift pressed to sprint.
+    const toggleAds = this.deps.settings.adsToggle;
+    const shiftPressed = controls && [input.consumePress('ShiftLeft'), input.consumePress('ShiftRight')].some(Boolean);
+    if (!toggleAds || !this.mode.alive || this.weapons.current !== this.adsWeapon) this.adsOn = false;
+    else if (rightPressed) this.adsOn = !this.adsOn;
+    else if (shiftPressed && forward > 0) this.adsOn = false;
+    this.adsWeapon = this.weapons.current;
+    const adsHeld = controls && (toggleAds ? this.adsOn : input.mouseRight);
     const fireHeld = canFire && input.mouseLeft;
     const shift = k.has('ShiftLeft') || k.has('ShiftRight');
     // Firing while sprinting drops the sprint so the gun comes up and the shot goes out.

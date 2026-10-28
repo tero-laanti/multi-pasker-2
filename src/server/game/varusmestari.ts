@@ -1,4 +1,4 @@
-import { GEAR, INVENTORY, PHONE, TUNING } from '../../shared/config';
+import { GEAR, INVENTORY, PHONE, SERVICE, TUNING } from '../../shared/config';
 import { classify, normalize, type Classified, type CommandId } from '../../shared/chat';
 import { FI } from '../../shared/fi';
 import { UI } from '../../shared/ui';
@@ -93,6 +93,19 @@ export class Varusmestari {
       phone.add(from, { id: phone.newId(), from: 'them', text: voice ? undefined : text, voice, at: Date.now() });
     });
     return start + typing;
+  }
+
+  /**
+   * The killer of someone caught texting hears about it, now and then: never while another
+   * message waits in the chat (it would arrive stale), at most once a minute.
+   */
+  caught(p: ServerPlayer, name: string, days: number): void {
+    const phone = p.phone;
+    const now = this.room.now();
+    if (p.training || phone.busy(V.number) || now - phone.lastCaughtAt < SERVICE.caughtTextGap * 1000) return;
+    phone.lastCaughtAt = now;
+    const text = capitalize(pick(V.caught).replace(/\{days\}/g, String(days)).replace(/\{tj\}/g, String(p.service.tj)));
+    this.post(p, V.number, text.replace(/\{name\}/g, name));
   }
 
   /** The player read a chat: the next message waiting for it comes in. */
@@ -273,6 +286,8 @@ export class Varusmestari {
     const say = (list: readonly string[], cmd = '') => capitalize(pick(list).replace(/\{rank\}/g, rank).replace(/\{cmd\}/g, cmd));
     const answer = (list: readonly string[], cmd = ''): Decision => ({ reply: say(list, cmd), public: true, command: false });
     const ok = (reply: string): Decision => ({ reply, public: false, command: true });
+    // A service done, now and then with an old typo quoted back.
+    const served = (list: readonly string[]) => [say(list), this.roast(p, now)].filter((s) => s).join(' ');
 
     // Spam: many messages in a short time, or the same thing over and over.
     phone.recent.push({ at: now, text: normalize(text) });
@@ -290,7 +305,7 @@ export class Varusmestari {
       }
       if (c.kind === 'command' && !phone.locked && (c.cmd === 'LATAA' || c.cmd === 'KRANAATTI')) {
         p.outbox.push({ k: 'training', what: c.cmd === 'LATAA' ? 'ammo' : 'grenade' });
-        return ok(say(c.cmd === 'LATAA' ? V.reloadOk : V.grenadeOk));
+        return ok(served(c.cmd === 'LATAA' ? V.reloadOk : V.grenadeOk));
       }
     }
 
@@ -308,6 +323,7 @@ export class Varusmestari {
     }
     if (c.kind !== 'command') {
       if (spam) return answer(V.spam);
+      if (c.kind === 'nearMiss' || c.kind === 'other') this.remember(p, text);
       switch (c.kind) {
         case 'nearMiss':
           return answer(V.nearMiss, c.cmd);
@@ -341,7 +357,7 @@ export class Varusmestari {
       if (r === 'busy') return ok(say(V.reloadBusy));
       if (r === 'dead') return answer(V.dead);
       p.stats.reloads++;
-      return ok(say(V.reloadOk));
+      return ok(served(V.reloadOk));
     }
     // The Sotku's once-a-round commands.
     if (c.cmd === 'LENNOKKI') return ok(say(this.room.drone(p) === 'ok' ? FI.abilities.droneOk : FI.abilities.used));
@@ -354,6 +370,26 @@ export class Varusmestari {
     if (now - phone.lastGrenadeAt < cooldown * 1000) return ok(say(V.grenadeCooldown));
     if (!this.room.giveGrenade(p)) return answer(V.dead);
     phone.lastGrenadeAt = now;
-    return ok(say(V.grenadeOk));
+    return ok(served(V.grenadeOk));
+  }
+
+  /** The asevarasto never forgets a typo: the latest few of the evening are kept, to quote back. */
+  private remember(p: ServerPlayer, text: string): void {
+    const t = text.trim();
+    if (p.bot || !t || t.length > PHONE.roastLength) return;
+    this.room.evening.addTypo(p.name, t);
+  }
+
+  /**
+   * Now and then (not too often) the latest typo old enough, quoted back: each one only once.
+   * Empty when there is none to quote this time.
+   */
+  private roast(p: ServerPlayer, now: number): string {
+    if (p.bot || now - p.phone.lastRoastAt < PHONE.roastGap * 1000 || Math.random() >= PHONE.roastChance) return '';
+    const typo = this.room.evening.takeTypo(p.name, Date.now() - PHONE.roastAge * 1000);
+    if (typo === null) return '';
+    p.phone.lastRoastAt = now;
+    const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
+    return capitalize(pick(V.roast).replace(/\{rank\}/g, rank)).replace(/\{typo\}/g, typo);
   }
 }

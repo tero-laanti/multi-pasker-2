@@ -225,12 +225,17 @@ export class ServiceDesk {
     };
   }
 
-  /** A kill of someone else: the host's days per kill (3), one more if the victim has a lower TJ than the killer. */
-  onKill(a: ServerPlayer, v: ServerPlayer): void {
+  /**
+   * A kill of someone else: the host's days per kill (3), one more if the victim has a lower TJ
+   * than the killer, one more if they were caught texting (and the asevarasto says so).
+   */
+  onKill(a: ServerPlayer, v: ServerPlayer, caught: boolean): void {
     const senior = v.service.tj < a.service.tj;
-    const days = this.room.settings.killDays + (senior ? SERVICE.seniorDays : 0);
+    const days = this.room.settings.killDays + (senior ? SERVICE.seniorDays : 0) + (caught ? SERVICE.caughtDays : 0);
     const eur = this.serve(a, days, 'kill');
-    if (eur > 0) a.outbox.push({ k: 'pay', eur, days, senior });
+    if (eur <= 0) return;
+    a.outbox.push({ k: 'pay', eur, days, senior, caught });
+    if (caught && !a.bot) this.room.varusmestari.caught(a, v.name, days);
   }
 
   /** Killed by someone else: a day in the veksi counts too. */

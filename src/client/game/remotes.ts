@@ -23,6 +23,8 @@ export class RemotePlayer {
   visible = false;
   /** Where the last shot that hit them came from (for the fall direction). */
   hitFrom: [number, number, number] | null = null;
+  /** Team mode: our partner (no friendly fire: shots and the knife pass them by). */
+  mate = false;
 
   constructor(info: PlayerInfo) {
     this.info = info;
@@ -105,6 +107,7 @@ export class Remotes {
   /** Keeps a RemotePlayer for everyone in the player list except us. */
   syncPlayers(list: PlayerInfo[]): void {
     const ids = new Set<number>();
+    const team = list.find((p) => p.id === this.myId())?.team ?? -1;
     for (const info of list) {
       if (info.id === this.myId()) continue;
       ids.add(info.id);
@@ -113,10 +116,12 @@ export class Remotes {
         rp = new RemotePlayer(info);
         this.players.set(info.id, rp);
         this.group.add(rp.char.object);
-      } else if (rp.info.name !== info.name) {
-        rp.char.setName(info.name);
+      } else {
+        rp.char.setLook(info.name, ACCENTS[info.color % ACCENTS.length]!);
       }
       rp.info = info;
+      rp.mate = team >= 0 && info.team === team;
+      rp.char.setMate(rp.mate);
     }
     for (const [id, rp] of this.players) {
       if (ids.has(id)) continue;
@@ -173,15 +178,16 @@ export class Remotes {
         rp.updateVisibility(dt, this.world, this.tr, eye);
       }
       const dist = Math.hypot(s.x - eye.x, s.y - eye.y, s.z - eye.z);
-      rp.char.updateTag(alive && rp.visible && dist < 70, dist);
+      // Our partner's tag shows wherever they are.
+      rp.char.updateTag(alive && (rp.mate || (rp.visible && dist < 70)), dist);
     }
   }
 
-  /** The nearest remote player on the ray as drawn right now (the shooter-favoured claim). */
+  /** The nearest remote player on the ray as drawn right now (the shooter-favoured claim); a partner is passed by. */
   raycast(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number, maxT: number): ShotHit | null {
     let best: ShotHit | null = null;
     for (const rp of this.players.values()) {
-      if (!rp.present || !rp.alive || (rp.s.flags & PF.PROTECTED) !== 0) continue;
+      if (!rp.present || !rp.alive || rp.mate || (rp.s.flags & PF.PROTECTED) !== 0) continue;
       const s = rp.s;
       const hit = rayPlayer(ox, oy, oz, dx, dy, dz, s.x, s.y, s.z, rp.crouched, best ? best.t : maxT);
       if (hit && (!best || hit.t < best.t)) best = { id: rp.info.id, zone: hit.zone, t: hit.t };
@@ -189,10 +195,10 @@ export class Remotes {
     return best;
   }
 
-  /** Remote players as drawn right now who can be hurt (alive, not spawn-protected): for the knife. */
+  /** Remote players as drawn right now who can be hurt (alive, not spawn-protected, not our partner): for the knife. */
   *bodies(): Generator<{ id: number; x: number; y: number; z: number; crouched: boolean }> {
     for (const rp of this.players.values()) {
-      if (!rp.present || !rp.alive || (rp.s.flags & PF.PROTECTED) !== 0) continue;
+      if (!rp.present || !rp.alive || rp.mate || (rp.s.flags & PF.PROTECTED) !== 0) continue;
       yield { id: rp.info.id, x: rp.s.x, y: rp.s.y, z: rp.s.z, crouched: rp.crouched };
     }
   }

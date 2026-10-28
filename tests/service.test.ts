@@ -144,7 +144,7 @@ describe('the service', () => {
     expect(a!.p.service.days).toBe(3);
     expect(a!.p.service.money).toBe(15);
     expect(a!.p.service.tj).toBe(344);
-    expect(a!.ws.events().find((e) => e.k === 'pay')).toEqual({ k: 'pay', eur: 15, days: 3, senior: false });
+    expect(a!.ws.events().find((e) => e.k === 'pay')).toEqual({ k: 'pay', eur: 15, days: 3, senior: false, caught: false });
     expect(b!.p.service.days).toBe(1);
     expect(b!.p.service.money).toBe(5);
   });
@@ -169,6 +169,39 @@ describe('the service', () => {
     a!.p.service.days = before;
     kill(b!.p, a!.p);
     expect(b!.p.service.days).toBe(before + SERVICE.killDays);
+  });
+
+  it('a kill of someone caught texting serves a day more, with a phone in the feed and a word from the asevarasto', () => {
+    const { all, kill, texts, room, clock, run } = setup();
+    const [a, b, c] = all;
+    // The welcome read, and no rifle paperwork to fill the asevarasto chat first.
+    a!.p.service.give('rifle');
+    run(100);
+    room.onPhoneMessage(b!.p, { t: 'out', on: true });
+    kill(a!.p, b!.p);
+    expect(a!.p.service.days).toBe(SERVICE.killDays + SERVICE.caughtDays);
+    expect(a!.ws.events().find((e) => e.k === 'pay')).toMatchObject({ days: 4, senior: false, caught: true });
+    expect(c!.ws.events().find((e) => e.k === 'kill')).toMatchObject({ a: a!.p.id, v: b!.p.id, phone: true });
+    const said = V.caught.map((l) => l.replace(/\{days\}/g, '4').replace(/\{tj\}/g, String(SERVICE.days - 4)).replace(/\{name\}/g, 'P1'));
+    const caughtTexts = () => texts(a!.phone, V.number).filter((m) => said.includes(m.text ?? '')).length;
+    expect(caughtTexts()).toBe(1);
+    // With a lower TJ as well, both extras count; the asevarasto doesn't say it again this soon.
+    room.onPhoneMessage(c!.p, { t: 'out', on: true });
+    c!.p.service.days = 10;
+    const before = texts(a!.phone, V.number).length;
+    kill(a!.p, c!.p);
+    expect(a!.ws.events().filter((e) => e.k === 'pay').pop()).toMatchObject({ days: 5, senior: true, caught: true });
+    expect(texts(a!.phone, V.number).length).toBe(before);
+    clock.advance(SERVICE.caughtTextGap * 1000);
+    run(100);
+    // A chat put away in time is a plain kill.
+    room.onPhoneMessage(b!.p, { t: 'out', on: false });
+    b!.p.service.days = 0;
+    a!.p.service.days = 0;
+    expect(b!.p.alive).toBe(true);
+    kill(a!.p, b!.p);
+    expect(a!.ws.events().filter((e) => e.k === 'pay').pop()).toMatchObject({ days: 3, caught: false });
+    expect(caughtTexts()).toBe(1);
   });
 
   it('the first kill brings the rifle as paperwork; it stays for the rest of the evening', () => {

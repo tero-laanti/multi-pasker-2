@@ -8,7 +8,7 @@ import type { Upgrades } from './upgrades';
  * binary; everything else is JSON. Times are server milliseconds since the server started.
  */
 
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 export const BIN = { STATE: 1, SNAPSHOT: 2 } as const;
 
@@ -185,8 +185,10 @@ export function decodeSnapshot(buf: ArrayBuffer | DataView): Snapshot | null {
 export interface PlayerInfo {
   id: number;
   name: string;
-  /** Accent colour index into the palette. */
+  /** Accent colour index into the palette (in team mode the team's colour). */
   color: number;
+  /** Team mode: the pair this player is in (-1: free-for-all, or not in the match). */
+  team: number;
   bot: boolean;
   kills: number;
   deaths: number;
@@ -219,15 +221,20 @@ export interface ShotClaim {
 export interface MatchSettings {
   rounds: number;
   roundMinutes: number;
-  /** Days a kill serves (a death serves 1, a kill of a higher rank 2 more). */
+  /** Days a kill serves (a death serves 1; a victim with a lower TJ, or caught texting, 1 more each). */
   killDays: number;
   /** Bots to keep in the match (they make room for people). */
   bots: number;
   killSpeed: KillSpeedPreset;
+  /**
+   * Team mode: pairs drawn at random for each match (with an odd number the host plays alone).
+   * No friendly fire, and a pair's kills count together.
+   */
+  teams: boolean;
 }
 
 export function defaultSettings(bots = 0): MatchSettings {
-  return { rounds: MATCH.rounds, roundMinutes: MATCH.roundMinutes, killDays: SERVICE.killDays, bots, killSpeed: 'cod' };
+  return { rounds: MATCH.rounds, roundMinutes: MATCH.roundMinutes, killDays: SERVICE.killDays, bots, killSpeed: 'cod', teams: false };
 }
 
 /** Settings from the host (or a file) made safe: only the offered choices, the rest as they were. */
@@ -240,6 +247,7 @@ export function cleanSettings(raw: Partial<MatchSettings> | undefined, base: Mat
     killDays: pick(r.killDays, MATCH.killDayChoices, base.killDays),
     bots: typeof r.bots === 'number' && Number.isInteger(r.bots) ? Math.max(0, Math.min(MATCH.maxPlayers - 1, r.bots)) : base.bots,
     killSpeed: r.killSpeed === 'cod' || r.killSpeed === 'scramble' ? r.killSpeed : base.killSpeed,
+    teams: typeof r.teams === 'boolean' ? r.teams : base.teams,
   };
 }
 
@@ -307,7 +315,8 @@ export interface RoundInfo {
 export type GameEvent =
   | { k: 'shot'; p: number; w: WeaponId; o: [number, number, number]; e: [number, number, number]; n?: [number, number, number]; s?: number; hp?: number }
   | { k: 'hit'; a: number; v: number; dmg: number; hp: number; z: HitZone; from: [number, number, number] }
-  | { k: 'kill'; a: number; v: number; w: KillWeapon; head: boolean; draft?: string }
+  /** `phone`: the victim had a chat open (caught texting); `draft`: what they were typing. */
+  | { k: 'kill'; a: number; v: number; w: KillWeapon; head: boolean; phone?: boolean; draft?: string }
   | { k: 'spawn'; p: number; x: number; y: number; z: number; yaw: number; ammo: Record<WeaponId, number>; reserve: Record<WeaponId, number>; weapons: WeaponId[] }
   /** Authoritative magazine count after the shooter's fire message `seq` (if any). */
   /** `n`: rounds in the magazine, `r`: spare rounds. */
@@ -332,8 +341,11 @@ export type GameEvent =
   | { k: 'upgrades'; u: Upgrades; id?: string }
   /** Our service, for the HUD: rank, days left, and paperwork open on the phone (and queued). */
   | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number }
-  /** Our kill paid: days served and the päiväraha for them (`senior`: the victim outranked us). */
-  | { k: 'pay'; eur: number; days: number; senior: boolean }
+  /**
+   * Our kill paid: days served and the päiväraha for them (`senior`: the victim had a lower TJ,
+   * `caught`: the victim was texting).
+   */
+  | { k: 'pay'; eur: number; days: number; senior: boolean; caught: boolean }
   /** Our recon drone is up: every enemy on the minimap until this server time. */
   | { k: 'drone'; until: number }
   /** Mortar rounds on their way: they land here at server time `at` (everyone hears them come). */

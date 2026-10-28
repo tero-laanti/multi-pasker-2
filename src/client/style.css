@@ -1040,6 +1040,20 @@ input[type='range'] {
 .round-timer.urgent .round-time {
   color: var(--danger);
 }
+/* Team mode: who we are paired with, beside the timer, in the pair's colour. */
+.team-line {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 12px;
+  border-left: 5px solid var(--accent);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.32);
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .scoreboard {
   position: absolute;
   top: 50%;
@@ -1090,6 +1104,19 @@ input[type='range'] {
 }
 .sb-row.me {
   background: rgba(226, 178, 31, 0.16);
+}
+/* Team mode: a column for the pair's kills together, and the pair's rows joined. */
+.sb-table.teams .sb-row {
+  grid-template-columns: 34px 1fr 100px 64px 64px 56px 64px;
+}
+.sb-row.side-first {
+  border-top-color: rgba(241, 238, 228, 0.18);
+}
+.sb-row.side-next {
+  border-top-color: transparent;
+}
+.sb-num.team {
+  font-weight: 700;
 }
 .sb-row.away {
   opacity: 0.5;
@@ -1337,6 +1364,10 @@ input[type='range'] {
 .feed-typing {
   color: var(--fg-dim);
   font-size: 16px;
+}
+.feed-phone {
+  margin-left: 7px;
+  font-size: 15px;
 }
 .feed-draft {
   font-style: italic;

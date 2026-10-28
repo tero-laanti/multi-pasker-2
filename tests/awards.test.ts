@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PHONE } from '../src/shared/config';
 import { FI } from '../src/shared/fi';
 import { MapBuilder } from '../src/shared/map/builder';
 import { PROTOCOL_VERSION, type GameEvent, type ServerMsg } from '../src/shared/protocol';
@@ -97,5 +98,22 @@ describe('the evening', () => {
     const reread = new Evening(eveningFile(file));
     expect(reread.matches()).toEqual([]);
     expect(reread.settings?.rounds).toBe(1);
+  });
+
+  it('remembers the asevarasto’s typos all evening, over a restart; each is quoted back once', () => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'pasker-')), 'evening.json');
+    const evening = new Evening(eveningFile(file));
+    for (let i = 0; i < PHONE.roastKeep + 2; i++) evening.addTypo('Aapo', `LATAA${'A'.repeat(i)}`, 1000 + i);
+    evening.addTypo('Bertta', 'kranaati', 5000);
+    const again = new Evening(eveningFile(file));
+    expect(again.typos('Aapo').length).toBe(PHONE.roastKeep);
+    expect(again.typos('Aapo')[0]!.text).toBe('LATAAAA');
+    // The latest from before the time given.
+    expect(again.takeTypo('Aapo', 1000 + 4)).toBe('LATAAAA' + 'A'.repeat(2));
+    expect(again.takeTypo('Bertta', 4999)).toBeNull();
+    expect(again.takeTypo('Bertta', 5000)).toBe('kranaati');
+    expect(again.takeTypo('Bertta', 9999)).toBeNull();
+    again.reset();
+    expect(new Evening(eveningFile(file)).typos('Aapo')).toEqual([]);
   });
 });

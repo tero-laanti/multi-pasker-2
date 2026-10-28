@@ -45,6 +45,14 @@ function randomBetween([a, b]: readonly [number, number]): number {
   return a + Math.random() * (b - a);
 }
 
+function shuffle<T>(list: T[]): T[] {
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j]!, list[i]!];
+  }
+  return list;
+}
+
 /** A round and the break after it with the default settings (the host can change the round). */
 export const ROUND_TIME = MATCH.roundMinutes * 60_000;
 export const INTERMISSION = MATCH.intermission * 1000;
@@ -131,17 +139,70 @@ export class Room {
   }
 
   /**
-   * The host changed the match settings: kill speed, days per kill and bots apply now, the round
-   * length from the next round, and a match with fewer rounds ends after the current one.
+   * The host changed the match settings: kill speed, days per kill, bots and team mode apply now
+   * (switching to pairs draws them at once), the round length from the next round, and a match
+   * with fewer rounds ends after the current one.
    */
   setSettings(raw: Partial<MatchSettings>): void {
+    const teams = this.settings.teams;
     this.settings = cleanSettings(raw, this.settings);
     this.killSpeed = this.settings.killSpeed;
     this.round = { ...this.round, of: this.settings.rounds };
     this.fitBots();
+    if (this.settings.teams !== teams) this.fitTeams(true);
     this.evening.settings = this.settings;
     this.broadcast({ t: 'settings', s: this.settings });
     this.emit({ k: 'round', round: this.round });
+    this.broadcastPlayers();
+  }
+
+  /** On the same team (team mode): no friendly fire, and each other's partner on the map. */
+  mates(a: ServerPlayer, b: ServerPlayer): boolean {
+    return a !== b && a.team >= 0 && a.team === b.team;
+  }
+
+  /** In the draw for the pairs: bots, and people not on the range (a dropped connection keeps its place until it is dropped). */
+  private inMatch(p: ServerPlayer): boolean {
+    return p.bot || !p.training;
+  }
+
+  /**
+   * Team mode: everyone in the match in a pair, drawn at random (`redraw`: all over again, as for
+   * a new match). Whoever is new or has lost their partner goes into the draw, and pairs keep
+   * their colour; with an odd number the host plays alone. In free-for-all nobody has a team.
+   */
+  private fitTeams(redraw = false): void {
+    const all = [...this.players.values()];
+    const members = this.settings.teams ? all.filter((p) => this.inMatch(p)) : [];
+    for (const p of all) if (redraw || !members.includes(p)) p.team = -1;
+    if (!members.length) return;
+    const size = new Map<number, number>();
+    for (const p of members) if (p.team >= 0) size.set(p.team, (size.get(p.team) ?? 0) + 1);
+    const pool = members.filter((p) => size.get(p.team) !== 2);
+    // The host: someone at the server machine, connected (several only while testing on it).
+    const host = members.filter((p) => p.isHost && !p.bot).sort((a, b) => Number(b.connected) - Number(a.connected) || a.id - b.id)[0];
+    const alone = members.length % 2 === 1 ? host : undefined;
+    if (alone && size.get(alone.team) === 2) {
+      // Out of their pair: the partner goes into the draw.
+      for (const p of members) if (p.team === alone.team && p !== alone) pool.push(p);
+      alone.team = -1;
+    }
+    const draw = shuffle(pool.filter((p) => p !== alone));
+    const taken = new Set(members.filter((p) => !draw.includes(p) && p.team >= 0).map((p) => p.team));
+    const free = () => {
+      let t = 0;
+      while (taken.has(t)) t++;
+      return t;
+    };
+    // Someone already in a team goes first, so their colour stays when they get a partner.
+    draw.sort((a, b) => Number(b.team >= 0) - Number(a.team >= 0));
+    for (let i = 0; i < draw.length; i += 2) {
+      const pair = draw.slice(i, i + 2);
+      const t = pair.map((p) => p.team).find((x) => x >= 0 && !taken.has(x)) ?? free();
+      taken.add(t);
+      for (const p of pair) p.team = t;
+    }
+    if (alone && alone.team < 0) alone.team = free();
   }
 
   /** As many bots as the settings ask for, as long as there is room (people come first). */
@@ -179,6 +240,7 @@ export class Room {
         p.reload = null;
       } else p.training = false;
       this.settleInventory(p);
+      this.fitTeams();
       if (!p.alive && !p.training && this.round.state === 'playing') this.respawn(p);
       this.emit({ k: 'join', p: p.id, name: p.name });
     } else {
@@ -199,6 +261,7 @@ export class Room {
       this.settleInventory(p);
       this.chirps(p);
       this.players.set(p.id, p);
+      this.fitTeams();
       if (!p.training) this.respawn(p);
       this.updateGate();
       this.emit({ k: 'join', p: p.id, name: p.name });
@@ -451,6 +514,7 @@ export class Room {
     this.players.set(p.id, p);
     const bot = new Bot(p, this);
     this.bots.push(bot);
+    this.fitTeams();
     this.respawn(p);
     this.updateGate();
     this.emit({ k: 'join', p: p.id, name: p.name });
@@ -462,6 +526,7 @@ export class Room {
     const bot = this.bots.pop();
     if (!bot) return;
     this.players.delete(bot.p.id);
+    this.fitTeams();
     this.emit({ k: 'leave', p: bot.p.id, name: bot.p.name });
     this.broadcastPlayers();
   }
@@ -481,10 +546,15 @@ export class Room {
   /** The match is over: awards for the whole match, and its winner goes on the evening's list. */
   private endMatch(): void {
     const players = [...this.players.values()].filter((p) => !p.training);
-    const list = matchAwards(players);
+    const list = matchAwards(players, this.settings.teams);
     this.emit({ k: 'awards', list });
     const winner = list.find((a) => a.id === 'winner');
-    if (winner) this.evening.addMatch({ match: this.round.match, winner: winner.playerName, kills: Number(winner.value), bot: !!this.players.get(winner.player)?.bot });
+    if (winner) {
+      // A pair's win is a bot's only if both of them were bots.
+      const w = this.players.get(winner.player);
+      const side = w && w.team >= 0 ? players.filter((p) => p.team === w.team) : w ? [w] : [];
+      this.evening.addMatch({ match: this.round.match, winner: winner.playerName, kills: Number(winner.value), bot: side.length > 0 && side.every((p) => p.bot) });
+    }
     this.broadcast({ t: 'evening', matches: this.evening.matches() });
   }
 
@@ -531,7 +601,9 @@ export class Room {
 
   chooseSpawn(p: ServerPlayer): SpawnPoint {
     const spawns = this.map.spawns.filter((s) => this.round.gateOpen || !s.outer);
-    const enemies = [...this.players.values()].filter((e) => e !== p && e.alive);
+    const others = [...this.players.values()].filter((e) => e !== p && e.alive);
+    const enemies = others.filter((e) => !this.mates(p, e));
+    const mate = others.find((e) => this.mates(p, e));
     let best = spawns[0]!;
     let bestScore = -Infinity;
     for (const s of spawns) {
@@ -545,7 +617,9 @@ export class Room {
           if (this.tr.fraction >= 0.999) seen = true;
         }
       }
-      const score = (seen ? -1000 : 0) + minDist + Math.random() * 6;
+      // Team mode: somewhat nearer the partner, if they are up.
+      const near = mate ? Math.max(0, 30 - Math.hypot(mate.x - s.x, mate.z - s.z)) * 0.6 : 0;
+      const score = (seen ? -1000 : 0) + minDist + near + Math.random() * 6;
       if (score > bestScore) {
         bestScore = score;
         best = s;
@@ -797,6 +871,7 @@ export class Room {
     p.training = false;
     this.settleInventory(p);
     if (this.activeCount() > 16 && this.bots.length > 0) this.removeBot();
+    this.fitTeams();
     if (this.round.state === 'playing') this.respawn(p);
     this.updateGate();
     this.broadcastPlayers();
@@ -906,7 +981,8 @@ export class Room {
     let dist = wallDist;
     if (claim) {
       const target = this.players.get(claim.p);
-      if (target && target !== p && target.alive && now >= target.protectedUntil) {
+      // A shot passes a partner by (no friendly fire).
+      if (target && target !== p && !this.mates(p, target) && target.alive && now >= target.protectedUntil) {
         const t = Math.max(now - NET.maxRewind * 1000, Math.min(now, rt));
         const h = target.history.at(t);
         if (h && h.alive) {
@@ -954,7 +1030,7 @@ export class Room {
     const dl = Math.hypot(d[0], d[1], d[2]) || 1;
     const dir: [number, number, number] = [d[0] / dl, d[1] / dl, d[2] / dl];
     const v = target === undefined ? undefined : this.players.get(target);
-    if (!v || v === p || !v.alive || now < v.protectedUntil) return;
+    if (!v || v === p || this.mates(p, v) || !v.alive || now < v.protectedUntil) return;
     const h = v.history.at(Math.max(now - NET.maxRewind * 1000, Math.min(now, rt)));
     if (!h || !h.alive || !meleeReaches([ox, oy, oz], dir, h, 0.35)) return;
     // Nothing solid between the blade and the body.
@@ -979,6 +1055,8 @@ export class Room {
   damage(v: ServerPlayer, a: ServerPlayer | null, amount: number, zone: HitZone, w: KillWeapon, from: [number, number, number]): void {
     // Between rounds (and over the match's results) nobody gets hurt: the scores stand.
     if (!v.alive || amount <= 0 || this.round.state !== 'playing') return;
+    // Team mode: no friendly fire (your own grenade still gets you).
+    if (a && this.mates(a, v)) return;
     const now = this.now();
     if (now < v.protectedUntil) return;
     v.hp = Math.max(0, v.hp - amount);
@@ -998,10 +1076,12 @@ export class Room {
     v.deaths++;
     v.reload = null;
     v.grenades = 0;
+    // Killed with a chat open: caught texting, which serves the killer a day more.
+    const caught = this.texting(v);
     if (a && a !== v) {
       a.kills++;
       // The service counts kills and deaths at someone else's hand.
-      this.service.onKill(a, v);
+      this.service.onKill(a, v, caught);
       this.service.onDeath(v);
     }
     const now = this.now();
@@ -1019,6 +1099,7 @@ export class Room {
       v.phone.draft = null;
     }
     const ev: GameEvent = { k: 'kill', a: a?.id ?? 0, v: v.id, w, head };
+    if (caught) ev.phone = true;
     if (typing) ev.draft = typing;
     this.emit(ev);
     this.broadcastPlayers();
@@ -1163,6 +1244,8 @@ export class Room {
     };
     if (newMatch) this.evening.clearServices();
     this.fitBots();
+    // Pairs are drawn anew for each match; within one, whoever lost a partner gets a new one.
+    this.fitTeams(newMatch);
     this.service.resetRound();
     this.setGate(this.round.gateOpen);
     this.grenades = [];
@@ -1296,13 +1379,18 @@ export class Room {
     this.tickMs = performance.now() - t0;
   }
 
+  /** A chat open on a phone that is there (a bot's pretend one counts): the character holds it. */
+  private texting(p: ServerPlayer): boolean {
+    return p.phone.out && (p.phone.online || p.bot);
+  }
+
   private snapFlags(p: ServerPlayer, now: number): number {
     let f = p.flags & ~(PF.ALIVE | PF.PROTECTED | PF.RELOAD | PF.BOT);
     if (p.alive) f |= PF.ALIVE;
     if (now < p.protectedUntil) f |= PF.PROTECTED;
     if (p.reload && now < p.reload.end) f |= PF.RELOAD;
     if (p.bot) f |= PF.BOT;
-    if (p.alive && p.phone.out && (p.phone.online || p.bot)) f |= PF.PHONE;
+    if (p.alive && this.texting(p)) f |= PF.PHONE;
     if (p.alive && now < p.meleeUntil) f |= PF.MELEE;
     return f;
   }

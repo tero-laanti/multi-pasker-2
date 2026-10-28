@@ -139,6 +139,10 @@ Ammo and grenades come from the armourer, *varusmestari*, by text message from y
    punctuation don't matter; anything else gets a reply from the armourer, and typos, swearing
    and chatter are shown to everyone.
 
+The armourer never forgets a typo: your mistyped commands (and other short nonsense) are kept all
+evening, over matches and server restarts, and now and then a LATAA or KRANAATTI comes back with
+an old one quoted (*Muistan sinut, alokas. Viimeksi kirjoitit ”LATAAA”.*), each one only once.
+
 **Inventory checks** (*inventaario*): now and then (never in your first minute in the match) the
 company's **Vääpeli** texts a question about your own kit or the round, in a chat of his own:
 rounds in your magazine or spare, grenades, your kills or deaths, or how many soldiers are on the
@@ -176,20 +180,34 @@ between rounds and the match's results after the last one. Everything lasts one 
 money, gear, kills, deaths and awards. The next match starts everyone again at TJ 347 with a
 pistol. The scoreboard counts kills and deaths over the match and shows everyone's TJ, and its
 winner is whoever has the most kills (then the fewest deaths). Nobody gets hurt between rounds,
-so the scores stand.
+so the scores stand. The range officer calls the rounds: *Tulitauko!* as a round ends and *Tuli
+vapaa!* as the next one starts (the range's own recordings).
 
 The host sets the match in the pause menu (*Match settings*, shown only on the host): rounds per
-match, round length, how many days a kill serves, the number of bots and the kill speed. Changes
-apply at once (the round length from the next round), and *Start a new match now* restarts. The
+match, round length, how many days a kill serves, the number of bots, the kill speed and the mode
+(free-for-all or pairs). Changes apply at once (the round length from the next round), and *Start a
+new match now* restarts. The
 settings and who won each match tonight are saved in `data/evening.json`, with the services of the
 match under way, so restarting the server keeps them.
+
+**Pairs** (*Mode: Pairs (2v2v2…)*): the pairs are drawn at random for each match, and with an odd
+number the host plays alone. A pair wears the same colour (beret, arm bands, name tag, kill feed and
+scoreboard), sees the partner's name tag through walls and as a ringed dot on the minimap, and
+can't hurt each other (your own grenade still gets you; shots and the knife pass a partner by).
+Spawns lean towards a living partner. A line beside the round timer says who you are paired with.
+The scoreboard lists the pairs by their kills together (the *Total kills* column), and the match goes
+to the pair with the most. Someone who joins or comes off the range mid-match pairs up with whoever is
+alone (when that makes the number odd, the host's partner gets the newcomer and the host goes on
+alone); someone who leaves keeps their place until they are dropped at the next round.
 
 ## The service and the Sotku App
 
 Your service lasts the match: TJ counts down from 347, kept by name over rounds, a rejoin and a
 server restart. A kill serves 3 days (the host can change it), being killed by someone
-else 1 (a day in the veksi counts too), and killing someone with a lower TJ than yours (further
-into their service) 1 more. Every day
+else 1 (a day in the veksi counts too), killing someone with a lower TJ than yours (further
+into their service) 1 more, and catching someone texting (a chat open on their phone) 1 more:
+the kill feed shows a 📱 by their name, and now and then the armourer texts you about it
+(*Ammuit jonkun kesken lauseen. Tehokasta.*). Every day
 served pays the päiväraha: 5 € a day for days 1–165, 10 € for days 166–255 and 15 € after that,
 3,105 € for the whole service. The money shows only on the phone; the game shows what a kill paid
 under the kill confirmation.
@@ -324,7 +342,7 @@ machine that deployed (not in git), so deploy from that machine.
 | WASD | move |
 | Mouse | look |
 | Left mouse | fire |
-| Right mouse | aim down sights |
+| Right mouse | aim down sights (hold by default; *Right click toggles aiming* in the settings: a click aims, the next lets go, and Shift to sprint ends it) |
 | Shift | sprint |
 | Space | jump (a small ledge assist lets you climb ledges just above jump height) |
 | C | crouch (toggle by default, hold in settings) |
@@ -448,7 +466,9 @@ desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / re
 commander's text, paperwork typed on its keyboard, a path's tree, buying, autofill, the sniper
 rifle's scope), `tools/e2e/tutorial-flow.ts` runs the
 training from the first step to the match, once with a phone and once with the virtual phone, and
-`tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out.
+`tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out,
+and `tools/e2e/teams-flow.ts` plays pairs from the host's seat (the host alone with an odd number,
+the pair line, the scoreboard by pairs, the round calls and the aiming toggle).
 
 ### Measured performance
 

@@ -1,7 +1,7 @@
 import type { Socket } from '../socket';
 import { TUNING, type WeaponId } from '../../shared/config';
 import { PositionHistory } from '../../shared/history';
-import { WEAPON_IDS, type GameEvent, type PlayerInfo, type PhoneStatus } from '../../shared/protocol';
+import { ACCENTS, WEAPON_IDS, type GameEvent, type PlayerInfo, type PhoneStatus } from '../../shared/protocol';
 import { Phone } from './phone';
 import { Service } from './service';
 import { maxGrenades, weaponStats } from '../../shared/upgrades';
@@ -72,6 +72,8 @@ export class ServerPlayer {
   leftAt = 0;
   /** Connected from the server machine itself: allowed to use dev commands. */
   isHost = false;
+  /** Team mode: the pair this player is in this match (-1: free-for-all, or not in the match). */
+  team = -1;
   /** On the shooting range (the tutorial): connected, but not in the match. */
   training = false;
   /** The tutorial's radio check: armed when the phone is picked up, sent once one is paired. */
@@ -119,7 +121,9 @@ export class ServerPlayer {
     return {
       id: this.id,
       name: this.name,
-      color: this.color,
+      // A pair wears its team's colour.
+      color: this.team >= 0 ? this.team % ACCENTS.length : this.color,
+      team: this.team,
       bot: this.bot,
       kills: this.kills,
       deaths: this.deaths,

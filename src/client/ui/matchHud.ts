@@ -33,6 +33,27 @@ interface FeedLine {
   t: number;
 }
 
+/**
+ * Team mode's pairs (a lone host is a side of one), ranked like players: kills together, then
+ * fewer deaths, then the names; null in free-for-all. Players on the range are in no side and
+ * come last.
+ */
+export function teamSides(players: PlayerInfo[]): { team: number; members: PlayerInfo[]; kills: number; deaths: number; name: string }[] | null {
+  if (!players.some((p) => p.team >= 0)) return null;
+  const byScore = (a: PlayerInfo, b: PlayerInfo) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name);
+  const by = new Map<number, PlayerInfo[]>();
+  for (const p of players) {
+    const key = p.team >= 0 ? p.team : -1 - p.id;
+    by.set(key, [...(by.get(key) ?? []), p]);
+  }
+  return [...by.entries()]
+    .map(([team, list]) => {
+      const members = list.sort(byScore);
+      return { team, members, kills: members.reduce((n, p) => n + p.kills, 0), deaths: members.reduce((n, p) => n + p.deaths, 0), name: members.map((p) => p.name).join(' & ') };
+    })
+    .sort((a, b) => Number(a.team < 0) - Number(b.team < 0) || b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
+}
+
 /** Match HUD: health, damage direction, kill feed, round timer, minimap, scoreboard and death screen. */
 export class MatchHud {
   readonly root: HTMLDivElement;
@@ -46,6 +67,7 @@ export class MatchHud {
   private timer: HTMLDivElement;
   private timerRound: HTMLDivElement;
   private timerText: HTMLDivElement;
+  private teamLine: HTMLDivElement;
   private ladderLine: HTMLDivElement;
   private inventoryLine: HTMLDivElement;
   private taskLine: HTMLDivElement;
@@ -95,6 +117,7 @@ export class MatchHud {
     this.timer = el('div', 'round-timer', this.root);
     this.timerRound = el('div', 'round-n', this.timer);
     this.timerText = el('div', 'round-time', this.timer);
+    this.teamLine = el('div', 'team-line hidden', this.timer);
     this.ladderLine = el('div', 'ladder-line', this.root);
     this.taskLine = el('div', 'task-line', this.ladderLine);
     this.inventoryLine = el('div', 'inventory-line hidden', this.root);
@@ -136,8 +159,11 @@ export class MatchHud {
     if (this.damageDirs.length > 6) this.damageDirs.shift()!.node.remove();
   }
 
-  /** Kill feed line; `draft` is what the victim was typing on their phone when they died. */
-  kill(killer: PlayerInfo | undefined, victim: PlayerInfo | undefined, weapon: string, head: boolean, myId: number, draft?: string): void {
+  /**
+   * Kill feed line; `draft` is what the victim was typing on their phone when they died, `phone`
+   * that they had a chat open (caught texting).
+   */
+  kill(killer: PlayerInfo | undefined, victim: PlayerInfo | undefined, weapon: string, head: boolean, myId: number, draft?: string, phone = false): void {
     const line = el('div', 'feed-line', this.feed);
     if (killer?.id === myId || victim?.id === myId) line.classList.add('mine');
     const name = (p: PlayerInfo | undefined) => {
@@ -155,6 +181,7 @@ export class MatchHud {
       name(victim);
       el('span', 'feed-weapon', line, UI.hud.selfKill);
     }
+    if (phone) el('span', 'feed-phone', line, '📱').title = UI.hud.caughtTexting;
     if (draft) {
       el('span', 'feed-typing', line, ` — ${UI.hud.wasTyping} `);
       el('span', 'feed-draft', line, `‘${draft}’`);
@@ -222,6 +249,15 @@ export class MatchHud {
     this.phoneLine.classList.toggle('out', out);
   }
 
+  /** Team mode: who we are paired with (in the pair's colour), or that we play alone; null in free-for-all. */
+  team(t: { color: string; names: string[] } | null): void {
+    const text = !t ? '' : t.names.length ? fill(UI.hud.pairedWith, { name: t.names.join(' & ') }) : UI.hud.playingAlone;
+    if (!this.changed('team', `${text}${t?.color ?? ''}`)) return;
+    this.teamLine.textContent = text;
+    this.teamLine.style.setProperty('--accent', t?.color ?? 'transparent');
+    this.teamLine.classList.toggle('hidden', !t);
+  }
+
   notice(text: string): void {
     this.push(el('div', 'feed-line notice', this.feed, text));
   }
@@ -284,11 +320,13 @@ export class MatchHud {
     this.boardVisible = show;
     this.board.classList.toggle('hidden', !show);
     if (!show) return;
-    const sorted = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name));
+    const byScore = (a: PlayerInfo, b: PlayerInfo) => b.kills - a.kills || a.deaths - b.deaths || a.name.localeCompare(b.name);
+    const sides = teamSides(players);
+    const sorted = sides ? sides.flatMap((s) => s.members) : [...players].sort(byScore);
     const ended = round?.state === 'ended';
     const results = ended && !!round?.matchOver;
     const key = JSON.stringify([
-      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.tj, p.ping, p.connected, p.phone, p.rank, p.training, p.star]),
+      sorted.map((p) => [p.id, p.name, p.kills, p.deaths, p.tj, p.ping, p.connected, p.phone, p.rank, p.training, p.star, p.team, p.color]),
       ended,
       round?.n,
       round?.of,
@@ -308,21 +346,30 @@ export class MatchHud {
     el('div', 'sb-title', head, results ? UI.hud.matchOver : ended && round ? fill(UI.hud.roundOver, { n: round.round, of: round.of }) : UI.scoreboard.title);
     if (round) this.boardRound = el('div', 'sb-round', head, roundLine);
     // The match's winner is the server's (its awards); between rounds, whoever leads now.
-    const winner = results ? awards.find((a) => a.id === 'winner')?.playerName : sorted[0] && sorted[0].kills > 0 ? sorted[0].name : undefined;
-    if (ended && winner) el('div', 'sb-winner', main, fill(results ? UI.hud.matchWinner : UI.hud.leading, { name: winner }));
-    const table = el('div', 'sb-table', main);
+    const leader = sides?.[0] && sides[0].team >= 0 && sides[0].kills > 0 ? sides[0] : null;
+    const winner = results ? awards.find((a) => a.id === 'winner')?.playerName : sides ? leader?.name : sorted[0] && sorted[0].kills > 0 ? sorted[0].name : undefined;
+    // A pair's names take the plural ("Aapo & Bertta win").
+    const pair = sides ? winner?.includes(' & ') : false;
+    if (ended && winner) el('div', 'sb-winner', main, fill(results ? (pair ? UI.hud.matchWinners : UI.hud.matchWinner) : pair ? UI.hud.leadingPair : UI.hud.leading, { name: winner }));
+    const table = el('div', `sb-table${sides ? ' teams' : ''}`, main);
     const row = (cls: string) => el('div', `sb-row ${cls}`, table);
     const h = row('sb-cols');
     el('div', 'sb-rank', h, '#');
     el('div', 'sb-name', h, UI.scoreboard.name);
+    if (sides) el('div', 'sb-num', h, UI.scoreboard.totalKills);
     el('div', 'sb-num', h, UI.scoreboard.kills);
     el('div', 'sb-num', h, UI.scoreboard.deaths);
     el('div', 'sb-num', h, UI.scoreboard.tj);
     el('div', 'sb-num', h, UI.scoreboard.ping);
+    // In team mode the place and the pair's kills together go on the pair's first row.
+    const sideOf = new Map<number, { place: string; kills: string; first: boolean }>();
+    sides?.forEach((s, i) => s.members.forEach((p, j) => sideOf.set(p.id, { place: s.team >= 0 ? String(i + 1) : '', kills: s.team >= 0 ? String(s.kills) : '', first: j === 0 })));
     sorted.forEach((p, i) => {
       const r = row(p.id === myId ? 'me' : '');
       if (!p.connected && !p.bot) r.classList.add('away');
-      el('div', 'sb-rank', r, String(i + 1));
+      const side = sideOf.get(p.id);
+      if (side) r.classList.add(side.first ? 'side-first' : 'side-next');
+      el('div', 'sb-rank', r, side ? (side.first ? side.place : '') : String(i + 1));
       const n = el('div', 'sb-name', r);
       const chip = el('span', 'sb-chip', n);
       chip.style.background = accentOf(p);
@@ -336,6 +383,7 @@ export class MatchHud {
       if (p.id === myId) el('span', 'sb-tag you', n, UI.scoreboard.you);
       if (!p.connected && !p.bot) el('span', 'sb-tag', n, UI.scoreboard.away);
       else if (p.training) el('span', 'sb-tag', n, UI.scoreboard.training);
+      if (sides) el('div', 'sb-num team', r, side?.first ? side.kills : '');
       el('div', 'sb-num', r, String(p.kills));
       el('div', 'sb-num', r, String(p.deaths));
       el('div', 'sb-num', r, String(p.tj));
@@ -353,7 +401,8 @@ export class MatchHud {
         const chip = el('span', 'sb-chip', who);
         chip.style.background = accentOf(byId.get(a.player));
         el('span', '', who, a.playerName);
-        const text = (a.value === '1' && UI.awards[`${a.id}1`]) || UI.awards[a.id] || '';
+        const id = a.id === 'winner' && a.playerName.includes(' & ') ? 'winnerPair' : a.id;
+        const text = (a.value === '1' && UI.awards[`${id}1`]) || UI.awards[id] || '';
         el('div', 'award-what', row, fill(text, { v: a.value }));
       }
     }

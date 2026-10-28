@@ -345,6 +345,17 @@ export const PHONE = {
   typingMax: 2.6,
   /** Drafts and touch activity are streamed at most this often (s). */
   streamInterval: 0.25,
+  /**
+   * The typo roast: the asevarasto keeps a player's latest typos (mistyped commands, short
+   * nonsense) all evening and now and then quotes one back with a service. How many it keeps,
+   * the longest worth quoting (chars), how old one must be first (s), the chance a service
+   * comes with one, and the least time between two (s).
+   */
+  roastKeep: 8,
+  roastLength: 30,
+  roastAge: 120,
+  roastChance: 0.3,
+  roastGap: 180,
 };
 
 /** The armourer's surprise inventory checks: a question about your own kit, answered by phone. */
@@ -366,10 +377,16 @@ export const INVENTORY = {
 export const SERVICE = {
   /** Days in the service: TJ at the start. */
   days: 347,
-  /** Days served for a kill, for being killed by someone else, and extra when the victim has a lower TJ than the killer. */
+  /**
+   * Days served for a kill, for being killed by someone else, extra when the victim has a lower
+   * TJ than the killer, and extra when the victim was caught texting (killed with a chat open).
+   */
   killDays: 3,
   deathDays: 1,
   seniorDays: 1,
+  caughtDays: 1,
+  /** The asevarasto texts a killer about someone caught texting at most this often (s). */
+  caughtTextGap: 60,
   /** Päiväraha in € a day, from the day given on (days count from 1). Each rise is also a promotion. */
   pay: [
     [1, 5],

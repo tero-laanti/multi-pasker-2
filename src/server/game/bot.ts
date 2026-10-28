@@ -180,7 +180,7 @@ export class Bot {
     let best: ServerPlayer | null = null;
     let bestD = Infinity;
     for (const e of this.room.players.values()) {
-      if (e === this.p || !e.alive) continue;
+      if (e === this.p || !e.alive || this.room.mates(p, e)) continue;
       const dx = e.x - p.x;
       const dz = e.z - p.z;
       const d = Math.hypot(dx, dz);
@@ -251,7 +251,7 @@ export class Bot {
     let claim: { p: number; z: 'head' | 'body'; at: [number, number, number] } | undefined;
     let bestT = Infinity;
     for (const e of this.room.players.values()) {
-      if (e === p || !e.alive) continue;
+      if (e === p || !e.alive || this.room.mates(p, e)) continue;
       const hit = rayPlayer(o[0], o[1], o[2], d[0], d[1], d[2], e.x, e.y, e.z, e.crouched, TUNING[w].range);
       if (hit && hit.t < bestT) {
         bestT = hit.t;

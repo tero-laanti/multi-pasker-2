@@ -32,6 +32,9 @@ export const FI = {
       ['rata_cease', 'Tulitauko!'],
       ['rata_ended', 'Ammunta päättyi. Varmista!'],
     ] as [string, string][],
+    /** The match's rounds, called with the range's own commands: Tulitauko! as a round ends, Tuli vapaa! as the next one starts. */
+    roundEnd: 'rata_cease',
+    roundStart: 'rata_fire',
     /** Finnish phonetic alphabet: letter, word, file. Voice notes are spliced from these. */
     alphabet: [
       ['A', 'Aarne', 'aakkonen_aarne'],
@@ -137,6 +140,10 @@ export const FI = {
     ],
     /** Message to a number that doesn't exist. */
     unknownNumber: 'Numeroa ei ole olemassa.',
+    /** A service now and then comes with an old typo quoted back ({typo}, as it was typed). */
+    roast: ['Muistan sinut, {rank}. Viimeksi kirjoitit ”{typo}”.', 'Täällä ei unohdeta, {rank}. ”{typo}”, niin sinä kirjoitit.', '”{typo}”. Sinä se olit. Kyllä minä muistan.', 'Tällä kertaa oikein. Viimeksi tuli ”{typo}”.'],
+    /** To the killer of someone caught texting: {name} the victim, {days} what the kill served, {tj} days left. */
+    caught: ['{name} jäi kiinni tekstailusta. Siitä lähtee {days} aamua. TJ {tj}.', '{name} oli puhelimessa. Ei ole enää. TJ {tj}.', 'Ammuit jonkun kesken lauseen. Tehokasta. {days} aamua pois palveluksesta.'],
   },
 
   /**

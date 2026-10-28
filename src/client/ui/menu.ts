@@ -298,6 +298,7 @@ export class Menu {
     choice(UI.host.killDays, 'killDays', MATCH.killDayChoices, (v) => fill(UI.host.days, v));
     choice(UI.host.bots, 'bots', Array.from({ length: MATCH.maxPlayers }, (_, i) => i), (v) => String(v));
     choice(UI.host.killSpeed, 'killSpeed', ['cod', 'scramble'], (v) => (v === 'cod' ? UI.dev.killSpeedCod : UI.dev.killSpeedScramble));
+    choice(UI.host.mode, 'teams', [false, true], (v) => (v ? UI.host.pairs : UI.host.ffa));
     h('div', 'note', UI.host.note, form);
     const btns = h('div', 'buttons row-buttons', undefined, root);
     h('button', 'btn primary', UI.menu.back, btns).onclick = () => this.showPause();
@@ -350,6 +351,7 @@ export class Menu {
     slider(UI.settings.fov, 'fov', 75, 115, 1, (v) => `${v}°`);
     toggle(UI.settings.invertY, 'invertY');
     toggle(UI.settings.crouchToggle, 'crouchToggle');
+    toggle(UI.settings.adsToggle, 'adsToggle');
     toggle(UI.settings.rawInput, 'rawInput');
     toggle(UI.settings.minimap, 'minimap');
     slider(UI.settings.masterVolume, 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);

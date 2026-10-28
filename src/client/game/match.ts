@@ -26,7 +26,7 @@ import {
 import { UI } from '../../shared/ui';
 import { weaponStats } from '../../shared/upgrades';
 import type { Net } from '../net';
-import type { MatchHud } from '../ui/matchHud';
+import { accentOf, type MatchHud } from '../ui/matchHud';
 import type { MinimapMark } from '../ui/minimap';
 import type { PairInfo } from '../ui/pair';
 import type { Game, GameMode } from './game';
@@ -212,12 +212,21 @@ export class MatchMode implements GameMode {
   private setPlayers(list: PlayerInfo[]): void {
     this.players = new Map(list.map((p) => [p.id, p]));
     this.remotes.syncPlayers(list);
+    // Team mode: who we are paired with, beside the round timer.
+    const me = this.players.get(this.myId);
+    const mates = me && me.team >= 0 && !this.training ? list.filter((p) => p.team === me.team && p.id !== me.id) : null;
+    this.hud.team(mates && me ? { color: accentOf(me), names: mates.map((p) => p.name) } : null);
   }
 
   private setRound(r: RoundInfo): void {
     const prev = this.round;
     this.round = r;
     if (!prev || prev.n !== r.n || prev.state !== r.state) this.syncMusic();
+    // The range officer calls the rounds: Tulitauko! as one ends, Tuli vapaa! as the next one starts.
+    if (prev && !this.training) {
+      if (prev.state === 'playing' && r.state === 'ended') this.game.deps.audio.playVoice(FI.voice.roundEnd);
+      else if (prev.state === 'ended' && r.state === 'playing') this.game.deps.audio.playVoice(FI.voice.roundStart);
+    }
     if (r.gateOpen !== this.gate) {
       this.setGate(r.gateOpen);
       if (r.gateOpen && prev) this.hud.notice(UI.hud.gateOpen);
@@ -283,7 +292,7 @@ export class MatchMode implements GameMode {
         const killer = this.players.get(e.a);
         const victim = this.players.get(e.v);
         const weapon = e.w === 'grenade' ? UI.hud.grenadeWeapon : (UI.hud.weapons[e.w] ?? e.w);
-        this.hud.kill(e.a === e.v ? undefined : killer, victim, weapon, e.head, this.myId, e.draft);
+        this.hud.kill(e.a === e.v ? undefined : killer, victim, weapon, e.head, this.myId, e.draft, e.phone);
         if (e.v === this.myId) this.die(e.a, e.w);
         else if (e.a === this.myId) {
           hud.hitMarker('kill');
@@ -359,7 +368,7 @@ export class MatchMode implements GameMode {
         this.hud.ladder(e.rank, e.tj, e.open, e.queued);
         break;
       case 'pay':
-        this.hud.killPay(fill(e.senior ? UI.hud.paySenior : UI.hud.pay, { eur: e.eur }));
+        this.hud.killPay([fill(UI.hud.pay, { eur: e.eur }), ...(e.senior ? [UI.hud.paySenior] : []), ...(e.caught ? [UI.hud.payCaught] : [])].join(' · '));
         break;
       case 'drone':
         this.droneUntil = e.until;
@@ -402,8 +411,8 @@ export class MatchMode implements GameMode {
     } else {
       this.remotes.players.get(e.p)?.char.muzzleFlash();
       g.effects.tracer(m.x, m.y, m.z, e.e[0], e.e[1], e.e[2]);
-      // A loud shot gives the shooter away on everyone's minimap.
-      this.hud.minimap.shot(e.p, m.x, m.z);
+      // A loud shot gives the shooter away on everyone's minimap (our partner's we know about).
+      if (!this.remotes.players.get(e.p)?.mate) this.hud.minimap.shot(e.p, m.x, m.z);
     }
     if (silenced) {
       // No loud report.
@@ -592,9 +601,13 @@ export class MatchMode implements GameMode {
     this.hud.minimap.setGear(u.tutka ? GEAR.radarRange : MINIMAP.range, MINIMAP.shotShow * (u.tutka ? GEAR.radarShotMul : 1));
     const drone = serverNow < this.droneUntil;
     const marks: MinimapMark[] = [];
+    // Team mode: our partner, always.
+    for (const rp of this.remotes.players.values()) {
+      if (rp.mate && rp.present && rp.alive) marks.push({ x: rp.s.x, z: rp.s.z, kind: 'mate', color: accentOf(rp.info) });
+    }
     if (drone || u.kannykka) {
       for (const rp of this.remotes.players.values()) {
-        if (!rp.present || !rp.alive || rp.info.id === this.myId) continue;
+        if (!rp.present || !rp.alive || rp.mate || rp.info.id === this.myId) continue;
         const phone = (rp.s.flags & PF.PHONE) !== 0 && !rp.info.upgrades?.tumma;
         if (drone) marks.push({ x: rp.s.x, z: rp.s.z, kind: 'drone' });
         else if (phone) marks.push({ x: rp.s.x, z: rp.s.z, kind: 'phone' });

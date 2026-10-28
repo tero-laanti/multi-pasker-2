@@ -8,6 +8,8 @@ export interface Settings {
   fov: number;
   invertY: boolean;
   crouchToggle: boolean;
+  /** A right click toggles aiming down sights (off: held, as by default). */
+  adsToggle: boolean;
   rawInput: boolean;
   minimap: boolean;
   masterVolume: number;
@@ -26,6 +28,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fov: VIEW.defaultFov,
   invertY: false,
   crouchToggle: true,
+  adsToggle: false,
   rawInput: true,
   minimap: true,
   masterVolume: 0.8,

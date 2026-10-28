@@ -76,11 +76,15 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: 
   return e;
 }
 
-/** An enemy the minimap shows where they are now: holding a phone (Kännykkätutka), or seen by the drone. */
+/**
+ * Someone the minimap shows where they are now: an enemy holding a phone (Kännykkätutka) or
+ * seen by the drone, or our partner in team mode (in their colour).
+ */
 export interface MinimapMark {
   x: number;
   z: number;
-  kind: 'phone' | 'drone';
+  kind: 'phone' | 'drone' | 'mate';
+  color?: string;
 }
 
 /**
@@ -263,10 +267,18 @@ export class Minimap {
         px *= rim / d;
         pz *= rim / d;
       }
-      ctx.fillStyle = m.kind === 'phone' ? '#7fd3ff' : '#e6553f';
+      ctx.fillStyle = m.kind === 'phone' ? '#7fd3ff' : m.kind === 'mate' ? (m.color ?? '#e2b21f') : '#e6553f';
       ctx.strokeStyle = 'rgba(14, 18, 13, 0.9)';
       ctx.lineWidth = 1.2 * dpr;
-      if (m.kind === 'phone') {
+      if (m.kind === 'mate') {
+        // Our partner: a dot in the pair's colour, ringed in white.
+        ctx.beginPath();
+        ctx.arc(r + px, r + pz, 4.6 * dpr, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(241, 238, 228, 0.95)';
+        ctx.lineWidth = 1.6 * dpr;
+        ctx.stroke();
+      } else if (m.kind === 'phone') {
         // A small phone: a rounded upright rectangle.
         const w = 5 * dpr;
         const h = 8 * dpr;
