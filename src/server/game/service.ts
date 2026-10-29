@@ -46,6 +46,18 @@ export interface Paperwork {
   posted: boolean;
   /** How the contact presents the task: text, then a spelled voice note or a recorded line. */
   task?: { text: string; voice?: string[]; line?: string };
+  /** Serial paperwork: which number off which gun. */
+  serial?: SerialHow;
+  /** Answers off earlier rounds' serials, still accepted (the guns get new serials every round). */
+  earlier?: string[];
+}
+
+/** Which number serial paperwork asks for: the rifle's, its last three digits, it reversed, or the pistol's. */
+export type SerialHow = 'full' | 'last3' | 'reversed' | 'pistol';
+
+/** The number serial paperwork asks for, off the guns as they are now. */
+function serialCode(serials: Record<'rifle' | 'pistol', string>, how: SerialHow): string {
+  return how === 'full' ? serials.rifle : how === 'last3' ? serials.rifle.slice(-3) : how === 'reversed' ? [...serials.rifle].reverse().join('') : serials.pistol;
 }
 
 /** A service as the evening file keeps it. */
@@ -410,10 +422,9 @@ export class ServiceDesk {
       // The serial number off a gun: inspect (I) to read it.
       const known = [...s.contacts.values()].some((c) => c.kind === 'huolto');
       const number = this.huolto(p);
-      const serials = p.serials;
       const how = pick(['full', 'last3', 'reversed', 'pistol'] as const);
-      const code = how === 'full' ? serials.rifle : how === 'last3' ? serials.rifle.slice(-3) : how === 'reversed' ? [...serials.rifle].reverse().join('') : serials.pistol;
-      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.stage5[how]) } };
+      const code = serialCode(p.serials, how);
+      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.stage5[how]) }, serial: how };
       say(known ? pick(L.stage5Intro) : pick(L.stage5New).replace('{number}', number));
       this.postTask(p);
       return;
@@ -471,6 +482,15 @@ export class ServiceDesk {
     return p.service.contacts.get(number);
   }
 
+  /** The guns have new serials (a new round): serial paperwork asks for the new number, and the old one still counts. */
+  newSerials(p: ServerPlayer): void {
+    const c = p.service.open;
+    if (!c?.serial) return;
+    c.earlier = [...(c.earlier ?? []), c.answer];
+    c.code = serialCode(p.serials, c.serial);
+    c.answer = normalize(c.code);
+  }
+
   /**
    * Checks a message against the open paperwork. 'done' completes it; 'wrongChat' is the right
    * code in the wrong conversation; null means it has nothing to do with the paperwork.
@@ -487,7 +507,7 @@ export class ServiceDesk {
       this.complete(p);
       return 'done';
     }
-    if (t !== c.answer) return null;
+    if (t !== c.answer && !c.earlier?.includes(t)) return null;
     if (conv !== c.conv || (c.task && !c.posted)) return 'wrongChat';
     this.complete(p);
     return 'done';

@@ -135,9 +135,11 @@ export class Phone {
   /** Busy until this time: the varusmestari answers one message at a time. */
   busyUntil = 0;
 
-  /** New round: requests and locks from the old round no longer apply. */
+  /**
+   * New round: requests and locks from the old round no longer apply. Texts held back behind an
+   * unread one stay, because the service's paperwork goes on into the next round.
+   */
   resetRound(): void {
-    this.deferred.clear();
     this.rids.clear();
     this.locked = false;
     this.recent = [];

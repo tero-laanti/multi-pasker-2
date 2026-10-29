@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { normalize } from '../src/shared/chat';
 import { GEAR, MATCH, SERVICE, SOTKU, TUNING } from '../src/shared/config';
 import { FI } from '../src/shared/fi';
@@ -289,6 +289,67 @@ describe('the service', () => {
     expect(voice?.voice?.url).toMatch(/^\/voicenote\/[0-9a-f]{16}\.wav$/);
     send(p, c.code, c.conv);
     expect(p.maxGrenades).toBe(2);
+  });
+
+  it('a text held back behind an unread one waits through the end of the round, until a new match', () => {
+    const { all, room, clock, send, texts } = setup();
+    const [a, b] = all;
+    const p = a!.p;
+    // Nobody reads the phone here (run() would), so what comes waits behind the unread welcome text.
+    const tick = (ms: number) => {
+      for (let i = 0; i < ms / 20; i++) {
+        clock.advance(20);
+        room.tick(0.02);
+      }
+    };
+    tick(500);
+    expect(p.phone.convs.get(V.number)?.unread).toBe(1);
+    b!.p.protectedUntil = 0;
+    room.damage(b!.p, p, 1000, 'body', 'pistol', [0, 1, 0]);
+    tick(3000);
+    const c = p.service.open!;
+    expect(c.due).toBe('rifle');
+    expect(p.phone.deferred.get(V.number)?.length).toBe(1);
+    // The vääpeli's held-back questions are about the round, so they go when it ends.
+    p.phone.deferred.set(FI.inventory.number, [{ text: 'Montako lipasta?' }]);
+    room.startRound();
+    expect(p.phone.deferred.has(FI.inventory.number)).toBe(false);
+    // Read in the next round: the code comes in, and it works.
+    room.onPhoneMessage(p, { t: 'read', conv: V.number });
+    tick(15000);
+    expect(texts(a!.phone, V.number).some((m) => m.text?.includes(c.code))).toBe(true);
+    send(p, c.code);
+    expect(p.service.owned.has('rifle')).toBe(true);
+    // A new match starts the service again, and what was held back for the old one goes.
+    p.phone.deferred.set(V.number, [{ text: 'Vanha koodi.' }]);
+    room.startRound(true);
+    expect(p.phone.deferred.size).toBe(0);
+  });
+
+  it('serial paperwork goes on in the next round: the gun’s new number counts, and so does the one read before', () => {
+    const { all, room, run, buy, send } = setup();
+    const [a, b] = all;
+    // Both buy the sniper rifle, whose paperwork is a serial number; Math.random 0 asks for the rifle's.
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+    for (const { p } of [a!, b!]) {
+      room.service.skipPkausi(p);
+      p.service.give('rumpu');
+      p.service.give('vaimennin');
+      p.service.money = SOTKU.items.tkiv.price;
+      buy(p, 'tkiv');
+    }
+    random.mockRestore();
+    expect(a!.p.service.open?.kind).toBe('serial');
+    expect(a!.p.service.open?.answer).toBe(a!.p.serials.rifle);
+    const readBefore = b!.p.serials.rifle;
+    room.startRound();
+    for (const { p } of [a!, b!]) room.onPhoneMessage(p, { t: 'open', conv: p.service.open!.conv });
+    run(15000);
+    // One reads the gun in the new round; the other sends the number read in the old one.
+    send(a!.p, a!.p.serials.rifle, a!.p.service.open!.conv);
+    send(b!.p, readBefore, b!.p.service.open!.conv);
+    expect(a!.p.service.owned.has('tkiv')).toBe(true);
+    expect(b!.p.service.owned.has('tkiv')).toBe(true);
   });
 
   it('P-kausi is passed with its 42 days and its gear signed for: then the commander opens the Sotku App', () => {

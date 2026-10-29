@@ -1266,6 +1266,8 @@ export class Room {
       p.service.used.clear();
       this.service.notify(p);
       p.phone.resetRound();
+      // The vääpeli's held-back questions are about the round that ended.
+      p.phone.deferred.delete(FI.inventory.number);
       if (p.inventory) {
         p.outbox.push({ k: 'inventory', until: 0 });
         p.phone.send({ t: 'inventory', left: 0 });
@@ -1277,6 +1279,7 @@ export class Room {
       const divider = newMatch ? `#match ${this.round.match}` : `#round ${this.round.round}`;
       if (p.phone.paired && p.phone.convs.has(FI_NUMBER)) p.phone.add(FI_NUMBER, { id: p.phone.newId(), from: 'system', text: divider, at: Date.now() });
       p.newSerials();
+      this.service.newSerials(p);
       p.outbox.push({ k: 'serials', pistol: p.serials.pistol, rifle: p.serials.rifle, sniper: p.serials.sniper });
       if ((p.connected && !p.training) || p.bot) this.respawn(p);
     }
@@ -1284,10 +1287,14 @@ export class Room {
     this.broadcastPlayers();
   }
 
-  /** A new match: only the asevarasto's and the vääpeli's chats stay; the offices, the commander and the rest go. */
+  /**
+   * A new match: only the asevarasto's and the vääpeli's chats stay; the offices, the commander and
+   * the rest go, and so do the texts held back for the old match's service.
+   */
   private dropMatchChats(p: ServerPlayer): void {
     const keep = new Set([FI_NUMBER, FI.inventory.number]);
     const phone = p.phone;
+    phone.deferred.clear();
     let dropped = false;
     for (const id of [...phone.convs.keys()]) {
       if (keep.has(id)) continue;
