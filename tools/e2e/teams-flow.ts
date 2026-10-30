@@ -78,7 +78,10 @@ try {
   result.voicesAtStart = [...voices];
   // Right click toggles aiming: one click aims and stays aimed, the next lets go.
   await page.evaluate(() => ((window as any).__pasker.game.deps.settings.adsToggle = true));
-  const click = () => page.evaluate(() => ((window as any).__pasker.input.rightPressed = true));
+  const click = async () => {
+    await page.mouse.down({ button: 'right' });
+    await page.mouse.up({ button: 'right' });
+  };
   const ads = () => page.evaluate(() => (window as any).__pasker.game.weapons.ads);
   await click();
   await wait(700);
