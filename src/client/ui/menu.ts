@@ -3,6 +3,7 @@ import { cleanName, type MatchSettings } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { DEFAULT_SETTINGS, defaultQuality, type Quality, type Settings } from '../settings';
 import { REPO_URL, WEB } from '../web';
+import { key, onDevice, type Control } from '../controls';
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -69,6 +70,8 @@ export class Menu {
   private pauseRow: HTMLDivElement;
   private hostButton: HTMLButtonElement;
   private settingsReturn: 'main' | 'pause' = 'main';
+  /** A screen was shown (a controller in use focuses its first control). */
+  onShow: () => void = () => {};
 
   constructor(
     parent: HTMLElement,
@@ -123,6 +126,8 @@ export class Menu {
     this.deployNote = h('div', 'btn-desc hidden', UI.tutorial.finishFirst, pb);
     this.resumeButton = h('button', 'btn primary', UI.menu.resume, pb);
     this.resumeButton.onclick = () => actions.resume();
+    // B on a controller resumes, as the way back from the pause screen.
+    this.resumeButton.dataset.padBack = '';
     const ps = h('button', 'btn', UI.menu.settings, pb);
     ps.onclick = () => this.showSettings('pause');
     this.hostButton = h('button', 'btn hidden', UI.host.open, pb);
@@ -167,6 +172,7 @@ export class Menu {
     this.joinButton.onclick = () => this.submitJoin();
     const back = h('button', 'btn', UI.menu.back, btns);
     back.onclick = () => this.showMain();
+    back.dataset.padBack = '';
   }
 
   private submitJoin(): void {
@@ -211,19 +217,27 @@ export class Menu {
     this.joinNote.classList.toggle('hidden', !show);
   }
 
+  /** The controls, as keys or as the controller's buttons, whichever is in use. */
   private controls(): HTMLDivElement {
     const box = h('div', 'controls');
     h('div', 'controls-title', UI.menu.controlsTitle, box);
     const grid = h('div', 'controls-grid', undefined, box);
-    for (const [k, v] of UI.menu.controls) {
-      h('div', 'key', k, grid);
-      h('div', 'desc', v, grid);
-    }
+    const fill = () => {
+      grid.textContent = '';
+      for (const [c, v] of UI.menu.controls) {
+        h('div', 'key', key(c as Control), grid);
+        h('div', 'desc', v, grid);
+      }
+    };
+    fill();
+    onDevice(fill);
     return box;
   }
 
   private hideAll(): void {
     for (const s of [this.loading, this.main, this.settingsScreen, this.overlay, this.pause, this.join]) s.classList.add('hidden');
+    // Once the screen being shown is up.
+    queueMicrotask(() => this.onShow());
   }
 
   showLoading(text?: string): void {
@@ -301,7 +315,9 @@ export class Menu {
     choice(UI.host.mode, 'teams', [false, true], (v) => (v ? UI.host.pairs : UI.host.ffa));
     h('div', 'note', UI.host.note, form);
     const btns = h('div', 'buttons row-buttons', undefined, root);
-    h('button', 'btn primary', UI.menu.back, btns).onclick = () => this.showPause();
+    const back = h('button', 'btn primary', UI.menu.back, btns);
+    back.onclick = () => this.showPause();
+    back.dataset.padBack = '';
     h('button', 'btn', UI.host.newMatch, btns).onclick = () => {
       if (!window.confirm(`${UI.host.newMatch}?`)) return;
       this.actions.newMatch();
@@ -379,6 +395,7 @@ export class Menu {
     h('div', 'note', UI.settings.qualityNote, form);
     const btns = h('div', 'buttons row-buttons', undefined, root);
     const back = h('button', 'btn primary', UI.menu.back, btns);
+    back.dataset.padBack = '';
     back.onclick = () => {
       this.actions.settingsChanged(s, s.quality !== quality0);
       if (this.settingsReturn === 'pause') this.showPause();

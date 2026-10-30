@@ -57,6 +57,9 @@ the host (wired PCs are fine).
 
 ## Controls
 
+Keys and controllers reach the game only while its window has focus: without it, *Click the game
+to control it* covers the screen until a click (or switching back) gives it focus again.
+
 | Key | Action |
 |---|---|
 | WASD | move |
@@ -104,8 +107,18 @@ moves anyone.
 | Start / Options | pause, play |
 
 A gamepad can't lock the mouse, so Start (or A / ✕ on the *Click to play* screen) plays with the
-mouse free, and Start or Esc pauses. A click on the game takes the mouse back. Menus are used
-with the mouse.
+mouse free, and Start or Esc pauses. A click on the game takes the mouse back.
+
+**Menus:** the D-pad or the left stick moves between the buttons, sliders and choices (the one in
+focus has a white outline), A / ✕ presses it, ← → change a slider or a choice, and B / ○ goes back
+(on the pause screen it resumes). Typing a name and the yes-or-no questions (*Start a new match
+now?*) need the keyboard or the mouse.
+
+**Hints:** while the controller is in use, everything that names a key names its button instead:
+the controls on the main menu and the *Click to play* screen, the CONTROLS note on the range, the
+training's steps and the prompts. A PlayStation pad (Sony's, the DualSense or DualShock) gets ✕ ○ □
+△, L1, R2 and Options; an Xbox pad (Microsoft's) A B X Y, LB, RT and Menu, as does any other pad
+(most copy its layout). A key or the mouse switches the hints back to keys.
 
 ## Ammo
 

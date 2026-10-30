@@ -1,5 +1,6 @@
 import { UI } from '../../shared/ui';
 import { DRILL, type DrillResult } from '../../shared/rangeSim';
+import { key, onDevice, withKeys, type Control } from '../controls';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -60,11 +61,17 @@ export class Hud {
     this.controlsEl = el('div', 'controls-note hidden', this.root);
     el('div', 'controls-note-title', this.controlsEl, UI.range.controlsTitle);
     const grid = el('div', 'controls-note-grid', this.controlsEl);
-    for (const [k, v] of UI.menu.controls) {
-      el('div', 'key', grid, k);
-      el('div', 'desc', grid, v);
-    }
-    el('div', 'controls-note-foot', this.controlsEl, `${UI.menu.footer} · ${UI.range.closeControls}`);
+    const foot = el('div', 'controls-note-foot', this.controlsEl);
+    const fill = () => {
+      grid.textContent = '';
+      for (const [c, v] of UI.menu.controls) {
+        el('div', 'key', grid, key(c as Control));
+        el('div', 'desc', grid, v);
+      }
+      foot.textContent = `${UI.menu.footer} · ${withKeys(UI.range.closeControls)}`;
+    };
+    fill();
+    onDevice(fill);
   }
 
   /** The CONTROLS note on the range, read up close (E). */

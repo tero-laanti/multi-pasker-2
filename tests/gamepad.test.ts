@@ -35,63 +35,82 @@ describe('a stick', () => {
 
 describe('a controller', () => {
   it('holds the keys its buttons stand for', () => {
-    const s = new PadReader().read(pad([BUTTON.A, BUTTON.B, BUTTON.X, BUTTON.RB, BUTTON.VIEW, BUTTON.DOWN]));
+    const s = new PadReader().read(pad([BUTTON.A, BUTTON.B, BUTTON.X, BUTTON.RB, BUTTON.VIEW, BUTTON.DOWN]), 0);
     expect([...s.keys].sort()).toEqual(['KeyC', 'KeyE', 'KeyG', 'KeyI', 'KeyR', 'Space', 'Tab']);
   });
 
   it('knifes from LB and from R3', () => {
-    expect(new PadReader().read(pad([BUTTON.LB])).keys.has('KeyV')).toBe(true);
-    expect(new PadReader().read(pad([BUTTON.R3])).keys.has('KeyV')).toBe(true);
+    expect(new PadReader().read(pad([BUTTON.LB]), 0).keys.has('KeyV')).toBe(true);
+    expect(new PadReader().read(pad([BUTTON.R3]), 0).keys.has('KeyV')).toBe(true);
   });
 
   it('fires and aims on the triggers past their threshold', () => {
     const r = new PadReader();
     const light = pad();
     (light.buttons as { pressed: boolean; value: number }[])[BUTTON.RT] = { pressed: true, value: PAD.trigger / 2 };
-    expect(r.read(light).fire).toBe(false);
-    const s = r.read(pad([BUTTON.RT, BUTTON.LT]));
+    expect(r.read(light, 0).fire).toBe(false);
+    const s = r.read(pad([BUTTON.RT, BUTTON.LT]), 0);
     expect(s.fire).toBe(true);
     expect(s.aim).toBe(true);
   });
 
   it('counts a press once, on the frame it goes down', () => {
     const r = new PadReader();
-    expect(r.read(pad([BUTTON.START])).pressed.has(BUTTON.START)).toBe(true);
-    expect(r.read(pad([BUTTON.START])).pressed.has(BUTTON.START)).toBe(false);
-    r.read(pad());
-    expect(r.read(pad([BUTTON.START])).pressed.has(BUTTON.START)).toBe(true);
+    expect(r.read(pad([BUTTON.START]), 0).pressed.has(BUTTON.START)).toBe(true);
+    expect(r.read(pad([BUTTON.START]), 0).pressed.has(BUTTON.START)).toBe(false);
+    r.read(pad(), 0);
+    expect(r.read(pad([BUTTON.START]), 0).pressed.has(BUTTON.START)).toBe(true);
   });
 
   it('moves forward on the stick pushed up', () => {
-    const s = new PadReader().read(pad([], [0, -1, 0, 0]));
+    const s = new PadReader().read(pad([], [0, -1, 0, 0]), 0);
     expect(s.forward).toBeCloseTo(1, 5);
     expect(s.right).toBe(0);
   });
 
   it('steps weapons on Y and the D-pad', () => {
     const r = new PadReader();
-    expect(r.read(pad([BUTTON.Y])).wheel).toBe(1);
-    expect(r.read(pad([BUTTON.Y, BUTTON.LEFT])).wheel).toBe(-1);
-    expect(r.read(pad([BUTTON.RIGHT])).wheel).toBe(1);
+    expect(r.read(pad([BUTTON.Y]), 0).wheel).toBe(1);
+    expect(r.read(pad([BUTTON.Y, BUTTON.LEFT]), 0).wheel).toBe(-1);
+    expect(r.read(pad([BUTTON.RIGHT]), 0).wheel).toBe(1);
   });
 
   it('sprints from a click of L3 while the stick points forward, until it lets go, fires or aims', () => {
     const r = new PadReader();
     const ahead = [0, -1, 0, 0];
-    expect(r.read(pad([], ahead)).keys.has('ShiftLeft')).toBe(false);
-    expect(r.read(pad([BUTTON.L3], ahead)).keys.has('ShiftLeft')).toBe(true);
+    expect(r.read(pad([], ahead), 0).keys.has('ShiftLeft')).toBe(false);
+    expect(r.read(pad([BUTTON.L3], ahead), 0).keys.has('ShiftLeft')).toBe(true);
     // L3 let go: still sprinting while the stick stays forward.
-    expect(r.read(pad([], ahead)).keys.has('ShiftLeft')).toBe(true);
-    expect(r.read(pad([], [0, -0.3, 0, 0])).keys.has('ShiftLeft')).toBe(false);
-    expect(r.read(pad([], ahead)).keys.has('ShiftLeft')).toBe(false);
-    r.read(pad([BUTTON.L3], ahead));
-    expect(r.read(pad([BUTTON.RT], ahead)).keys.has('ShiftLeft')).toBe(false);
+    expect(r.read(pad([], ahead), 0).keys.has('ShiftLeft')).toBe(true);
+    expect(r.read(pad([], [0, -0.3, 0, 0]), 0).keys.has('ShiftLeft')).toBe(false);
+    expect(r.read(pad([], ahead), 0).keys.has('ShiftLeft')).toBe(false);
+    r.read(pad([BUTTON.L3], ahead), 0);
+    expect(r.read(pad([BUTTON.RT], ahead), 0).keys.has('ShiftLeft')).toBe(false);
   });
 
   it('is not used by sticks drifting short of the wake threshold', () => {
     const r = new PadReader();
-    expect(r.read(pad([], [0.3, 0.2, -0.3, 0.25])).used).toBe(false);
-    expect(r.read(pad([], [0, 0, 0.8, 0])).used).toBe(true);
-    expect(new PadReader().read(pad([BUTTON.A])).used).toBe(true);
+    expect(r.read(pad([], [0.3, 0.2, -0.3, 0.25]), 0).used).toBe(false);
+    expect(r.read(pad([], [0, 0, 0.8, 0]), 0).used).toBe(true);
+    expect(new PadReader().read(pad([BUTTON.A]), 0).used).toBe(true);
+  });
+});
+
+describe('menu steps', () => {
+  it('come once on a D-pad press, then repeat while it is held', () => {
+    const r = new PadReader();
+    expect(r.read(pad([BUTTON.DOWN]), 0).nav).toBe('down');
+    expect(r.read(pad([BUTTON.DOWN]), 0.2).nav).toBe(null);
+    expect(r.read(pad([BUTTON.DOWN]), PAD.navDelay + 0.01).nav).toBe('down');
+    expect(r.read(pad([BUTTON.DOWN]), PAD.navDelay + 0.05).nav).toBe(null);
+    expect(r.read(pad([BUTTON.DOWN]), PAD.navDelay + PAD.navRepeat + 0.02).nav).toBe('down');
+    expect(r.read(pad(), 1).nav).toBe(null);
+    expect(r.read(pad([BUTTON.UP]), 1.01).nav).toBe('up');
+  });
+
+  it('come from the left stick pushed firmly, in its main direction', () => {
+    expect(new PadReader().read(pad([], [0.3, 0.5, 0, 0]), 0).nav).toBe(null);
+    expect(new PadReader().read(pad([], [0.9, 0.3, 0, 0]), 0).nav).toBe('right');
+    expect(new PadReader().read(pad([], [0.2, -0.8, 0, 0]), 0).nav).toBe('up');
   });
 });

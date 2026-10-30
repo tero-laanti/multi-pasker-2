@@ -21,6 +21,8 @@ const BUTTON_KEYS: readonly (readonly [number, readonly string[]])[] = [
   [BUTTON.DOWN, ['KeyI']], // inspect
 ];
 
+export type NavDir = 'up' | 'down' | 'left' | 'right';
+
 /** What the game reads of a gamepad: its buttons and its four axes. */
 export interface PadLike {
   readonly buttons: readonly { readonly pressed: boolean; readonly value: number }[];
@@ -46,6 +48,8 @@ export interface PadState {
   pressed: Set<number>;
   /** Used this frame: a button pressed or a stick pushed past PAD.wake. */
   used: boolean;
+  /** A step through a menu this frame (the D-pad or the left stick; held, it repeats). */
+  nav: NavDir | null;
 }
 
 /** A stick past its radial dead zone, rescaled to start from 0, its length raised to `curve`. */
@@ -60,8 +64,11 @@ export function stick(x: number, y: number, deadZone: number, curve: number): [n
 export class PadReader {
   private down: boolean[] = [];
   private sprint = false;
+  private navDir: NavDir | null = null;
+  private navAt = 0;
 
-  read(pad: PadLike): PadState {
+  /** One frame of `pad` at time `t` (seconds). */
+  read(pad: PadLike, t: number): PadState {
     const held = (i: number) => (i === BUTTON.LT || i === BUTTON.RT ? (pad.buttons[i]?.value ?? 0) > PAD.trigger : pad.buttons[i]?.pressed === true);
     const now = pad.buttons.map((_, i) => held(i));
     const pressed = new Set<number>();
@@ -82,6 +89,22 @@ export class PadReader {
     if (this.sprint) keys.add('ShiftLeft');
     const wheel = Number(pressed.has(BUTTON.Y)) + Number(pressed.has(BUTTON.RIGHT)) - Number(pressed.has(BUTTON.LEFT));
     const used = pressed.size > 0 || Math.hypot(ax(0), ax(1)) > PAD.wake || Math.hypot(ax(2), ax(3)) > PAD.wake;
-    return { keys, fire, aim, forward, right, lookX, lookY, wheel, pressed, used };
+    return { keys, fire, aim, forward, right, lookX, lookY, wheel, pressed, used, nav: this.navStep(now, ax(0), ax(1), t) };
+  }
+
+  /** Menu steps: the D-pad, or the left stick pushed past PAD.navStick; held, a step repeats. */
+  private navStep(now: boolean[], x: number, y: number, t: number): NavDir | null {
+    const pushed = Math.max(Math.abs(x), Math.abs(y)) < PAD.navStick ? null : Math.abs(y) >= Math.abs(x) ? (y < 0 ? 'up' : 'down') : x < 0 ? 'left' : 'right';
+    const dir: NavDir | null = now[BUTTON.UP] ? 'up' : now[BUTTON.DOWN] ? 'down' : now[BUTTON.LEFT] ? 'left' : now[BUTTON.RIGHT] ? 'right' : pushed;
+    if (dir !== this.navDir) {
+      this.navDir = dir;
+      this.navAt = t + PAD.navDelay;
+      return dir;
+    }
+    if (dir && t >= this.navAt) {
+      this.navAt = t + PAD.navRepeat;
+      return dir;
+    }
+    return null;
   }
 }

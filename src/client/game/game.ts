@@ -23,6 +23,7 @@ import { Grenades, type Explosion } from './grenades';
 import { ThrowArc } from './throwArc';
 import type { ViewModel } from './viewmodel';
 import { WeaponController } from './weapons';
+import { withKeys } from '../controls';
 
 export const IMPACT_SOUND: Record<string, string> = {
   concrete: 'impact_concrete',
@@ -642,7 +643,7 @@ export class Game {
       w.refilledAt = -1;
     }
     const empty = w.ammo[w.current] === 0 && w.state !== 'reloading';
-    const hint = empty && (w.canReload || this.devDirectReload) ? UI.hud.reloadKey : empty || w.reminder > 0 ? this.outOfAmmoText() : '';
+    const hint = empty && (w.canReload || this.devDirectReload) ? withKeys(UI.hud.reloadKey) : empty || w.reminder > 0 ? this.outOfAmmoText() : '';
     hud.setHint(co ? '' : hint);
     hud.grenades(w.grenades, w.maxGrenades);
     hud.fuse(w.cooking ? w.fuseLeft : null);

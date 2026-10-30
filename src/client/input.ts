@@ -1,4 +1,5 @@
-import { BUTTON, PadReader } from './gamepad';
+import { padKind, setDevice } from './controls';
+import { BUTTON, PadReader, type NavDir } from './gamepad';
 
 /**
  * Keyboard, mouse and pointer lock. Mouse deltas are passed straight to `onLook` from the
@@ -40,14 +41,16 @@ export class Input {
   private padFire = false;
   private padAim = false;
   private padReader = new PadReader();
-  /** Start, or A, pressed on the controller in use (to play or pause without the mouse). */
-  onPadButton: (button: 'start' | 'a') => void = () => {};
+  /** Start, A or B pressed on the controller in use: playing, pausing and the menus. */
+  onPadButton: (button: 'start' | 'a' | 'b') => void = () => {};
+  /** A step through the menus on the controller in use. */
+  onPadNav: (dir: NavDir) => void = () => {};
 
   constructor(readonly target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
       if (BLOCKED_DEFAULTS.has(e.code) && (this.locked || e.code.startsWith('F'))) e.preventDefault();
-      this.padActive = false;
+      this.sleepPad();
       if (!e.repeat) {
         this.board.add(e.code);
         this.keys.add(e.code);
@@ -62,7 +65,7 @@ export class Input {
     window.addEventListener('blur', () => this.releaseAll());
     target.addEventListener('mousedown', (e) => {
       if (!this.locked) return;
-      this.padActive = false;
+      this.sleepPad();
       if (e.button === 0) {
         this.mouseLeft = true;
         this.leftPressed = true;
@@ -92,7 +95,7 @@ export class Input {
       // Some browsers report one huge spurious delta right after locking.
       if (performance.now() - this.lockTime < 100 && Math.abs(dx) + Math.abs(dy) > 400) return;
       if (dx !== 0 || dy !== 0) {
-        this.padActive = false;
+        this.sleepPad();
         this.onLook(dx, dy);
       }
     });
@@ -143,9 +146,10 @@ export class Input {
    */
   pollPad(): void {
     const pad = navigator.getGamepads?.().find((p): p is Gamepad => p !== null && p.connected && p.mapping === 'standard');
-    const s = pad ? this.padReader.read(pad) : null;
+    const s = pad ? this.padReader.read(pad, performance.now() / 1000) : null;
     if (s?.used) this.padActive = true;
     const live = s !== null && this.padActive;
+    if (live) setDevice(padKind(pad!.id));
     const keys = live ? s.keys : new Set<string>();
     for (const c of keys) if (!this.padKeys.has(c)) this.pressed.add(c);
     this.padKeys = keys;
@@ -164,6 +168,14 @@ export class Input {
     this.wheelSteps += s.wheel;
     if (s.pressed.has(BUTTON.START)) this.onPadButton('start');
     else if (s.pressed.has(BUTTON.A)) this.onPadButton('a');
+    else if (s.pressed.has(BUTTON.B)) this.onPadButton('b');
+    if (s.nav) this.onPadNav(s.nav);
+  }
+
+  /** Keyboard or mouse play: the controller sleeps, and hints name keys again. */
+  private sleepPad(): void {
+    this.padActive = false;
+    setDevice('keyboard');
   }
 
   /** True once per physical key press since the last call for that key. */

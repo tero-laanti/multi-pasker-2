@@ -330,6 +330,10 @@ export const PAD = {
   sprintForward: 0.5,
   /** After keyboard or mouse play, a stick pushed this far (or any button) wakes the controller. */
   wake: 0.5,
+  /** Menus: the left stick steps past this; a held step repeats after `navDelay`, then every `navRepeat` (s). */
+  navStick: 0.6,
+  navDelay: 0.4,
+  navRepeat: 0.12,
 };
 
 export const NET = {

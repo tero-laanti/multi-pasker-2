@@ -8,6 +8,7 @@ import type { Game, GameMode } from './game';
 import type { Explosion } from './grenades';
 import { buildPhone, type PhoneModel } from './models/phone';
 import type { RangeMode } from './rangeMode';
+import { key } from '../controls';
 
 export type TutorialStep = 'walk' | 'shoot' | 'reload' | 'phone' | 'pair' | 'reply' | 'done';
 
@@ -257,7 +258,7 @@ export class TutorialMode implements GameMode {
       arrow = { x: T.phone.x, y: T.phone.y + 0.35, z: T.phone.z };
     }
     this.view.update(dt, ring, arrow, this.stage === 'walk' || this.stage === 'shoot' || this.stage === 'reload' || this.stage === 'phone');
-    this.game.deps.hud.setPrompt('E', this.nearPhone() ? UI.tutorial.pickUp : this.range.prompt);
+    this.game.deps.hud.setPrompt(key('use'), this.nearPhone() ? UI.tutorial.pickUp : this.range.prompt);
   }
 
   dispose(): void {

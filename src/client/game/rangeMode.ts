@@ -11,6 +11,7 @@ import { ControlsNote } from './controlsNote';
 import type { Game, GameMode } from './game';
 import type { Explosion } from './grenades';
 import { RangeView } from './rangeView';
+import { key } from '../controls';
 
 const BEST_KEY = 'pasker.rangeBest';
 
@@ -173,6 +174,6 @@ export class RangeMode implements GameMode {
     if (this.showDrill) hud.drillStatus(this.range.drillPhase, this.range.drillTime, this.range.drill.score);
     else hud.hideDrill();
     hud.showControls(this.reading);
-    hud.setPrompt('E', this.prompt);
+    hud.setPrompt(key('use'), this.prompt);
   }
 }

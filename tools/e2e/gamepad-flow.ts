@@ -7,12 +7,24 @@
  * 2. The pad alone: A plays from the click-to-play screen with the mouse unlocked, the sticks walk
  *    and turn, the right trigger fires, Start pauses and plays again, a key puts the pad to sleep
  *    (a light push no longer walks, a firm one wakes it) and Esc pauses.
+ * 3. No mouse lock to be had: A plays from the click-to-play screen, and a click takes the mouse.
+ * 4. The hints follow the device: keys, PlayStation buttons for a DualSense, Xbox ones for an
+ *    Xbox pad, and keys again after a key press.
+ * 5. The menus on the pad: the D-pad steps to Settings, right raises a slider, B goes back, A
+ *    starts the range (the mouse free), Start pauses and B resumes.
+ * 6. The page without focus says so over everything.
  *
- *   npx tsx tools/e2e/gamepad-flow.ts [--url=http://localhost:8088/]
+ *   npx tsx tools/e2e/gamepad-flow.ts <outDir> [--url=http://localhost:8088/]
+ *
  */
+import fs from 'node:fs';
+import path from 'node:path';
 import { chromium, type Page } from 'playwright';
 
+const outDir = process.argv[2] ?? 'out/gamepad';
 const base = process.argv.find((a) => a.startsWith('--url='))?.slice(6) ?? 'http://localhost:8088/';
+fs.mkdirSync(outDir, { recursive: true });
+const shot = (p: Page, name: string) => p.screenshot({ path: path.join(outDir, `${name}.png`) });
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** A standard-mapping gamepad the page reads through navigator.getGamepads(), set from here. */
@@ -164,6 +176,86 @@ const moved = (a: { x: number; z: number }, b: { x: number; z: number }) => Math
   await wait(3000);
   const clicked = await state(page);
   result.clickTakesMouse = { paused: clicked.paused, locked: clicked.locked };
+  await page.close();
+}
+
+const keysShown = (p: Page) =>
+  p.evaluate(() => ({
+    menu: [...document.querySelectorAll('.controls-grid .key')].slice(0, 13).map((e) => e.textContent).join(' | '),
+    note: [...document.querySelectorAll('.controls-note-grid .key')].map((e) => e.textContent).join(' | '),
+    padNav: document.body.classList.contains('pad-nav'),
+  }));
+
+// 4. The hints follow the device.
+{
+  const page = await open();
+  result.hintsKeyboard = await keysShown(page);
+  await page.evaluate(() => ((window as any).__pad.id = 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)'));
+  await tap(page, 3);
+  result.hintsPlayStation = await keysShown(page);
+  await shot(page, 'menu_playstation');
+  await page.evaluate(() => ((window as any).__pad.id = 'Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)'));
+  await tap(page, 3);
+  result.hintsXbox = await keysShown(page);
+  await page.keyboard.press('KeyX');
+  await wait(200);
+  result.hintsKeyboardAgain = await keysShown(page);
+  await page.close();
+}
+
+// 5. The menus on the pad.
+{
+  const page = await open();
+  await page.evaluate(() => ((window as any).__pad.id = 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)'));
+  const focused = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.textContent?.trim() ?? '');
+  await tap(page, 13);
+  result.firstFocus = await focused();
+  await tap(page, 13);
+  await tap(page, 13);
+  result.steppedTo = await focused();
+  await tap(page, 0);
+  await wait(200);
+  result.settingsOpen = await page.isVisible('.screen.settings:not(.hidden)');
+  const sens = () => page.evaluate(() => (window as any).__pasker.app.settings.sensitivity as number);
+  const before = await sens();
+  await tap(page, 15);
+  result.sliderRight = { before, after: await sens() };
+  await shot(page, 'settings_focus');
+  await tap(page, 1);
+  await wait(200);
+  result.backToMain = await page.isVisible('.screen.main:not(.hidden)');
+  result.focusAfterBack = await focused();
+  await tap(page, 0);
+  await wait(1500);
+  const playing = await state(page);
+  result.rangeFromPad = { paused: playing.paused, locked: playing.locked };
+  await tap(page, 9);
+  const paused = await state(page);
+  result.pausedFocus = { pauseMenu: paused.pauseMenu, focus: await focused() };
+  await shot(page, 'pause_focus');
+  await tap(page, 1);
+  const resumed = await state(page);
+  result.bResumes = { paused: resumed.paused, pauseMenu: resumed.pauseMenu, locked: resumed.locked };
+  await page.close();
+}
+
+// 6. No focus.
+{
+  const page = await open();
+  const shown = () => page.evaluate(() => !document.querySelector('.focus-notice')?.classList.contains('hidden'));
+  result.noticeWithFocus = await shown();
+  await page.evaluate(() => {
+    (window as any).__hasFocus = document.hasFocus;
+    document.hasFocus = () => false;
+  });
+  await wait(300);
+  result.noticeWithoutFocus = await shown();
+  await shot(page, 'no_focus');
+  await page.evaluate(() => {
+    document.hasFocus = (window as any).__hasFocus;
+  });
+  await wait(300);
+  result.noticeFocusBack = await shown();
   await page.close();
 }
 

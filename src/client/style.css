@@ -1867,3 +1867,34 @@ input[type='range'] {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+/* ---------- A controller in the menus ---------- */
+/* The control in focus, shown only while a controller is in use (the mouse needs no ring). */
+body.pad-nav :is(button, input, select, a):focus {
+  outline: 3px solid var(--fg);
+  outline-offset: 3px;
+}
+
+/* ---------- No focus ---------- */
+/* Keys and controllers reach the page only with focus: until a click gives it back, this says so
+   over everything. Clicks go through to whatever is under it, so it never costs one. */
+.focus-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 12, 10, 0.55);
+  pointer-events: none;
+}
+.focus-notice-card {
+  padding: 16px 30px;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #1b1a12;
+  background: var(--accent);
+  border-radius: 4px;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.55);
+}

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { UI } from '../../shared/ui';
+import { key, onDevice, type Control } from '../controls';
 
 /**
  * The CONTROLS note pinned to the range's back wall, right behind where the training starts
@@ -10,11 +11,8 @@ export const CONTROLS_NOTE = { x: -4.5, y: 1.55, z: 7.19, yaw: Math.PI, width: 0
 const FONT = '"Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif';
 const INK = '#1f241b';
 
-/** A sheet of paper: the big title, then every key and what it does, as in the menu. */
-function noteTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 768;
-  c.height = 1024;
+/** A sheet of paper: the big title, then every key (or button) and what it does, as in the menu. */
+function drawNote(c: HTMLCanvasElement): void {
   const W = c.width;
   const H = c.height;
   const g = c.getContext('2d')!;
@@ -32,7 +30,7 @@ function noteTexture(): THREE.CanvasTexture {
   g.font = `700 150px ${FONT}`;
   g.fillText(UI.range.controlsTitle, W / 2, 178);
   g.fillRect(56, 208, W - 112, 8);
-  const rows = UI.menu.controls;
+  const rows = UI.menu.controls.map(([ctl, what]) => [key(ctl as Control), what] as const);
   const top = 240;
   const step = Math.min(64, (H - 84 - top) / rows.length);
   const split = 268;
@@ -55,9 +53,21 @@ function noteTexture(): THREE.CanvasTexture {
   g.fillStyle = '#5c5d4d';
   g.font = `500 30px ${FONT}`;
   g.fillText(UI.menu.footer, W / 2, H - 36);
+}
+
+/** The note's texture, drawn again whenever the player switches between keys and a controller. */
+function noteTexture(): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 768;
+  c.height = 1024;
+  drawNote(c);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
+  onDevice(() => {
+    drawNote(c);
+    t.needsUpdate = true;
+  });
   return t;
 }
 

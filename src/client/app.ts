@@ -10,6 +10,8 @@ import { MatchMode } from './game/match';
 import { RangeMode } from './game/rangeMode';
 import { TutorialMode, markTutorialDone, tutorialDone } from './game/tutorial';
 import { ViewModel } from './game/viewmodel';
+import { onDevice } from './controls';
+import type { NavDir } from './gamepad';
 import { Input } from './input';
 import type { LocalServer } from './local/server';
 import { Net } from './net';
@@ -19,6 +21,7 @@ import { DevPanel } from './ui/dev';
 import { Hud } from './ui/hud';
 import { MatchHud } from './ui/matchHud';
 import { Menu, loadName, saveName } from './ui/menu';
+import { PadNav } from './ui/padNav';
 import { PairPanel, type PairInfo } from './ui/pair';
 import { StatsOverlay } from './ui/stats';
 import { TuningPanel } from './ui/tuning';
@@ -46,6 +49,10 @@ export class App {
   private renderer!: Renderer;
   private audio = new AudioEngine();
   private input: Input;
+  /** The menus on a controller. */
+  private nav: PadNav;
+  /** "Click the game": over everything while the page has no focus (no keys or controller then). */
+  private focusNotice: HTMLDivElement;
   private net = new Net();
   private hud: Hud;
   private matchHud: MatchHud;
@@ -87,7 +94,7 @@ export class App {
     this.menu = new Menu(root, this.settings, {
       startRange: () => this.startRange(),
       joinMatch: (name) => this.joinMatch(name),
-      resume: () => void this.lock(),
+      resume: () => this.play(),
       deploy: () => this.deploy(),
       quit: () => this.quitToMenu(),
       settingsChanged: (s, reload) => this.applySettings(s, reload),
@@ -104,7 +111,7 @@ export class App {
     this.tutorialHud = new TutorialHud(this.hud.root, root, {
       resume: () => {
         this.tutorialHud.hideModal();
-        void this.lock();
+        this.play();
       },
       openSimulator: () => this.openSimulator(),
       openVirtual: () => this.openVirtualPhone(),
@@ -117,6 +124,21 @@ export class App {
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKeyDown = (code) => this.onKey(code);
     this.input.onPadButton = (button) => this.onPadButton(button);
+    this.input.onPadNav = (dir) => this.onPadNav(dir);
+    this.nav = new PadNav(() => (this.tutorialHud.modalOpen ? this.tutorialHud.modalRoot : this.menu.root));
+    // A controller in use: menus show which control is in focus, and a new screen focuses its
+    // first (the first step on a screen without one focuses it too, rather than stepping past it).
+    this.menu.onShow = () => {
+      if (this.input.padActive) this.nav.focusFirst();
+    };
+    onDevice((d) => document.body.classList.toggle('pad-nav', d !== 'keyboard'));
+    this.focusNotice = document.createElement('div');
+    this.focusNotice.className = 'focus-notice hidden';
+    const notice = document.createElement('div');
+    notice.className = 'focus-notice-card';
+    notice.textContent = UI.focusNotice;
+    this.focusNotice.appendChild(notice);
+    root.appendChild(this.focusNotice);
     this.menu.overlayElement().addEventListener('click', () => void this.lock());
     // Playing with a controller (the mouse unlocked): a click on the game takes the mouse back,
     // and leaving the window pauses, as a lost lock does.
@@ -251,6 +273,8 @@ export class App {
     const dt = Math.min(0.25, Math.max(0, dtMs / 1000));
     const game = this.game;
     const t0 = performance.now();
+    const unfocused = document.hidden || !document.hasFocus();
+    if (unfocused !== !this.focusNotice.classList.contains('hidden')) this.focusNotice.classList.toggle('hidden', !unfocused);
     if (game && !this.manualClock) {
       if (this.mode === 'menu') this.attract(dt);
       this.input.pollPad();
@@ -300,7 +324,7 @@ export class App {
       g.yaw = 0;
       g.pitch = 0;
     }
-    void this.lock();
+    this.play();
   }
 
   /** Builds the garrison and asks the server to let us in (or back in, with our token). */
@@ -433,7 +457,7 @@ export class App {
     t.start();
     this.tutorialHud.setVisible(true);
     this.menu.showOverlay(false);
-    void this.lock();
+    this.play();
   }
 
   /** The phone on the duty table was picked up: pair it (unless one is connected already). */
@@ -483,7 +507,26 @@ export class App {
     this.matchGame!.paused = true;
     this.renderer.warmup();
     this.menu.showOverlay(false);
-    void this.lock();
+    this.play();
+  }
+
+  /**
+   * Into play from a menu: the mouse locks, as ever. A controller in use can't lock it, so its
+   * player plays with the mouse free instead.
+   */
+  private play(): void {
+    if (this.input.padActive) this.padPlay();
+    else void this.lock();
+  }
+
+  /** Play with the mouse unlocked: a controller's game. */
+  private padPlay(): void {
+    const g = this.game;
+    if ((this.mode !== 'range' && this.mode !== 'match' && this.mode !== 'training') || !g) return;
+    this.tutorialHud.setPanelVisible(true);
+    this.menu.hide();
+    g.paused = false;
+    this.input.clearPresses();
   }
 
   private async lock(): Promise<void> {
@@ -531,25 +574,34 @@ export class App {
     return (this.mode === 'range' || this.mode === 'match' || this.mode === 'training') && !!g && !g.paused && !this.input.locked;
   }
 
-  /**
-   * Start on a controller plays or pauses, and A plays from the click-to-play screen: the game
-   * then runs with the mouse unlocked, as a gamepad can't lock it. A locked mouse is left to its
-   * own flow (Start just unlocks it, which pauses).
-   */
-  private onPadButton(button: 'start' | 'a'): void {
+  /** In play: a game running in range, training or match, with no menu or card over it. */
+  private inPlay(): boolean {
     const g = this.game;
-    if ((this.mode !== 'range' && this.mode !== 'match' && this.mode !== 'training') || !g) return;
-    if (this.tutorialHud.modalOpen || this.virtualPhone.shown) return;
-    if (!g.paused) {
+    return (this.mode === 'range' || this.mode === 'match' || this.mode === 'training') && !!g && !g.paused && !this.tutorialHud.modalOpen;
+  }
+
+  /**
+   * Start, A and B on a controller. In play only Start counts: it pauses (a locked mouse is left to
+   * its own flow: Start unlocks it, which pauses). Paused, Start plays on with the mouse free, as A
+   * does on the click-to-play screen. Elsewhere A presses the menu control in focus and B goes back.
+   */
+  private onPadButton(button: 'start' | 'a' | 'b'): void {
+    if (this.virtualPhone.shown) return;
+    if (this.inPlay()) {
       if (button !== 'start') return;
       if (this.input.locked) this.input.unlock();
       else this.padPause();
-    } else if (button === 'start' || this.menu.overlayVisible) {
-      this.tutorialHud.setPanelVisible(true);
-      this.menu.hide();
-      g.paused = false;
-      this.input.clearPresses();
+      return;
     }
+    const paused = (this.mode === 'range' || this.mode === 'match' || this.mode === 'training') && !this.tutorialHud.modalOpen;
+    if (paused && (button === 'start' || (button === 'a' && this.menu.overlayVisible))) this.padPlay();
+    else if (button === 'a') this.nav.accept();
+    else if (button === 'b') this.nav.back();
+  }
+
+  /** The D-pad or the left stick steps through the menus (in play they are the game's). */
+  private onPadNav(dir: NavDir): void {
+    if (!this.inPlay() && !this.virtualPhone.shown) this.nav.move(dir);
   }
 
   /** Pauses a controller's game, as unlocking the mouse pauses the keyboard and mouse's. */

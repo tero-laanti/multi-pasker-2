@@ -2,6 +2,7 @@ import { UI } from '../../shared/ui';
 import { TUTORIAL_STEPS, type TutorialStep } from '../game/tutorial';
 import { WEB } from '../web';
 import { PairPanel } from './pair';
+import { device, onDevice, withKeys } from '../controls';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -60,7 +61,17 @@ export class TutorialHud {
     el('div', 'tutorial-card-body', this.connected, UI.tutorial.pairedBody);
     const go = el('button', 'btn primary', this.connected, UI.tutorial.pairedButton);
     go.onclick = () => a.resume();
+    go.dataset.padBack = '';
+    onDevice(() => this.render());
   }
+
+  /** The pairing card over the range, when open (a controller moves through its buttons). */
+  get modalRoot(): HTMLElement {
+    return this.modal;
+  }
+
+  /** Writes the panel's text; again when the player switches between keys and a controller. */
+  private render: () => void = () => {};
 
   get modalOpen(): boolean {
     return !this.modal.classList.contains('hidden');
@@ -76,9 +87,13 @@ export class TutorialHud {
     const s = step === 'pair' ? 'phone' : step;
     const i = TUTORIAL_STEPS.indexOf(s);
     this.count.textContent = step === 'done' ? '' : `${i + 1} / ${TUTORIAL_STEPS.length}`;
-    const text = WEB && step === 'pair' ? UI.web.pairStep : UI.tutorial.steps[step];
-    this.title.textContent = text.title;
-    this.body.textContent = text.body;
+    this.render = () => {
+      const pad = UI.tutorial.padSteps[step];
+      const text = WEB && step === 'pair' ? UI.web.pairStep : device() !== 'keyboard' && pad ? pad : UI.tutorial.steps[step]!;
+      this.title.textContent = text.title;
+      this.body.textContent = withKeys(text.body);
+    };
+    this.render();
     this.panel.classList.toggle('done', step === 'done');
     this.panel.classList.toggle('lesson', step === 'reload');
     this.panel.classList.remove('settled');
@@ -87,7 +102,10 @@ export class TutorialHud {
   /** After a while the finished panel shrinks to one line under the range's drill line. */
   settle(): void {
     this.panel.classList.add('settled');
-    this.body.textContent = UI.tutorial.settled;
+    this.render = () => {
+      this.body.textContent = withKeys(UI.tutorial.settled);
+    };
+    this.render();
   }
 
   /** Hidden under the pause menu (it would cover its title). */
@@ -97,8 +115,11 @@ export class TutorialHud {
 
   /** The reload lesson: there is no spare magazine. */
   noSpare(): void {
-    this.title.textContent = UI.tutorial.noSpareTitle;
-    this.body.textContent = UI.tutorial.noSpare;
+    this.render = () => {
+      this.title.textContent = UI.tutorial.noSpareTitle;
+      this.body.textContent = UI.tutorial.noSpare;
+    };
+    this.render();
   }
 
   showModal(): void {

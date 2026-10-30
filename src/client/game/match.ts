@@ -31,6 +31,7 @@ import type { MinimapMark } from '../ui/minimap';
 import type { PairInfo } from '../ui/pair';
 import type { Game, GameMode } from './game';
 import { Remotes } from './remotes';
+import { withKeys } from '../controls';
 
 function fill(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, k: string) => String(values[k] ?? ''));
@@ -571,7 +572,7 @@ export class MatchMode implements GameMode {
   }
 
   outOfAmmo(): string {
-    return (this.pairInfo?.phone ?? 'none') === 'none' ? UI.hud.outOfAmmoNoPhone : UI.hud.outOfAmmo;
+    return (this.pairInfo?.phone ?? 'none') === 'none' ? withKeys(UI.hud.outOfAmmoNoPhone) : UI.hud.outOfAmmo;
   }
 
   reload(): void {

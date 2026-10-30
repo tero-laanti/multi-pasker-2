@@ -4,6 +4,7 @@ import { ACCENTS, type AwardInfo, type MatchResult, type PlayerInfo, type RoundI
 import { UI } from '../../shared/ui';
 import { wrapAngle } from '../../shared/math';
 import { Minimap } from './minimap';
+import { device, withKeys } from '../controls';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -266,9 +267,9 @@ export class MatchHud {
 
   /** Our own phone: connected, offline, or not paired yet. */
   phone(state: 'none' | 'online' | 'offline', out: boolean, virtual = false): void {
-    const key = `${state}${out}${virtual}`;
+    const key = `${state}${out}${virtual}${device()}`;
     if (!this.changed('phone', key)) return;
-    this.phoneLine.textContent = state === 'online' ? `📱 ${virtual ? UI.hud.phoneVirtual : UI.hud.phoneOnline}` : state === 'offline' ? `📱 ${UI.hud.phoneOffline}` : UI.hud.phoneNone;
+    this.phoneLine.textContent = state === 'online' ? `📱 ${virtual ? withKeys(UI.hud.phoneVirtual) : UI.hud.phoneOnline}` : state === 'offline' ? `📱 ${UI.hud.phoneOffline}` : withKeys(UI.hud.phoneNone);
     this.phoneLine.dataset.state = state;
     this.phoneLine.classList.toggle('out', out);
   }
