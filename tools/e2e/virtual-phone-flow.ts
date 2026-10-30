@@ -51,7 +51,8 @@ try {
   await page.evaluate(() => (window as any).__pasker.app.closeVirtualPhone());
   await page.evaluate(() => (window as any).__pasker.play());
   for (let i = 0; i < 4; i++) {
-    await page.evaluate(() => ((window as any).__pasker.input.leftPressed = true));
+    await page.mouse.down();
+    await page.mouse.up();
     await wait(220);
   }
   result.ammoBefore = await page.evaluate(() => (window as any).__pasker.game.weapons.ammo.pistol);

@@ -85,9 +85,10 @@ async function chat(text: string, name: string): Promise<void> {
   result[`${name}_phoneOutAfter`] = await desktop.evaluate(() => (window as any).__pasker.match.phoneOut);
 }
 
-// A reload with a part-empty magazine: shoot a few times first.
+// A reload with a part-empty magazine: shoot a few times first, with the left mouse button.
 for (let i = 0; i < 3; i++) {
-  await desktop.evaluate(() => ((window as any).__pasker.input.leftPressed = true));
+  await desktop.mouse.down();
+  await desktop.mouse.up();
   await wait(220);
 }
 result.ammoBefore = await desktop.evaluate(() => (window as any).__pasker.game.weapons.ammo.pistol);

@@ -104,8 +104,10 @@ async function run(): Promise<void> {
   await aimAt(desktop, -2.5, 1.25, -10);
   await wait(200);
   await shot(desktop, 'tut_2_shoot');
+  // The left mouse button fires; the mouse stays where it is, as moving it would turn the aim.
   for (let i = 0; i < 12 && (await stage(desktop)) === 'shoot'; i++) {
-    await desktop.evaluate(() => ((window as any).__pasker.input.leftPressed = true));
+    await desktop.mouse.down();
+    await desktop.mouse.up();
     await wait(220);
   }
   result.afterShooting = { stage: await stage(desktop), ammo: await desktop.evaluate(() => (window as any).__pasker.game.weapons.ammo.pistol) };

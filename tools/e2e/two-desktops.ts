@@ -52,8 +52,10 @@ async function shoot(n: number): Promise<void> {
       const ez = g.move.z;
       g.yaw = Math.atan2(-(r.s.x - ex), -(r.s.z - ez));
       g.pitch = Math.atan2(r.s.y + 1.15 - ey, Math.hypot(r.s.x - ex, r.s.z - ez));
-      p.input.leftPressed = true;
     }, idb);
+    // The left mouse button, where the mouse is: moving it would turn the aim.
+    await a.mouse.down();
+    await a.mouse.up();
     await wait(260);
   }
 }

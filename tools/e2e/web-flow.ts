@@ -82,8 +82,10 @@ try {
   await page.evaluate(() => (window as any).__pasker.play());
   await wait(1500);
   result.match = await page.evaluate(() => ({ mode: (window as any).__pasker.app.mode, players: [...(window as any).__pasker.match.players.values()].map((p: any) => p.name) }));
+  // A few shots with the left mouse button.
   for (let i = 0; i < 4; i++) {
-    await page.evaluate(() => ((window as any).__pasker.input.leftPressed = true));
+    await page.mouse.down();
+    await page.mouse.up();
     await wait(220);
   }
   result.ammoBefore = await page.evaluate(() => (window as any).__pasker.game.weapons.ammo.pistol);
