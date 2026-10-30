@@ -1,5 +1,6 @@
 import { SERVICE, SOTKU } from '../shared/config';
 import { FI } from '../shared/fi';
+import { boldParts, numberParts, numbersIn, plain } from '../shared/markup';
 import { ACCENTS, PROTOCOL_VERSION, type MsgState, type PhoneConversation, type PhoneMessage, type PhoneServerMsg, type PhoneStatus } from '../shared/protocol';
 import { CAFE_IDS, GEAR_IDS, PATHS, benefit, canBuy, effects, isCafeId, isShopId, pathItems, payFor, rises, shopItem, type PathId, type ShopId, type StoreState } from '../shared/service';
 import { UI } from '../shared/ui';
@@ -13,11 +14,6 @@ const TOKEN_KEY = 'kenttaposti.token';
 const STARTED_KEY = 'kenttaposti.started';
 const CHAT_KEY = 'kenttaposti.chat';
 const CLIP_KEY = 'kenttaposti.clip';
-
-/** Phone numbers in a message: the 4-digit office numbers and the long +358 ones. */
-function numbersIn(text: string | undefined): string[] {
-  return [...new Set(text?.match(/\+?\d{4,}/g) ?? [])];
-}
 
 type View = 'connecting' | 'pair' | 'confirm' | 'sound' | 'list' | 'chat' | 'sotku' | 'replaced';
 
@@ -39,6 +35,15 @@ function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: strin
   if (text !== undefined) e.textContent = text;
   parent?.appendChild(e);
   return e;
+}
+
+/** Text with its **codewords** in bold. */
+function withBold(el: HTMLElement, text: string): HTMLElement {
+  for (const part of boldParts(text)) {
+    if (part.bold) h('strong', '', part.text, el);
+    else el.append(part.text);
+  }
+  return el;
 }
 
 function fill(template: string, values: Record<string, string | number>): string {
@@ -747,7 +752,7 @@ export class PhoneApp {
       const mid = h('div', 'conv-mid', undefined, row);
       h('div', 'conv-name', c.name, mid);
       const last = [...c.messages].reverse().find((m) => m.from !== 'system');
-      h('div', 'conv-preview', last ? (last.voice ? `🎤 ${P.voiceNote}` : (last.from === 'me' ? '✓ ' : '') + (last.text ?? '')) : formatNumber(c.id), mid);
+      h('div', 'conv-preview', last ? (last.voice ? `🎤 ${P.voiceNote}` : (last.from === 'me' ? '✓ ' : '') + plain(last.text ?? '')) : formatNumber(c.id), mid);
       const right = h('div', 'conv-right', undefined, row);
       if (last) h('div', 'conv-time', clock(last.at), right);
       if (c.unread > 0) h('div', 'badge', String(c.unread), right);
@@ -869,7 +874,7 @@ export class PhoneApp {
       const row = h('button', 'row2', undefined, body);
       const left = h('div', 'row2-main', undefined, row);
       h('div', 'row2-name', FI.items[id] ?? id, left);
-      h('div', 'row2-sub', benefit(id), left);
+      withBold(h('div', 'row2-sub', undefined, left), benefit(id));
       const right = h('div', 'row2-end', undefined, row);
       h('span', 'price', `${SOTKU.cafe[id]} €`, right);
       if (st.cafe[id] > 0) h('span', 'row2-have', fill(S.have, { n: st.cafe[id] }), right);
@@ -959,7 +964,7 @@ export class PhoneApp {
     };
     const sheet = h('div', 'item-sheet', undefined, wrap);
     h('div', 'item-name', FI.items[id] ?? id, sheet);
-    h('div', 'item-benefit', benefit(id), sheet);
+    withBold(h('div', 'item-benefit', undefined, sheet), benefit(id));
     const meta = h('div', 'item-meta', undefined, sheet);
     let price = 0;
     let needs = '';
@@ -1195,7 +1200,7 @@ export class PhoneApp {
     const chips: { text: string; from?: string }[] = [];
     if (effects(this.store?.owned ?? []).autofill) {
       const last = [...c.messages].reverse().find((m) => m.from === 'them' && m.text);
-      const codes = last ? codesIn(last.text!).filter((x) => x !== 'LATAA' && x !== 'KRANAATTI') : [];
+      const codes = last ? codesIn(plain(last.text!)).filter((x) => x !== 'LATAA' && x !== 'KRANAATTI') : [];
       chips.push(...codes.slice(-1).map((text) => ({ text, from: c.name })));
       if (c.id === FI.varusmestari.number) chips.push({ text: 'LATAA' }, { text: 'KRANAATTI' });
     }
@@ -1276,13 +1281,32 @@ export class PhoneApp {
     if (m.voice) this.voiceBubble(row, m);
     else {
       const b = h('div', `bubble ${m.from}`, undefined, row);
-      b.textContent = m.text ?? '';
+      if (m.from === 'them') this.richText(b, m.text ?? '');
+      else b.textContent = m.text ?? '';
       const numbers = numbersIn(m.text);
       if (numbers.length) this.pressMenu(b, () => numbers.map((n) => ({ label: fill(P.copyNumber, { n: formatNumber(n) }), act: () => this.copyNumber(n) })));
     }
     if (m.from === 'me' && m.state && (newestMine || m.state === 'failed')) {
       const st = h('div', `state ${m.state}`, stateText(m), list);
       st.dataset.id = m.id;
+    }
+  }
+
+  /** Their message's text: codewords bold, phone numbers underlined (a tap on one offers to copy it). */
+  private richText(el: HTMLElement, text: string): void {
+    for (const part of boldParts(text)) {
+      const into = part.bold ? h('strong', '', undefined, el) : el;
+      for (const bit of numberParts(part.text)) {
+        if (!bit.number) {
+          into.append(bit.text);
+          continue;
+        }
+        h('span', 'num', bit.text, into).addEventListener('click', (e) => {
+          // Not the message's own menu (a click with a mouse) as well.
+          e.stopPropagation();
+          this.openMenu([{ label: fill(P.copyNumber, { n: formatNumber(bit.text) }), act: () => this.copyNumber(bit.text) }], e.clientX, e.clientY);
+        });
+      }
     }
   }
 

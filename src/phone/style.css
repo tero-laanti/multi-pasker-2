@@ -481,6 +481,19 @@ p {
   border-bottom-left-radius: 6px;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06);
 }
+/* Codewords to send back. */
+.bubble strong,
+.row2-sub strong,
+.item-benefit strong {
+  font-weight: 800;
+}
+/* A phone number: a tap offers to copy it. */
+.bubble .num {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
 .stamp,
 .sys {
   align-self: center;

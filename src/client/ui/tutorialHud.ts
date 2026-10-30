@@ -3,6 +3,7 @@ import { TUTORIAL_STEPS, type TutorialStep } from '../game/tutorial';
 import { WEB } from '../web';
 import { PairPanel } from './pair';
 import { device, onControls, withKeys } from '../controls';
+import { setBold } from './bold';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -91,7 +92,7 @@ export class TutorialHud {
       const pad = UI.tutorial.padSteps[step];
       const text = WEB && step === 'pair' ? UI.web.pairStep : device() !== 'keyboard' && pad ? pad : UI.tutorial.steps[step]!;
       this.title.textContent = text.title;
-      this.body.textContent = withKeys(text.body);
+      setBold(this.body, withKeys(text.body));
     };
     this.render();
     this.panel.classList.toggle('done', step === 'done');
@@ -103,7 +104,7 @@ export class TutorialHud {
   settle(): void {
     this.panel.classList.add('settled');
     this.render = () => {
-      this.body.textContent = withKeys(UI.tutorial.settled);
+      setBold(this.body, withKeys(UI.tutorial.settled));
     };
     this.render();
   }
@@ -117,7 +118,7 @@ export class TutorialHud {
   noSpare(): void {
     this.render = () => {
       this.title.textContent = UI.tutorial.noSpareTitle;
-      this.body.textContent = UI.tutorial.noSpare;
+      setBold(this.body, UI.tutorial.noSpare);
     };
     this.render();
   }

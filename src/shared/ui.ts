@@ -1,7 +1,8 @@
 /**
  * Interface text (English): menus, HUD, settings and dev tools.
  * Finnish content (commands, voice lines, the varusmestari's script) lives in fi.ts.
- * `{name}`-style placeholders are filled in by the code.
+ * `{name}`-style placeholders are filled in by the code. **WORD** marks a codeword to text: it is
+ * drawn bold (shared/markup.ts).
  */
 export const UI = {
   appTitle: 'MULTI-PASKER 2',
@@ -180,9 +181,9 @@ export const UI = {
     reloading: 'RELOADING',
     grenade: 'Grenade',
     reloadKey: 'Press {reload} to reload.',
-    outOfAmmo: 'Out of ammo. Text LATAA to Asevarasto.',
-    outOfAmmoNoPhone: 'Out of ammo. No phone yet: {menu} → Open a virtual phone, then text LATAA.',
-    noGrenade: 'No grenades. Ask the armourer: KRANAATTI.',
+    outOfAmmo: 'Out of ammo. Text **LATAA** to Asevarasto.',
+    outOfAmmoNoPhone: 'Out of ammo. No phone yet: {menu} → Open a virtual phone, then text **LATAA**.',
+    noGrenade: 'No grenades. Ask the armourer: **KRANAATTI**.',
     cookedOff: 'It went off in your hand.',
     fuse: 'Fuse {s} s',
     grenadeWeapon: 'Grenade',
@@ -341,8 +342,8 @@ export const UI = {
       reload: { title: 'Reload', body: 'Press {reload}.' },
       phone: { title: 'Get the phone', body: 'There is a phone on the duty table behind you. Walk up to it and press {use}.' },
       pair: { title: 'Pair your phone', body: 'Scan the code on the screen with your phone.' },
-      reply: { title: 'Answer the radio check', body: 'Asevarasto texted you. Open the chat on your phone and reply YK.' },
-      done: { title: 'Training complete', body: 'Press {reload} to reload your gun. Text LATAA for full magazines, KRANAATTI for a grenade ({grenade} pulls the pin, let go to throw). {knife} stabs with the knife. The range has a rifle too: {rifle}. Train as long as you like, then {menu} → Go to the match.' },
+      reply: { title: 'Answer the radio check', body: 'Asevarasto texted you. Open the chat on your phone and reply **YK**.' },
+      done: { title: 'Training complete', body: 'Press {reload} to reload your gun. Text **LATAA** for full magazines, **KRANAATTI** for a grenade ({grenade} pulls the pin, let go to throw). {knife} stabs with the knife. The range has a rifle too: {rifle}. Train as long as you like, then {menu} → Go to the match.' },
     } as Record<string, { title: string; body: string }>,
     /** The steps that read differently on a controller. */
     padSteps: {
@@ -444,7 +445,7 @@ export const UI = {
     /** Copying a number out of a message (long press, or a click) and pasting it as a new chat's number. */
     copyNumber: 'Copy {n}',
     pasteNumber: 'Paste {n}',
-    nothingCopied: 'Nothing copied: long-press a number in a message',
+    nothingCopied: 'Nothing copied: tap a number in a message',
     copied: 'Copied {n}',
     open: 'Open',
     cancel: 'Cancel',
@@ -575,14 +576,14 @@ export const UI = {
     tutka: 'Minimap range {a} → {b} m; enemy shots stay on it twice as long.',
     tumma: 'Dark mode: nobody sees you using your phone.',
     kannykka: 'Enemies holding a phone show on your minimap.',
-    lennokki: 'Text LENNOKKI to Asevarasto: every enemy on your minimap for {s} s, once a round.',
+    lennokki: 'Text **LENNOKKI** to Asevarasto: every enemy on your minimap for {s} s, once a round.',
     tihea: 'KRANAATTI works again after {b} s instead of {a}.',
     heitto: 'You see where the grenade will go while you hold it, and it flies {pct} % farther.',
     sirpale: 'Grenade damage +{pct} %.',
     kolmas: 'Carry three grenades.',
     raskas: 'Grenade blast radius +{pct} %.',
-    tuli: 'Text TULI to Asevarasto: {n} mortar rounds land where you are looking, {s} s later, once a round.',
-    munkki: 'Your next paperwork is done by texting KIITOS to Asevarasto.',
+    tuli: 'Text **TULI** to Asevarasto: {n} mortar rounds land where you are looking, {s} s later, once a round.',
+    munkki: 'Your next paperwork is done by texting **KIITOS** to Asevarasto.',
     nakkisuoja: 'Skips the next inventory check.',
   } as Record<string, string>,
 

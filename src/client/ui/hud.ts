@@ -1,6 +1,7 @@
 import { UI } from '../../shared/ui';
 import { DRILL, type DrillResult } from '../../shared/rangeSim';
 import { key, onControls, withKeys, type Control } from '../controls';
+import { setBold } from './bold';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -166,14 +167,14 @@ export class Hud {
   }
 
   note(text: string, seconds = 2.5): void {
-    this.centerNote.textContent = text;
+    setBold(this.centerNote, text);
     this.centerNote.classList.add('show');
     this.noteTimer = seconds;
   }
 
   setHint(text: string): void {
     if (this.changed('hint', text)) {
-      this.hint.textContent = text;
+      setBold(this.hint, text);
       this.hint.classList.toggle('show', text.length > 0);
     }
   }

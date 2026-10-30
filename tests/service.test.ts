@@ -272,6 +272,51 @@ describe('the service', () => {
     expect(p.service.owned.has('puukko')).toBe(true);
   });
 
+  it('half a minute after a new number is read, its sender says how to open the chat, once', () => {
+    const { all, serve, run, texts, paperwork } = setup();
+    const [a] = all;
+    const p = a!.p;
+    serve(p, 20);
+    paperwork(p);
+    paperwork(p);
+    const c = p.service.open!;
+    const reminders = () => texts(a!.phone, V.number).filter((m) => FI.ladder.numberReminder.some((s) => s.replace('{number}', c.conv) === m.text));
+    // The number comes in and is read within seconds; the reminder half a minute after that.
+    run(20000);
+    expect(reminders()).toHaveLength(0);
+    run(30000);
+    expect(reminders()).toHaveLength(1);
+    run(60000);
+    expect(reminders()).toHaveLength(1);
+  });
+
+  it('no reminder once the chat with the new number is open', () => {
+    const { all, serve, room, run, texts, paperwork } = setup();
+    const [a] = all;
+    const p = a!.p;
+    serve(p, 20);
+    paperwork(p);
+    paperwork(p);
+    const c = p.service.open!;
+    run(8000);
+    room.onPhoneMessage(p, { t: 'open', conv: c.conv });
+    run(SERVICE.numberReminder * 1000 + 20000);
+    expect(texts(a!.phone, V.number).some((m) => FI.ladder.numberReminder.some((s) => s.replace('{number}', c.conv) === m.text))).toBe(false);
+  });
+
+  it('the commander reminds about Nylands brigad’s number in his own chat', () => {
+    const { all, serve, room, run, texts } = setup();
+    const [a] = all;
+    const p = a!.p;
+    room.service.skipPkausi(p);
+    p.service.days = SERVICE.days - 1;
+    serve(p, 3);
+    const c = p.service.open!;
+    expect(c.kind).toBe('nylands');
+    run(15000 + SERVICE.numberReminder * 1000 + 10000);
+    expect(texts(a!.phone, C.number).some((m) => FI.ladder.numberReminder.some((s) => s.replace('{number}', c.conv) === m.text))).toBe(true);
+  });
+
   it('the grenade belt comes as the supply chief’s voice note from a 17-digit number', () => {
     const { all, serve, room, run, texts, paperwork, send } = setup();
     const [a] = all;

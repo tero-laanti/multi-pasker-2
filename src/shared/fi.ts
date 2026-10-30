@@ -3,6 +3,7 @@
  * lines, in-world place names, the varusmestari's script and the phone commands).
  * Interface text is English and lives in ui.ts.
  * Edit freely: the keys are used by code, the strings are yours.
+ * **WORD** marks a codeword the player writes back: the phone draws it bold (shared/markup.ts).
  */
 export const FI = {
   range: {
@@ -105,7 +106,7 @@ export const FI = {
     name: 'Asevarasto',
     number: '7413',
     /** First message in the chat; it stays in the history as the instructions. In English, so newcomers understand it. */
-    welcome: ['Asevarasto. Services:\nLATAA: full magazines, the spare too.\nKRANAATTI: one grenade, throw with G.\nThere is nothing else. Hurry up and wait.'],
+    welcome: ['Asevarasto. Services:\n**LATAA**: full magazines, the spare too.\n**KRANAATTI**: one grenade, throw with G.\nThere is nothing else. Hurry up and wait.'],
     /** Short acknowledgements after a reload; an empty string means no reply at all. */
     reloadOk: ['Kuitattu.', 'Ladattu. Seuraava.', 'Lipas vaihdettu.', 'Tässä. Älä tuhlaa.', 'Ota ja mene.', 'Patruunat eivät kasva puussa.', '', '', ''],
     reloadFull: ['Lippaat ovat täynnä. Ammu ensin, {rank}.', 'Kaikki täynnä, varalipaskin. Mitä sinä oikein lataat?', 'Sinulla on jo kaikki. Laske itse.'],
@@ -116,24 +117,24 @@ export const FI = {
     grenadeCooldown: ['Kranaatit loppu. Uusi erä tulee kun tulee.', 'Varasto on tyhjä. Kysy hetken päästä.', 'Ei ole. Huolto on matkalla.'],
     dead: ['Kaatuneita ei palvella.', 'Kuolleet eivät tilaa mitään.', 'Ensin ylös, sitten viestit.'],
     oldRound: ['Se oli eri kierros. Aloita alusta.'],
-    nearMiss: ['Tarkoititko {cmd}? Täällä ei arvailla.', '{cmd} kirjoitetaan {cmd}. Uudestaan.', 'Lue ohje. {cmd}. Ei muuta.'],
-    swear: ['{rank}! Kieli! Punnerra kymmenen ja ilmoita: PUNNERRETTU.', 'Tuollaista kieltä ei käytetä asevarastolle. Kymmenen punnerrusta, ja ilmoitat: PUNNERRETTU.'],
-    locked: ['Punnerrukset ensin. Ilmoita: PUNNERRETTU.', 'Ei palvelua ennen kuin olet punnertanut. PUNNERRETTU.'],
+    nearMiss: ['Tarkoititko **{cmd}**? Täällä ei arvailla.', '**{cmd}** kirjoitetaan **{cmd}**. Uudestaan.', 'Lue ohje. **{cmd}**. Ei muuta.'],
+    swear: ['{rank}! Kieli! Punnerra kymmenen ja ilmoita: **PUNNERRETTU**.', 'Tuollaista kieltä ei käytetä asevarastolle. Kymmenen punnerrusta, ja ilmoitat: **PUNNERRETTU**.'],
+    locked: ['Punnerrukset ensin. Ilmoita: **PUNNERRETTU**.', 'Ei palvelua ennen kuin olet punnertanut. **PUNNERRETTU**.'],
     unlocked: ['Hyvä. Palvelu jatkuu.', 'No niin. Ja kieli kurissa jatkossa.'],
     unlockedNotLocked: ['Kukaan ei käskenyt punnertaa. Mutta hyvä.'],
     question: ['Kiire odottamaan.', 'Kysymykset kirjallisena komppanian toimistoon.'],
     help: ['Apua jaetaan torstaisin hernekeiton yhteydessä.'],
     english: ['Puolustusvoimissa puhutaan suomea. Tai ruotsia.', 'Englanniksi ei palvella. Suomeksi, kiitos.'],
     swedish: ['Nylands brigad on Dragsvikissä. Täällä puhutaan suomea.'],
-    greeting: ['Päivää. Asiaan.', 'Terve terve. Mitä tarvitaan? LATAA vai KRANAATTI.', 'Moi vaan. Ei tämä mikään chatti ole.'],
+    greeting: ['Päivää. Asiaan.', 'Terve terve. Mitä tarvitaan? **LATAA** vai **KRANAATTI**.', 'Moi vaan. Ei tämä mikään chatti ole.'],
     thanks: ['Ei kestä. Mene jo.', 'Kiitokset hernekeittojonoon.', 'Joo joo.'],
     numbers: ['Numerot toimistolle. Täällä tilataan sanoilla.', 'Ei tämä mikään vaihde ole.'],
     empty: ['Puhu suomea.', 'Mitä?'],
     spam: ['Yksi viesti kerrallaan, {rank}.', 'Rauhoitu. Täällä ei juosta.'],
     other: [
       'Ei kuulu meille.',
-      'Kokoa ei ole, ota mikä on. LATAA tai KRANAATTI.',
-      'Tästä luukusta saa kahta asiaa: LATAA ja KRANAATTI.',
+      'Kokoa ei ole, ota mikä on. **LATAA** tai **KRANAATTI**.',
+      'Tästä luukusta saa kahta asiaa: **LATAA** ja **KRANAATTI**.',
       'Palvelusohjesääntö ei tunne tuollaista pyyntöä.',
       'TJ on pitkä ja sinä kirjoitat tuollaista.',
       'Mitä?',
@@ -237,7 +238,7 @@ export const FI = {
     right: ['Täsmää. Kranaatti tulee.', 'Oikein. Ota kranaatti, ansaitsit sen.', 'Täsmää. Harvinaista. Kranaatti mukaan.'],
     rightFull: ['Täsmää. Vyö on jo täynnä, joten saat kiitoksen.', 'Oikein. Kranaatille ei ole tilaa, pelkkä kiitos.'],
     wrong: ['Ei täsmää. Laske uudestaan.', 'Väärin. Kello käy.', 'Ei pidä paikkaansa, {rank}. Uusi yritys.'],
-    timeout: ['Inventaario jäi tekemättä. Kaksikymmentä punnerrusta. Kuittaa PUNNERRETTU.', 'Aika loppui. Punnerrusasentoon, ja kuittaa PUNNERRETTU kun olet valmis.'],
+    timeout: ['Inventaario jäi tekemättä. Kaksikymmentä punnerrusta. Kuittaa **PUNNERRETTU**.', 'Aika loppui. Punnerrusasentoon, ja kuittaa **PUNNERRETTU** kun olet valmis.'],
     /** Anything else typed to the vääpeli. */
     other: ['Numerolla. Inventaario ei ole keskustelu.', 'Vääpeli kysyy, alokas vastaa numerolla.', 'Täällä lasketaan, ei jutella.'],
     idle: ['Ei inventaariota käynnissä. Odota vuoroasi.', 'Kysyn kun kysyn.'],
@@ -250,10 +251,10 @@ export const FI = {
    * shorter tellings-off.
    */
   training: {
-    radioCheck: ['YK'],
-    radioCheckExplain: ["Asevarasto, radio check. If this message got through, reply YK. If it didn't, don't reply at all."],
-    radioCheckOk: ["Alright, the comms work. Here's full ammo for you.\nIn the future you can send me the code word LATAA for full ammo and KRANAATTI for a grenade."],
-    radioCheckWrong: ['Reply YK. Two letters, {rank}.', 'YK. Nothing else. A radio check is not a conversation.', "Type YK. Capitals or not, as long as it's two letters."],
+    radioCheck: ['**YK**'],
+    radioCheckExplain: ["Asevarasto, radio check. If this message got through, reply **YK**. If it didn't, don't reply at all."],
+    radioCheckOk: ["Alright, the comms work. Here's full ammo for you.\nIn the future you can send me the code word **LATAA** for full ammo and **KRANAATTI** for a grenade."],
+    radioCheckWrong: ['Reply **YK**. Two letters, {rank}.', '**YK**. Nothing else. A radio check is not a conversation.', "Type **YK**. Capitals or not, as long as it's two letters."],
   },
   ladder: {
     /** P-kausi gear came due with a kill or with a death: the first line before the task. */
@@ -263,13 +264,13 @@ export const FI = {
     gearIntro: ['Nimellesi on kirjattu: {item}.', 'P-kauden varusteita: {item} odottaa nimelläsi.'],
     orderIntro: ['Sotkun tilaus saapui: {item}.', 'Tilauksesi on täällä: {item}.', 'Sotku toimitti: {item}.'],
     /** A word to sign with (row II, and anything else handed over at the counter). */
-    word: ['Kuittaa vastaanotto viestillä: {code}', 'Kuittaa: {code}', 'Lähetä {code}, niin kirjaan sen ulos.'],
+    word: ['Kuittaa vastaanotto viestillä: **{code}**', 'Kuittaa: **{code}**', 'Lähetä **{code}**, niin kirjaan sen ulos.'],
     /** Stage 1: the rifle. */
-    stage1: ['Nimellesi on kirjattu rynnäkkökivääri. Kuittaa vastaanotto viestillä: {code}', 'Rynkky odottaa luukulla. Kuittaa: {code}', 'Ase on varattu nimellesi. Lähetä {code}, niin kirjaan sen ulos.'],
+    stage1: ['Nimellesi on kirjattu rynnäkkökivääri. Kuittaa vastaanotto viestillä: **{code}**', 'Rynkky odottaa luukulla. Kuittaa: **{code}**', 'Ase on varattu nimellesi. Lähetä **{code}**, niin kirjaan sen ulos.'],
     stage1Codes: ['KUITTAAN', 'SELVÄ', 'UUDISTUS', 'VASTAANOTETTU'],
     stage1Done: ['Kuitattu. Rynnäkkökivääri on nyt sinun. Älä hukkaa sitä.', 'Kuitattu. Rynkky on sinun. Kakkosnäppäin, jos et muuten löydä.'],
     /** Stage 2: the proper form of address at the asevarasto. */
-    stage2: ['Varastossa on parannuksia, mutta ensin muodollisuudet. Kirjoita: {code}', 'Täällä puhutellaan oikein. Lähetä: {code}', 'Ennen kuin mitään luovutetaan, kirjoita: {code}'],
+    stage2: ['Varastossa on parannuksia, mutta ensin muodollisuudet. Kirjoita: **{code}**', 'Täällä puhutellaan oikein. Lähetä: **{code}**', 'Ennen kuin mitään luovutetaan, kirjoita: **{code}**'],
     stage2Codes: ['PYYDÄN LUPAA PUHUTELLA', 'HERRA KERSANTTI {RANK} {NAME}', 'UUDENLAINEN UUDISTUS', 'VESIHIISI SIHISI HISSISSÄ', 'MUSTAN KISSAN PAKSUT POSKET', 'KOKOO KOKOON KOKO KOKKO'],
     /** Stage 3: "not ours" — off to an office at a new number. */
     stage3: ['Ei kuulu meille. Ota yhteys: {office}, numero {number}.', 'Väärä luukku. {office} hoitaa tämän. Numero on {number}.', 'Tämä menee ylemmäs. {office}, {number}. Kirjoita itse, en minä sinua sinne vie.'],
@@ -279,9 +280,9 @@ export const FI = {
       ['Huolto-osasto', 'Huolto-osastolle'],
     ] as [string, string][],
     /** The office's first message when the player opens its chat: a phrase to send… */
-    officePhrase: ['{office}. Asianne? Pyynnöt vain kirjallisena muodossa: {code}', '{office}, päivystäjä. Kirjoita pyyntösi näin: {code}'],
+    officePhrase: ['{office}. Asianne? Pyynnöt vain kirjallisena muodossa: **{code}**', '{office}, päivystäjä. Kirjoita pyyntösi näin: **{code}**'],
     officePhrases: ['HALUAN PAREMMAN ASEEN', 'ANON PARANNUSTA ASEESEENI', 'PYYDÄN LISÄVARUSTEITA', 'TARVITSEN SITÄ OIKEASTI'],
-    /** …or a wall of regulations with the code word hidden in it ({code} in capitals). */
+    /** …or a wall of regulations with the code word hidden in it ({code} in capitals, not bold: finding it is the task). */
     officeRules: [
       '{office}. Palvelusohjesäännön mukaisesti varusmies, joka anoo lisävarusteita, on velvollinen ensin perehtymään asiaa koskeviin määräyksiin. Anomus käsitellään järjestyksessä, ellei esimies toisin määrää, ja käsittelyn kesto riippuu muun muassa kalustotilanteesta, vuorokaudenajasta ja käsittelijän mielialasta. Hyväksytty anomus vahvistetaan tunnussanalla {code}, joka lähetetään tähän numeroon. Väärin lähetetyt tunnussanat käsitellään torstaisin hernekeiton jälkeen.',
       '{office}. Varusmiehen on noudatettava saamiaan käskyjä viipymättä ja täsmällisesti. Kalustoa luovutetaan vain kuittausta vastaan, ja kuittaus annetaan kirjallisesti. Mikäli kuittaus on puutteellinen, epäselvä tai lähetetty väärään osoitteeseen, se katsotaan tekemättömäksi. Tämän pyynnön kuittaussana on {code}. Kuittaussanaa ei lausuta ääneen eikä kirjoiteta seinään. Kiire odottamaan.',
@@ -302,6 +303,8 @@ export const FI = {
     upgradeTaken: ['Kuitattu: {upgrade}.', '{upgrade} luovutettu. Allekirjoitus tähän.', '{upgrade}. Älä riko sitä heti.'],
     /** The right code in the wrong chat. */
     wrongChat: ['Väärä luukku. Lähetä se sinne, minne käskettiin.', 'Se ei kuulu tänne. Lue ohje uudestaan.'],
+    /** A new number read, but its chat still not opened after SERVICE.numberReminder seconds. */
+    numberReminder: ['Hey, I told you to send a message to number {number}! You can do it from the main menu of your phone by pressing the + icon in the corner.'],
     /** Sotkun munkkikahvit: KIITOS completes the next challenge. */
     munkkiDone: ['Munkkikahvit tekivät tehtävänsä. Hoidettu.', 'Kiitos itsellesi. Tehtävä kuitattu munkin voimalla.'],
     /** Stage 5: the huoltopäällikkö wants the weapon's serial number (inspect: I). */
@@ -338,7 +341,7 @@ export const FI = {
       MÅS: 'LOKKI',
     } as Record<string, string>,
     /** Discharged: the asevarasto's farewell. */
-    tj0: 'TJ 0. Kotiutettu. LATAA ja KRANAATTI toimivat vielä, koska olen hyvä ihminen.',
+    tj0: 'TJ 0. Kotiutettu. **LATAA** ja **KRANAATTI** toimivat vielä, koska olen hyvä ihminen.',
   },
 
   /** The Sotku's once-a-round commands, texted to the asevarasto, and the café's goods at work. */

@@ -411,6 +411,8 @@ export const SERVICE = {
   caughtDays: 1,
   /** The asevarasto texts a killer about someone caught texting at most this often (s). */
   caughtTextGap: 60,
+  /** Seconds after the player has read a contact's new number until, if its chat is still not open, they are told how to open it. */
+  numberReminder: 30,
   /** Päiväraha in € a day, from the day given on (days count from 1). Each rise is also a promotion. */
   pay: [
     [1, 5],

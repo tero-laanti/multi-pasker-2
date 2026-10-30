@@ -87,7 +87,7 @@ describe('the shooting range tutorial', () => {
     const phone = pair(a.p);
     run(4000);
     // The first text is just "YK"; anything else gets the explanation, then the tellings-off.
-    expect(phone.texts()).toEqual(['YK']);
+    expect(phone.texts()).toEqual(['**YK**']);
     send(a.p, 'moi');
     run(4000);
     expect(phone.texts().at(-1)).toBe(FI.training.radioCheckExplain[0]);

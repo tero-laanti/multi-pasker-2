@@ -24,7 +24,7 @@ describe('a controller’s make', () => {
 describe('hints', () => {
   it('read exactly as before on the keyboard', () => {
     expect(withKeys(UI.hud.reloadKey, 'keyboard')).toBe('Press R to reload.');
-    expect(withKeys(UI.hud.outOfAmmoNoPhone, 'keyboard')).toBe('Out of ammo. No phone yet: Esc → Open a virtual phone, then text LATAA.');
+    expect(withKeys(UI.hud.outOfAmmoNoPhone, 'keyboard')).toBe('Out of ammo. No phone yet: Esc → Open a virtual phone, then text **LATAA**.');
     expect(withKeys(UI.hud.phoneNone, 'keyboard')).toBe('No phone: Esc → pair');
     expect(withKeys(UI.hud.phoneVirtual, 'keyboard')).toBe('Virtual phone: Esc');
     expect(withKeys(UI.tutorial.settled, 'keyboard')).toBe('Esc → Go to the match when you are ready.');
@@ -32,7 +32,7 @@ describe('hints', () => {
     expect(withKeys(UI.tutorial.steps.reload!.body, 'keyboard')).toBe('Press R.');
     expect(withKeys(UI.tutorial.steps.phone!.body, 'keyboard')).toBe('There is a phone on the duty table behind you. Walk up to it and press E.');
     expect(withKeys(UI.tutorial.steps.done!.body, 'keyboard')).toBe(
-      'Press R to reload your gun. Text LATAA for full magazines, KRANAATTI for a grenade (G pulls the pin, let go to throw). V stabs with the knife. The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.',
+      'Press R to reload your gun. Text **LATAA** for full magazines, **KRANAATTI** for a grenade (G pulls the pin, let go to throw). V stabs with the knife. The range has a rifle too: 2. Train as long as you like, then Esc → Go to the match.',
     );
     const walk = UI.tutorial.steps.walk!;
     expect(hint(walk.body, UI.tutorial.padSteps.walk!.body, 'keyboard')).toBe(walk.body);

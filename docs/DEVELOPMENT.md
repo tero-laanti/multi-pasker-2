@@ -128,7 +128,9 @@ runs a scripted scenario against a running server and saves screenshots, and
 desktop, pairs an emulated touch phone and runs the LATAA / typo / new-chat / reload flow,
 `tools/e2e/service-flow.ts` goes through the service on a phone (the shop locked in P-kausi, the
 commander's text, paperwork typed on its keyboard, a path's tree, buying, autofill, the sniper
-rifle's scope), `tools/e2e/tutorial-flow.ts` runs the
+rifle's scope), `tools/e2e/numbers-flow.ts` checks the bold codewords and underlined numbers in
+the paperwork's chats, the reminder about a new number and copying one with a tap, on the way to
+an office and the huoltopäällikkö, `tools/e2e/tutorial-flow.ts` runs the
 training from the first step to the match, once with a phone and once with the virtual phone, and
 `tools/e2e/inventory-flow.ts` answers an inventory check wrong, then right, then lets one run out,
 and `tools/e2e/teams-flow.ts` plays pairs from the host's seat (the host alone with an odd number,

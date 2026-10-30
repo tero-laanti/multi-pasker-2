@@ -35,6 +35,7 @@ import { VoiceNotes } from '../voicenotes';
 import { Evening, matchAwards } from './awards';
 import { level, maxGrenades } from '../../shared/upgrades';
 import { FI } from '../../shared/fi';
+import { plain } from '../../shared/markup';
 
 /** A coordinate rounded to the millimetre, for events that only draw something. */
 const mm = (v: number): number => Math.round(v * 1000) / 1000;
@@ -424,6 +425,7 @@ export class Room {
           c.unread = 0;
           phone.onUnread();
         }
+        this.service.seen(p, String(msg.conv));
         this.varusmestari.flush(p, msg.conv);
         break;
       }
@@ -476,7 +478,8 @@ export class Room {
     const best = this.typos.reduce((a, b) => (b.text.length > a.text.length ? b : a));
     this.typos = [];
     this.lastTypoAt = now;
-    this.emit({ k: 'typo', p: best.p, to: best.to, text: best.text.slice(0, 120), reply: best.reply });
+    // The big screen draws the reply plain: no bold marks.
+    this.emit({ k: 'typo', p: best.p, to: best.to, text: best.text.slice(0, 120), reply: plain(best.reply) });
   }
 
   /** Socket closed or player left: the player stays (for a rejoin) but is shown as disconnected. */

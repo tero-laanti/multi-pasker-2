@@ -178,9 +178,10 @@ every few seconds until it's done.
 
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone
-away. Messages you type on the phone use the app's own keyboard (no autocorrect). Phone numbers
-in a message can be copied: long-press the message (or click it with a mouse) and pick *Copy*;
-then long-press (or click) the number in a new chat (**+**) and pick *Paste*.
+away. Messages you type on the phone use the app's own keyboard (no autocorrect). In the messages
+you get, the codewords to send back are in bold (not the one hidden in an office's wall of
+regulations) and phone numbers are underlined. Tap a number to copy it, then long-press (or
+click) the number field in a new chat (**+**) and pick *Paste*.
 The dead have no phone: die and the phone shows a note until you respawn (who did it, and the
 message that never got sent if you were typing), and nothing can be texted or bought meanwhile.
 
@@ -241,6 +242,9 @@ The first six weeks are P-kausi. Gear comes by text, as paperwork at the asevara
 | 10 | a longer rifle magazine (30 → 40) | send a phrase exactly (tongue twisters included) |
 | 20 | *Teroitettu puukko*: one stab kills | an office at a new number: open a chat with it yourself, then send its phrase or the code word hidden in a wall of regulations |
 | 30 | the grenade belt (two grenades) | the huoltopäällikkö at a 17-digit +358 number: a voice note spells the code in the phonetic alphabet |
+
+If you haven't opened a chat with a new number half a minute after reading it, whoever gave you
+the number tells you how.
 
 Once you have served 42 days and signed for all four, the company commander (*Komppanian
 päällikkö*) texts that P-kausi is over: you are sotamies, and the **Sotku App** opens on the phone's

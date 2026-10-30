@@ -50,6 +50,10 @@ export interface Paperwork {
   serial?: SerialHow;
   /** Answers off earlier rounds' serials, still accepted (the guns get new serials every round). */
   earlier?: string[];
+  /** The chat that gave the contact's number (the asevarasto's, or the commander's for Nylands). */
+  told?: string;
+  /** The reminder of how to open the contact's chat: due once the number has been read, then sent. */
+  reminder?: 'due' | 'sent';
 }
 
 /** Which number serial paperwork asks for: the rifle's, its last three digits, it reversed, or the pistol's. */
@@ -405,7 +409,7 @@ export class ServiceDesk {
       const rules = Math.random() < 0.5;
       const code = rules ? this.code('office', L.officeWords) : this.code('office', L.officePhrases);
       const text = pick(rules ? L.officeRules : L.officePhrase).replace('{office}', name).replace('{code}', code);
-      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text } };
+      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text }, told: V.number };
       say(pick(L.stage3).replace('{office}', name).replace('{number}', number));
       this.postTask(p);
       return;
@@ -413,7 +417,7 @@ export class ServiceDesk {
     if (kind === 'voice') {
       const number = this.huolto(p);
       const code = this.code('voice', L.stage4Codes);
-      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.huoltoNote), voice: [...code] } };
+      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.huoltoNote), voice: [...code] }, told: V.number };
       say(pick(L.stage4).replace('{number}', number));
       this.postTask(p);
       return;
@@ -424,7 +428,7 @@ export class ServiceDesk {
       const number = this.huolto(p);
       const how = pick(['full', 'last3', 'reversed', 'pistol'] as const);
       const code = serialCode(p.serials, how);
-      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.stage5[how]) }, serial: how };
+      s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.stage5[how]) }, serial: how, told: V.number };
       say(known ? pick(L.stage5Intro) : pick(L.stage5New).replace('{number}', number));
       this.postTask(p);
       return;
@@ -434,7 +438,7 @@ export class ServiceDesk {
     s.contacts.set(number, { name: L.nylands, kind: 'nylands' });
     const code = this.code('nylands', FI.voice.swedish.map(([, c]) => c));
     const file = FI.voice.swedish.find(([, c]) => c === code)![0];
-    s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.nylandsNote), line: file } };
+    s.open = { due, kind, conv: number, answer: normalize(code), code, posted: false, task: { text: pick(L.nylandsNote), line: file }, told: C.number };
     this.commander(p, C.tj0, { number });
     this.postTask(p);
   }
@@ -480,6 +484,22 @@ export class ServiceDesk {
 
   contact(p: ServerPlayer, number: string): Contact | undefined {
     return p.service.contacts.get(number);
+  }
+
+  /**
+   * The player has read a chat. Once they have read a contact's new number there, they get
+   * SERVICE.numberReminder seconds to open the contact's chat before that chat tells them how.
+   */
+  seen(p: ServerPlayer, conv: string): void {
+    const c = p.service.open;
+    if (!c || c.told !== conv || c.posted || c.reminder) return;
+    if (!p.phone.convs.get(conv)?.messages.some((m) => m.text?.includes(c.conv))) return;
+    c.reminder = 'due';
+    p.phone.schedule(this.room.now() + SERVICE.numberReminder * 1000, () => {
+      if (p.service.open !== c || c.posted || c.reminder !== 'due') return;
+      c.reminder = 'sent';
+      this.say(p, pick(L.numberReminder).replace('{number}', c.conv), conv);
+    });
   }
 
   /** The guns have new serials (a new round): serial paperwork asks for the new number, and the old one still counts. */
