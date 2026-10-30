@@ -3,7 +3,8 @@ import { cleanName, type MatchSettings } from '../../shared/protocol';
 import { UI } from '../../shared/ui';
 import { DEFAULT_SETTINGS, defaultQuality, type Quality, type Settings } from '../settings';
 import { REPO_URL, WEB } from '../web';
-import { key, onDevice, type Control } from '../controls';
+import { ACTIONS, SLOTS, bind, defaultBindings, reservedButton, reservedKey, type Action, type Bindings } from '../bindings';
+import { buttonName, key, keyName, onControls, padMake, type Control } from '../controls';
 
 function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', text?: string, parent?: HTMLElement): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -72,6 +73,11 @@ export class Menu {
   private settingsReturn: 'main' | 'pause' = 'main';
   /** A screen was shown (a controller in use focuses its first control). */
   onShow: () => void = () => {};
+  /** Settings → Controls: the slot waiting for its new key, mouse button or controller button. */
+  private capture: { action: Action; kind: keyof Bindings; slot: number } | null = null;
+  /** The click that follows a mouse button bound by pressing it, which must not press anything. */
+  private swallowClick = false;
+  private bindGrid: HTMLDivElement | null = null;
 
   constructor(
     parent: HTMLElement,
@@ -143,6 +149,61 @@ export class Menu {
     }
     this.quitButton = h('button', 'btn', UI.menu.quit, pb);
     this.quitButton.onclick = () => actions.quit();
+
+    // Settings → Controls waiting for a key or a mouse button: it is the slot's, nobody else's.
+    window.addEventListener(
+      'keydown',
+      (e) => {
+        if (!this.capture) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.repeat) return;
+        if (e.code === 'Escape') this.endCapture();
+        else if (e.code === 'Backspace' || e.code === 'Delete') this.setBinding(null);
+        else if (this.capture.kind === 'keys' && !reservedKey(e.code)) this.setBinding(e.code);
+      },
+      true,
+    );
+    window.addEventListener(
+      'mousedown',
+      (e) => {
+        if (this.capture?.kind !== 'keys') return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.setBinding(`Mouse${e.button}`);
+        // Its click (or menu) comes with its release: swallowed, until just after that.
+        this.swallowClick = true;
+        window.addEventListener('mouseup', () => setTimeout(() => (this.swallowClick = false)), { capture: true, once: true });
+      },
+      true,
+    );
+    for (const type of ['click', 'auxclick', 'contextmenu']) {
+      window.addEventListener(
+        type,
+        (e) => {
+          if (!this.swallowClick) return;
+          e.preventDefault();
+          e.stopPropagation();
+        },
+        true,
+      );
+    }
+  }
+
+  /** Settings → Controls is waiting for a key or a button. */
+  get capturing(): boolean {
+    return this.capture !== null;
+  }
+
+  /**
+   * A controller button pressed: while a slot waits, it is the slot's (Start cancels; a keyboard
+   * slot takes no controller button). False when nothing waits.
+   */
+  captureButton(button: number): boolean {
+    if (!this.capture) return false;
+    if (button === 9) this.endCapture();
+    else if (this.capture.kind === 'buttons' && !reservedButton(button)) this.setBinding(button);
+    return true;
   }
 
   private buildJoin(): void {
@@ -230,7 +291,7 @@ export class Menu {
       }
     };
     fill();
-    onDevice(fill);
+    onControls(fill);
     return box;
   }
 
@@ -401,6 +462,7 @@ export class Menu {
       if (this.settingsReturn === 'pause') this.showPause();
       else this.showMain();
     };
+    h('button', 'btn', UI.bindings.open, btns).onclick = () => this.showBindings();
     const reset = h('button', 'btn', UI.settings.reset, btns);
     reset.onclick = () => {
       Object.assign(s, DEFAULT_SETTINGS, { quality: defaultQuality() });
@@ -408,5 +470,87 @@ export class Menu {
       this.showSettings(this.settingsReturn);
     };
     root.classList.remove('hidden');
+  }
+
+  /** Settings → Controls: each action's keys and mouse buttons, and its controller buttons. */
+  private showBindings(): void {
+    this.hideAll();
+    const root = this.settingsScreen;
+    root.innerHTML = '';
+    h('div', 'title small', UI.bindings.title, root);
+    const form = h('div', 'settings-form binds', undefined, root);
+    this.bindGrid = h('div', 'bind-grid', undefined, form);
+    this.renderBindings();
+    h('div', 'note', UI.bindings.note, form);
+    const btns = h('div', 'buttons row-buttons', undefined, root);
+    const back = h('button', 'btn primary', UI.menu.back, btns);
+    back.dataset.padBack = '';
+    back.onclick = () => {
+      this.endCapture();
+      this.showSettings(this.settingsReturn);
+    };
+    h('button', 'btn', UI.bindings.reset, btns).onclick = () => {
+      this.endCapture();
+      this.settings.bindings = defaultBindings();
+      this.actions.settingsChanged(this.settings, false);
+      this.renderBindings();
+    };
+    root.classList.remove('hidden');
+  }
+
+  /** The grid of slots, again after each change (the slot in focus stays in focus). */
+  private renderBindings(): void {
+    const grid = this.bindGrid;
+    if (!grid) return;
+    const focused = (document.activeElement as HTMLElement | null)?.dataset?.bind;
+    grid.textContent = '';
+    h('div', 'bind-head', '', grid);
+    h('div', 'bind-head wide', UI.bindings.keyboard, grid);
+    h('div', 'bind-head wide', UI.bindings.pad, grid);
+    const b = this.settings.bindings;
+    for (const action of ACTIONS) {
+      h('div', 'bind-action', UI.bindings.actions[action] ?? action, grid);
+      for (const kind of ['keys', 'buttons'] as const) {
+        for (let slot = 0; slot < SLOTS; slot++) {
+          const value = b[kind][action][slot];
+          const waiting = this.capture?.action === action && this.capture.kind === kind && this.capture.slot === slot;
+          const label = waiting
+            ? kind === 'keys'
+              ? UI.bindings.pressKey
+              : UI.bindings.pressButton
+            : value === undefined
+              ? UI.keyNames.unbound
+              : kind === 'keys'
+                ? keyName(value as string, true)
+                : buttonName(value as number, padMake());
+          const cell = h('button', `bind-slot${waiting ? ' capturing' : ''}${value === undefined ? ' empty' : ''}`, label, grid);
+          cell.dataset.bind = `${kind}:${action}:${slot}`;
+          cell.onclick = () => this.startCapture(action, kind, slot);
+        }
+      }
+    }
+    if (focused) (grid.querySelector(`[data-bind="${focused}"]`) as HTMLElement | null)?.focus();
+  }
+
+  private startCapture(action: Action, kind: keyof Bindings, slot: number): void {
+    this.capture = { action, kind, slot };
+    this.renderBindings();
+  }
+
+  private endCapture(): void {
+    if (!this.capture) return;
+    this.capture = null;
+    this.renderBindings();
+  }
+
+  /** The waiting slot gets `value` (a key, a mouse button or a controller button), or none (null). */
+  private setBinding(value: string | number | null): void {
+    const c = this.capture;
+    if (!c) return;
+    this.capture = null;
+    const b = this.settings.bindings;
+    this.settings.bindings = c.kind === 'keys' ? bind(b, 'keys', c.action, c.slot, value as string | null) : bind(b, 'buttons', c.action, c.slot, value as number | null);
+    this.actions.settingsChanged(this.settings, false);
+    this.renderBindings();
   }
 }

@@ -615,7 +615,7 @@ export class MatchMode implements GameMode {
     const inventoryLeft = this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0;
     this.inventoryCue(inventoryLeft);
     this.hud.phoneBar(inventoryLeft, this.unreadFrom);
-    const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';
+    const showBoard = g.deps.input.held('scoreboard') || this.round?.state === 'ended';
     this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);
     const s = g.deps.settings;

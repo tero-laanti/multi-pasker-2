@@ -10,7 +10,7 @@ import { MatchMode } from './game/match';
 import { RangeMode } from './game/rangeMode';
 import { TutorialMode, markTutorialDone, tutorialDone } from './game/tutorial';
 import { ViewModel } from './game/viewmodel';
-import { onDevice } from './controls';
+import { device, onControls, setBindings } from './controls';
 import type { NavDir } from './gamepad';
 import { Input } from './input';
 import type { LocalServer } from './local/server';
@@ -85,6 +85,8 @@ export class App {
     this.canvas.className = 'view';
     root.appendChild(this.canvas);
     this.input = new Input(this.canvas);
+    this.input.bindings = this.settings.bindings;
+    setBindings(this.settings.bindings);
     this.hud = new Hud(root);
     this.hud.setVisible(false);
     this.matchHud = new MatchHud(this.hud.root);
@@ -125,13 +127,15 @@ export class App {
     this.input.onKeyDown = (code) => this.onKey(code);
     this.input.onPadButton = (button) => this.onPadButton(button);
     this.input.onPadNav = (dir) => this.onPadNav(dir);
+    // Settings → Controls waiting for a button takes the next press.
+    this.input.onPadPress = (button) => this.menu.captureButton(button);
     this.nav = new PadNav(() => (this.tutorialHud.modalOpen ? this.tutorialHud.modalRoot : this.menu.root));
     // A controller in use: menus show which control is in focus, and a new screen focuses its
     // first (the first step on a screen without one focuses it too, rather than stepping past it).
     this.menu.onShow = () => {
       if (this.input.padActive) this.nav.focusFirst();
     };
-    onDevice((d) => document.body.classList.toggle('pad-nav', d !== 'keyboard'));
+    onControls(() => document.body.classList.toggle('pad-nav', device() !== 'keyboard'));
     this.focusNotice = document.createElement('div');
     this.focusNotice.className = 'focus-notice hidden';
     const notice = document.createElement('div');
@@ -601,7 +605,7 @@ export class App {
 
   /** The D-pad or the left stick steps through the menus (in play they are the game's). */
   private onPadNav(dir: NavDir): void {
-    if (!this.inPlay() && !this.virtualPhone.shown) this.nav.move(dir);
+    if (!this.inPlay() && !this.virtualPhone.shown && !this.menu.capturing) this.nav.move(dir);
   }
 
   /** Pauses a controller's game, as unlocking the mouse pauses the keyboard and mouse's. */
@@ -644,6 +648,8 @@ export class App {
 
   private applySettings(s: Settings, reloadNeeded: boolean): void {
     saveSettings(s);
+    this.input.bindings = s.bindings;
+    setBindings(s.bindings);
     this.renderer.setView(s.fov, s.renderScale);
     this.audio.setVolumes(s.masterVolume, s.effectsVolume, s.gunVolume, s.musicVolume);
     if (reloadNeeded) location.reload();

@@ -2,7 +2,7 @@ import { UI } from '../../shared/ui';
 import { TUTORIAL_STEPS, type TutorialStep } from '../game/tutorial';
 import { WEB } from '../web';
 import { PairPanel } from './pair';
-import { device, onDevice, withKeys } from '../controls';
+import { device, onControls, withKeys } from '../controls';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -62,7 +62,7 @@ export class TutorialHud {
     const go = el('button', 'btn primary', this.connected, UI.tutorial.pairedButton);
     go.onclick = () => a.resume();
     go.dataset.padBack = '';
-    onDevice(() => this.render());
+    onControls(() => this.render());
   }
 
   /** The pairing card over the range, when open (a controller moves through its buttons). */

@@ -81,6 +81,13 @@ to control it* covers the screen until a click (or switching back) gives it focu
 | F3 | performance overlay (frame time, CPU time, RTT, jitter, snapshot rate, interpolation delay, server tick) |
 | F4 | live tuning panel |
 
+**Rebinding:** *Settings → Controls* lists every action with two keyboard-and-mouse slots and two
+controller slots. Click a slot (or press ✕ / A on it), then press the new key, mouse button or
+controller button; one already used elsewhere moves there, leaving — behind. Backspace clears a
+slot, Esc or Start cancels, and *Reset controls* brings back the defaults in these tables. Esc,
+Start, the F keys and ` stay as they are, as do mouse look, the wheel and the sticks. Every hint
+names your own keys and buttons. The bindings are saved in the browser with the other settings.
+
 ### A controller
 
 The keyboard and mouse are the game's controls; a game controller is there for a player who
@@ -88,6 +95,8 @@ prefers one. It works in Chrome and Edge with any pad they map as standard (Xbox
 pads included). It does nothing until it is used: press any button on it. A key or the mouse puts it
 back to sleep until a button or a firm push of a stick wakes it, so a pad lying on the desk never
 moves anyone.
+
+The default buttons:
 
 | Xbox / PlayStation | Action |
 |---|---|

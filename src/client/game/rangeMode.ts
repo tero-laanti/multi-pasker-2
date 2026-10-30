@@ -66,7 +66,7 @@ export class RangeMode implements GameMode {
     this.range.events.length = 0;
     // The CONTROLS note: E at it opens it, E again (or a step back, or the menu) closes it.
     const g = this.game;
-    if (!g.paused && (this.reading || this.note.near(g.eye, g.yaw)) && g.deps.input.consumePress('KeyE')) this.reading = !this.reading;
+    if (!g.paused && (this.reading || this.note.near(g.eye, g.yaw)) && g.deps.input.consume('use')) this.reading = !this.reading;
     if (this.reading && (g.paused || !this.note.inReach(g.eye))) this.reading = false;
   }
 

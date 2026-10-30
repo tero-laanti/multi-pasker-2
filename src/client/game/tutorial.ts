@@ -203,7 +203,7 @@ export class TutorialMode implements GameMode {
         if (this.doneTime < SETTLE_TIME && (this.doneTime += dt) >= SETTLE_TIME) this.onSettled();
         break;
       case 'phone':
-        if (!g.paused && this.nearPhone() && g.deps.input.consumePress('KeyE')) {
+        if (!g.paused && this.nearPhone() && g.deps.input.consume('use')) {
           this.set('pair');
           this.hooks.pickedUp();
           if (this.hooks.phoneOnline()) this.set('reply');

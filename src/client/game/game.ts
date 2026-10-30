@@ -24,6 +24,7 @@ import { ThrowArc } from './throwArc';
 import type { ViewModel } from './viewmodel';
 import { WeaponController } from './weapons';
 import { withKeys } from '../controls';
+import type { Action } from '../bindings';
 
 export const IMPACT_SOUND: Record<string, string> = {
   concrete: 'impact_concrete',
@@ -299,23 +300,24 @@ export class Game {
     const { input, audio, hud } = this.deps;
     this.simSteps++;
     const controls = !this.paused && this.mode.alive;
-    const k = controls ? input.keys : new Set<string>();
+    // The actions, through the player's bindings (Settings → Controls); none while not in control.
+    const held = (a: Action) => controls && input.held(a);
 
     if (controls) {
-      if (input.consumePress('KeyC')) this.crouchWanted = this.deps.settings.crouchToggle ? !this.crouchWanted : true;
-      if (!this.deps.settings.crouchToggle) this.crouchWanted = k.has('KeyC');
-      if (input.consumePress('Digit1')) this.weapons.switchTo('pistol');
-      if (input.consumePress('Digit2')) this.weapons.switchTo('rifle');
-      if (input.consumePress('Digit3')) this.weapons.switchTo('sniper');
-      const wheel = input.consumeWheel();
+      if (input.consume('crouch')) this.crouchWanted = this.deps.settings.crouchToggle ? !this.crouchWanted : true;
+      if (!this.deps.settings.crouchToggle) this.crouchWanted = held('crouch');
+      if (input.consume('pistol')) this.weapons.switchTo('pistol');
+      if (input.consume('rifle')) this.weapons.switchTo('rifle');
+      if (input.consume('sniper')) this.weapons.switchTo('sniper');
+      const wheel = input.consumeWheel() + Number(input.consume('nextWeapon')) - Number(input.consume('prevWeapon'));
       if (wheel !== 0) this.weapons.cycleWeapon(wheel);
-      if (input.consumePress('KeyI')) this.weapons.inspect();
-      if (input.consumePress('KeyV')) this.weapons.stab();
-      if (input.consumePress('KeyG')) {
+      if (input.consume('inspect')) this.weapons.inspect();
+      if (input.consume('knife')) this.weapons.stab();
+      if (input.consume('grenade')) {
         if (this.weapons.primeGrenade()) this.mode.grenadePinned?.();
         else if (this.weapons.grenades === 0) hud.note(UI.hud.noGrenade, 2.2);
       }
-      if (input.consumePress('KeyR')) this.requestReload();
+      if (input.consume('reload')) this.requestReload();
     } else {
       this.crouchWanted = false;
       // A live grenade can't go back on the belt: paused while holding it, it falls.
@@ -323,24 +325,23 @@ export class Game {
     }
 
     const canFire = controls && this.mode.firing !== false;
-    const firePressed = controls && input.consumeLeftPress() && canFire;
-    // Q aims too, for a mouse without a right button to hold (a Magic Mouse, a trackpad).
-    const aimPressed = controls && [input.consumeRightPress(), input.consumePress('KeyQ')].some(Boolean);
+    const firePressed = controls && input.consume('fire') && canFire;
+    const aimPressed = controls && input.consume('aim');
     // The keys, and a controller's left stick on top (zero unless one is in use).
     const pad = controls ? input.padMove : { forward: 0, right: 0 };
-    const forward = clamp((k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0) + pad.forward, -1, 1);
-    const right = clamp((k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0) + pad.right, -1, 1);
+    const forward = clamp(Number(held('forward')) - Number(held('back')) + pad.forward, -1, 1);
+    const right = clamp(Number(held('right')) - Number(held('left')) + pad.right, -1, 1);
     // Aiming: held on the right button (or Q), or (the setting) toggled by a press. A toggle ends
     // with a death, a change of weapon, or Shift pressed to sprint.
     const toggleAds = this.deps.settings.adsToggle;
-    const shiftPressed = controls && [input.consumePress('ShiftLeft'), input.consumePress('ShiftRight')].some(Boolean);
+    const shiftPressed = controls && input.consume('sprint');
     if (!toggleAds || !this.mode.alive || this.weapons.current !== this.adsWeapon) this.adsOn = false;
     else if (aimPressed) this.adsOn = !this.adsOn;
     else if (shiftPressed && forward > 0) this.adsOn = false;
     this.adsWeapon = this.weapons.current;
-    const adsHeld = controls && (toggleAds ? this.adsOn : input.aimHeld || k.has('KeyQ'));
-    const fireHeld = canFire && input.fireHeld;
-    const shift = k.has('ShiftLeft') || k.has('ShiftRight');
+    const adsHeld = controls && (toggleAds ? this.adsOn : held('aim'));
+    const fireHeld = canFire && input.held('fire');
+    const shift = held('sprint');
     // Firing while sprinting drops the sprint so the gun comes up and the shot goes out.
     if ((firePressed || (fireHeld && this.weapons.stats().auto)) && this.move.sprinting) this.sprintLock = 0.35;
     if (this.sprintLock > 0) this.sprintLock -= dt;
@@ -353,7 +354,7 @@ export class Game {
         forward,
         right,
         yaw: this.yaw,
-        jump: k.has('Space'),
+        jump: held('jump'),
         crouch: this.crouchWanted,
         sprint,
         ads: this.weapons.ads > 0.5,
@@ -401,7 +402,7 @@ export class Game {
           airborne: !this.move.onGround,
           crouched: this.move.crouched,
           phone,
-          grenadeHeld: k.has('KeyG'),
+          grenadeHeld: held('grenade'),
         },
         aim,
       );

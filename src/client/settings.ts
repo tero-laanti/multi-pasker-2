@@ -1,4 +1,5 @@
 import { VIEW } from '../shared/config';
+import { DEFAULT_BINDINGS, mergeBindings, type Bindings } from './bindings';
 
 export type Quality = 'low' | 'medium' | 'high';
 
@@ -22,6 +23,8 @@ export interface Settings {
   musicVolume: number;
   quality: Quality;
   renderScale: number;
+  /** What each key, mouse button and controller button does (Settings → Controls). */
+  bindings: Bindings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -40,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   musicVolume: 0.8,
   quality: 'high',
   renderScale: 1,
+  bindings: DEFAULT_BINDINGS,
 };
 
 const KEY = 'pasker.settings.v1';
@@ -51,7 +55,10 @@ const KEY = 'pasker.settings.v1';
 export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<Settings>) };
+    if (raw) {
+      const stored = JSON.parse(raw) as Partial<Settings>;
+      return { ...DEFAULT_SETTINGS, ...stored, bindings: mergeBindings(stored.bindings) };
+    }
   } catch {
     // Storage blocked: defaults.
   }

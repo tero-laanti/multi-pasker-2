@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { UI } from '../../shared/ui';
-import { key, onDevice, type Control } from '../controls';
+import { key, onControls, type Control } from '../controls';
 
 /**
  * The CONTROLS note pinned to the range's back wall, right behind where the training starts
@@ -64,7 +64,7 @@ function noteTexture(): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 8;
-  onDevice(() => {
+  onControls(() => {
     drawNote(c);
     t.needsUpdate = true;
   });

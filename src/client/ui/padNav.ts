@@ -32,7 +32,10 @@ export class PadNav {
     this.focus(items.find((e) => e.classList.contains('primary') && e.dataset.padBack === undefined) ?? items[0]);
   }
 
-  /** Up and down step through the controls; left and right change a slider or a choice, or step. */
+  /**
+   * Moves to the nearest control that way on screen (up from the top wraps to the bottom, and
+   * down from the bottom to the top); left and right change a slider or a choice instead.
+   */
   move(dir: NavDir): void {
     const items = this.items();
     const cur = this.focused(items);
@@ -53,7 +56,37 @@ export class PadNav {
         return;
       }
     }
-    this.focus(items[(items.indexOf(cur) + step + items.length) % items.length]);
+    const next = this.nearest(cur, items, dir);
+    if (next) this.focus(next);
+    else if (dir === 'down') this.focus(items[0]);
+    else if (dir === 'up') this.focus(items[items.length - 1]);
+  }
+
+  /** The control nearest to `from` in `dir`, favouring those in line with it. */
+  private nearest(from: HTMLElement, items: HTMLElement[], dir: NavDir): HTMLElement | undefined {
+    const centre = (e: HTMLElement) => {
+      const r = e.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, h: r.height };
+    };
+    const a = centre(from);
+    let best: HTMLElement | undefined;
+    let bestScore = Infinity;
+    for (const e of items) {
+      if (e === from) continue;
+      const b = centre(e);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const along = dir === 'down' ? dy : dir === 'up' ? -dy : dir === 'right' ? dx : -dx;
+      const across = dir === 'up' || dir === 'down' ? Math.abs(dx) : Math.abs(dy);
+      // Ahead of it, and for left and right on its row.
+      if (along <= 1 || ((dir === 'left' || dir === 'right') && across > Math.max(a.h, b.h))) continue;
+      const score = along + 2 * across;
+      if (score < bestScore) {
+        bestScore = score;
+        best = e;
+      }
+    }
+    return best;
   }
 
   /** Presses the control in focus (a choice steps to its next option); with none, focuses one. */

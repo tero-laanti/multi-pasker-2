@@ -13,6 +13,9 @@
  * 5. The menus on the pad: the D-pad steps to Settings, right raises a slider, B goes back, A
  *    starts the range (the mouse free), Start pauses and B resumes.
  * 6. The page without focus says so over everything.
+ * 7. Settings → Controls: Jump to F with the mouse (Esc cancels a slot), the knife onto the middle
+ *    mouse button, Jump to △ on the pad and, driven by the pad alone, Move forward to L1; then F
+ *    and △ jump on the range and Space no longer does, the note says F, and Reset brings it all back.
  *
  *   npx tsx tools/e2e/gamepad-flow.ts <outDir> [--url=http://localhost:8088/]
  *
@@ -256,6 +259,81 @@ const keysShown = (p: Page) =>
   });
   await wait(300);
   result.noticeFocusBack = await shown();
+  await page.close();
+}
+
+// 7. Settings → Controls.
+{
+  const page = await open();
+  await page.evaluate(() => ((window as any).__pad.id = 'DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)'));
+  const binds = () => page.evaluate(() => (window as any).__pasker.app.settings.bindings as { keys: Record<string, string[]>; buttons: Record<string, number[]> });
+  const slot = (kind: string, action: string, i: number) => `[data-bind="${kind}:${action}:${i}"]`;
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Controls' }).click();
+  await page.waitForSelector('.bind-grid');
+  await page.click(slot('keys', 'jump', 0));
+  result.waiting = await page.textContent(slot('keys', 'jump', 0));
+  await page.keyboard.press('Escape');
+  result.escCancels = { label: await page.textContent(slot('keys', 'jump', 0)), jump: (await binds()).keys.jump };
+  await page.click(slot('keys', 'jump', 0));
+  await page.keyboard.press('KeyF');
+  await page.click(slot('keys', 'knife', 1));
+  await page.mouse.down({ button: 'middle' });
+  await page.mouse.up({ button: 'middle' });
+  await page.click(slot('buttons', 'jump', 0));
+  await tap(page, 3);
+  // The pad alone: down to the first slot, right twice to Move forward's controller slot, A, then L1.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await tap(page, 13);
+  await tap(page, 15);
+  await tap(page, 15);
+  result.padFocus = await page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.bind);
+  await tap(page, 0);
+  await tap(page, 4);
+  const b = await binds();
+  result.bound = { jumpKeys: b.keys.jump, knifeKeys: b.keys.knife, jumpButtons: b.buttons.jump, nextWeapon: b.buttons.nextWeapon, forwardButtons: b.buttons.forward, knifeButtons: b.buttons.knife };
+  result.slots = await page.evaluate(() => [...document.querySelectorAll('.bind-slot')].slice(16, 24).map((e) => e.textContent).join(' | '));
+  await shot(page, 'controls_screen');
+  // On the range, with the keyboard: F jumps, Space doesn't; the note says F.
+  await page.keyboard.press('KeyX');
+  await page.evaluate(() => (window as any).__pasker.play());
+  await wait(1500);
+  const rise = async (press: () => Promise<void>) => {
+    const y0 = await page.evaluate(() => (window as any).__pasker.game.move.y as number);
+    await press();
+    let top = y0;
+    for (let i = 0; i < 6; i++) {
+      await wait(60);
+      top = Math.max(top, await page.evaluate(() => (window as any).__pasker.game.move.y as number));
+    }
+    await wait(900);
+    return Number((top - y0).toFixed(2));
+  };
+  const key = (code: string) => async () => {
+    await page.keyboard.down(code);
+    await wait(120);
+    await page.keyboard.up(code);
+  };
+  result.spaceJumps = await rise(key('Space'));
+  result.fJumps = await rise(key('KeyF'));
+  result.noteJump = await page.evaluate(() => [...document.querySelectorAll('.controls-note-grid .key')][5]?.textContent);
+  result.triangleJumps = await rise(async () => {
+    await button(page, 3, true);
+    await wait(120);
+    await button(page, 3, false);
+  });
+  // Reset.
+  await page.keyboard.press('KeyX');
+  await page.evaluate(() => {
+    const app = (window as any).__pasker.app;
+    app.input.unlock();
+    app.game.paused = true;
+    app.menu.showSettings('pause');
+  });
+  await page.getByRole('button', { name: 'Controls' }).click();
+  await page.getByRole('button', { name: 'Reset controls' }).click();
+  const r = await binds();
+  result.reset = { jump: r.keys.jump, knife: r.keys.knife, padJump: r.buttons.jump, padForward: r.buttons.forward };
   await page.close();
 }
 
