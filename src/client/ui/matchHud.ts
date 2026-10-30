@@ -13,6 +13,9 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?:
   return e;
 }
 
+/** The inventory check's last seconds: the banner and the screen's edges turn red and shake. */
+export const INVENTORY_URGENT = 5;
+
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 export const accentOf = (info: PlayerInfo | undefined) => hex(ACCENTS[(info?.color ?? 0) % ACCENTS.length]!);
 
@@ -69,8 +72,11 @@ export class MatchHud {
   private timerText: HTMLDivElement;
   private teamLine: HTMLDivElement;
   private ladderLine: HTMLDivElement;
-  private inventoryLine: HTMLDivElement;
+  private unreadLine: HTMLDivElement;
   private taskLine: HTMLDivElement;
+  private inventoryEdge: HTMLDivElement;
+  private inventoryAlert: HTMLDivElement;
+  private inventorySecs: HTMLDivElement;
   private kills = 0;
   private lastLadder: [number, number, boolean, number] = [0, SERVICE.days, false, 0];
 
@@ -119,8 +125,15 @@ export class MatchHud {
     this.timerText = el('div', 'round-time', this.timer);
     this.teamLine = el('div', 'team-line hidden', this.timer);
     this.ladderLine = el('div', 'ladder-line', this.root);
-    this.taskLine = el('div', 'task-line', this.ladderLine);
-    this.inventoryLine = el('div', 'inventory-line hidden', this.root);
+    this.taskLine = el('div', 'task-line hidden', this.root);
+    this.unreadLine = el('div', 'unread-line hidden', this.root);
+    this.inventoryEdge = el('div', 'inventory-edge hidden', this.root);
+    this.inventoryAlert = el('div', 'inventory-alert hidden', this.root);
+    const inv = el('div', 'inventory-panel', this.inventoryAlert);
+    const words = el('div', 'inventory-words', inv);
+    el('div', 'inventory-title', words, UI.hud.inventoryTitle);
+    el('div', 'inventory-ask', words, fill(UI.hud.inventoryAsk, { from: FI.inventory.name }));
+    this.inventorySecs = el('div', 'inventory-secs', inv);
     this.board = el('div', 'scoreboard hidden', this.root);
     this.death = el('div', 'death hidden', this.root);
     this.deathTitle = el('div', 'death-title', this.death);
@@ -206,38 +219,49 @@ export class MatchHud {
     while (this.typoLines.length > PHONE.typoLines) this.typoLines.shift()!.node.remove();
   }
 
-  /** Rank and TJ under the round timer, and whether paperwork waits on the phone. */
+  /**
+   * Rank and TJ under the round timer, and under them a badge while paperwork waits on the
+   * phone; the badge pops in again whenever it changes.
+   */
   ladder(rank: number, tj: number, open: boolean, queued: number, kills = this.kills): void {
     this.lastLadder = [rank, tj, open, queued];
     this.kills = kills;
     const r = FI.ranks[rank] ?? FI.ranks[0]!;
     const head = `${r[0]!.toUpperCase()}${r.slice(1)} · TJ ${tj} · ${fill(kills === 1 ? UI.hud.kill1 : UI.hud.kills, { n: kills })}`;
+    if (this.changed('ladder', head)) this.ladderLine.textContent = head;
     const task = open ? UI.hud.taskOpen + (queued > 0 ? ` · ${fill(UI.hud.taskQueued, { n: queued })}` : '') : '';
-    if (this.changed('ladder', head + task)) {
-      this.ladderLine.textContent = head;
+    if (this.changed('task', task)) {
       this.taskLine.textContent = task;
-      this.ladderLine.appendChild(this.taskLine);
       this.taskLine.classList.toggle('hidden', !task);
+      this.taskLine.classList.remove('fresh');
+      void this.taskLine.offsetWidth;
+      this.taskLine.classList.add('fresh');
     }
   }
 
   /**
-   * The phone bar under the round timer: an inventory check counting down (seconds left, 0:
-   * none), otherwise who has written and not been read yet.
+   * The phone alerts under the round timer: an inventory check counting down (seconds left, 0:
+   * none) takes over the screen with a banner and flashing edges; otherwise a bar says who has
+   * written and not been read yet.
    */
   phoneBar(left: number, unread: string[]): void {
     const s = Math.ceil(left);
-    const text =
-      s > 0
-        ? fill(UI.hud.inventory, { from: FI.inventory.name, s })
-        : unread.length
-          ? fill(unread.length === 1 ? UI.hud.newMessage : UI.hud.newMessages, { from: unread.join(', ') })
-          : '';
-    if (!this.changed('phoneBar', text + (s > 0 && s <= 5))) return;
-    this.inventoryLine.textContent = text;
-    this.inventoryLine.classList.toggle('hidden', !text);
-    this.inventoryLine.classList.toggle('urgent', s > 0 && s <= 5);
-    this.inventoryLine.classList.toggle('calm', s <= 0);
+    const urgent = s > 0 && s <= INVENTORY_URGENT;
+    if (this.changed('inventory', `${s}`)) {
+      this.inventorySecs.textContent = String(s);
+      this.inventoryAlert.classList.toggle('hidden', s <= 0);
+      this.inventoryEdge.classList.toggle('hidden', s <= 0);
+      this.inventoryAlert.classList.toggle('urgent', urgent);
+      this.inventoryEdge.classList.toggle('urgent', urgent);
+      // The last seconds beat once each.
+      this.inventorySecs.classList.remove('beat');
+      void this.inventorySecs.offsetWidth;
+      this.inventorySecs.classList.toggle('beat', urgent);
+    }
+    const text = s <= 0 && unread.length ? fill(unread.length === 1 ? UI.hud.newMessage : UI.hud.newMessages, { from: unread.join(', ') }) : '';
+    if (!this.changed('unread', text)) return;
+    this.unreadLine.textContent = text;
+    this.unreadLine.classList.toggle('hidden', !text);
   }
 
   /** Our own phone: connected, offline, or not paired yet. */

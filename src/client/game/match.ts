@@ -26,7 +26,7 @@ import {
 import { UI } from '../../shared/ui';
 import { weaponStats } from '../../shared/upgrades';
 import type { Net } from '../net';
-import { accentOf, type MatchHud } from '../ui/matchHud';
+import { accentOf, INVENTORY_URGENT, type MatchHud } from '../ui/matchHud';
 import type { MinimapMark } from '../ui/minimap';
 import type { PairInfo } from '../ui/pair';
 import type { Game, GameMode } from './game';
@@ -82,6 +82,10 @@ export class MatchMode implements GameMode {
   training = false;
   /** An inventory check to answer by this server time (0: none). */
   inventoryUntil = 0;
+  /** The inventory check's whole seconds left when last heard (0: none), for its sounds. */
+  private inventorySec = 0;
+  /** Paperwork open on the phone, and how many wait behind it, as last told: a new one chimes. */
+  private paperwork = { open: false, queued: 0 };
   /** Our recon drone shows every enemy until this server time. */
   droneUntil = 0;
   /** Mortar rounds on their way (server times): each whistles as it comes in. */
@@ -365,6 +369,9 @@ export class MatchMode implements GameMode {
         hud.note(e.replaced ? UI.hud.phoneReplaced : UI.hud.phonePaired, 3);
         break;
       case 'ladder':
+        // New paperwork on the phone (the first, or the next after one is done): the phone's chime here too.
+        if (e.open && (!this.paperwork.open || e.queued < this.paperwork.queued)) audio.play('phone_chime', { bus: 'ui', volume: 0.9 });
+        this.paperwork = { open: e.open, queued: e.queued };
         this.hud.ladder(e.rank, e.tj, e.open, e.queued);
         break;
       case 'pay':
@@ -445,6 +452,19 @@ export class MatchMode implements GameMode {
         if (miss < 2.2 && t > 4) audio.playAt('bullet_by', px, py, pz, { volume: 0.9 * (1 - miss / 2.6), refDistance: 1, soundDelay: false });
       }
     }
+  }
+
+  /**
+   * The inventory check out loud: the vääpeli's whistle when it starts and again as its last
+   * seconds begin, and a tick for each of them.
+   */
+  private inventoryCue(left: number): void {
+    const s = Math.ceil(left);
+    if (s === this.inventorySec) return;
+    const audio = this.game.deps.audio;
+    if (s > 0 && (this.inventorySec === 0 || s === INVENTORY_URGENT)) audio.play('whistle', { bus: 'ui', volume: 1 });
+    else if (s > 0 && s < INVENTORY_URGENT) audio.play('ui_click', { bus: 'ui', volume: 1, rate: 0.7, exactRate: true });
+    this.inventorySec = s;
   }
 
   private die(killer: number, weapon: KillWeapon): void {
@@ -591,7 +611,9 @@ export class MatchMode implements GameMode {
     this.hud.phone(this.pairInfo?.phone ?? 'none', this.phoneOut, this.pairInfo?.virtual ?? false);
     this.hud.spawnProtect(this.alive && this.protected);
     this.hud.roundTimer(this.round, serverNow);
-    this.hud.phoneBar(this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0, this.unreadFrom);
+    const inventoryLeft = this.inventoryUntil > 0 ? Math.max(0, (this.inventoryUntil - serverNow) / 1000) : 0;
+    this.inventoryCue(inventoryLeft);
+    this.hud.phoneBar(inventoryLeft, this.unreadFrom);
     const showBoard = g.deps.input.keys.has('Tab') || this.round?.state === 'ended';
     this.hud.scoreboard(showBoard, [...this.players.values()], this.myId, this.round, serverNow, this.awards, this.evening);
     this.hud.update(dt, g.eye.x, g.eye.z, g.yaw);

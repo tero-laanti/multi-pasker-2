@@ -1614,15 +1614,64 @@ input[type='range'] {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   white-space: nowrap;
 }
+/* Paperwork waiting on the phone: a paper slip with a blue edge that pops in whenever it
+   changes and wiggles every few seconds while it waits. */
 .task-line {
-  margin-top: 2px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #9fd7ff;
-}
-.inventory-line {
   position: absolute;
-  top: 136px;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 16px 5px 12px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #1b1a12;
+  background: #f4efe0;
+  border-left: 6px solid #2f7de1;
+  border-radius: 3px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+.task-line.fresh {
+  animation:
+    task-pop 0.6s cubic-bezier(0.2, 1.6, 0.4, 1),
+    task-nudge 8s 0.6s ease-in-out infinite;
+}
+@keyframes task-pop {
+  0% {
+    transform: translateX(-50%) scale(1.6);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+}
+@keyframes task-nudge {
+  0%,
+  90%,
+  100% {
+    transform: translateX(-50%);
+  }
+  92% {
+    transform: translateX(-50%) rotate(-3deg) scale(1.08);
+  }
+  94% {
+    transform: translateX(-50%) rotate(3deg) scale(1.08);
+  }
+  96% {
+    transform: translateX(-50%) rotate(-2deg) scale(1.04);
+  }
+  98% {
+    transform: translateX(-50%) rotate(1deg);
+  }
+}
+/* Who has written and not been read yet. */
+.unread-line {
+  position: absolute;
+  top: 150px;
   left: 50%;
   transform: translateX(-50%);
   padding: 4px 14px;
@@ -1633,18 +1682,109 @@ input[type='range'] {
   background: var(--accent);
   border-radius: 3px;
   white-space: nowrap;
-  animation: inventory-pulse 1s ease-in-out infinite;
 }
-.inventory-line.calm {
-  animation: none;
+/* The inventory check takes over: flashing screen edges and a hazard-striped banner with a big
+   countdown; for the last seconds the banner turns red and shakes and the edges flash harder
+   (still yellow: red edges are the damage vignette). The middle of the screen stays clear. */
+.inventory-edge {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 8px rgba(226, 178, 31, 0.9),
+    inset 0 0 140px 30px rgba(226, 178, 31, 0.55);
+  animation: inventory-flash 0.9s ease-in-out infinite;
 }
-.inventory-line.urgent {
-  background: var(--danger);
-  color: #fff;
+.inventory-edge.urgent {
+  box-shadow:
+    inset 0 0 0 12px rgba(255, 196, 0, 1),
+    inset 0 0 180px 50px rgba(255, 196, 0, 0.6);
+  animation-duration: 0.35s;
 }
-@keyframes inventory-pulse {
+@keyframes inventory-flash {
   50% {
-    opacity: 0.75;
+    opacity: 0.25;
+  }
+}
+.inventory-alert {
+  position: absolute;
+  top: max(150px, 17vh);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px;
+  background: repeating-linear-gradient(-45deg, var(--accent) 0 16px, #16150f 16px 32px);
+  border-radius: 4px;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.55);
+  animation: inventory-in 0.45s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.inventory-alert.urgent {
+  background: repeating-linear-gradient(-45deg, var(--danger) 0 16px, #16150f 16px 32px);
+  animation: inventory-shake 0.3s linear infinite;
+}
+.inventory-panel {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 12px 22px 12px 26px;
+  background: rgba(22, 21, 15, 0.94);
+  color: #f6d24a;
+  white-space: nowrap;
+}
+.inventory-alert.urgent .inventory-panel {
+  color: #ff6a52;
+}
+.inventory-title {
+  font-size: 44px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.inventory-ask {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.inventory-secs {
+  min-width: 2ch;
+  font-size: 68px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.inventory-secs.beat {
+  animation: inventory-beat 0.5s ease-out;
+}
+@keyframes inventory-in {
+  0% {
+    transform: translateX(-50%) translateY(-30px) scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes inventory-shake {
+  0%,
+  100% {
+    transform: translateX(-50%);
+  }
+  25% {
+    transform: translateX(calc(-50% - 5px)) rotate(-0.7deg);
+  }
+  75% {
+    transform: translateX(calc(-50% + 5px)) rotate(0.7deg);
+  }
+}
+@keyframes inventory-beat {
+  0% {
+    transform: scale(1.4);
+  }
+  100% {
+    transform: scale(1);
   }
 }
 .feed-rank {

@@ -113,14 +113,17 @@ an old one quoted (*Muistan sinut, alokas. Viimeksi kirjoitit ”LATAAA”.*), e
 **Inventory checks** (*inventaario*): now and then (never in your first minute in the match) the
 company's **Vääpeli** texts a question about your own kit or the round, in a chat of his own:
 rounds in your magazine or spare, grenades, your kills or deaths, or how many soldiers are on the
-field. Both screens count down from 20 seconds. The right number earns a grenade; wrong answers
+field. Both screens count down from 20 seconds: on the computer the vääpeli blows his whistle, a
+striped banner with the countdown takes over the top of the screen and the screen's edges flash;
+for the last five seconds the banner turns red and shakes, with a tick each second. The right number earns a grenade; wrong answers
 go to everyone's typo feed, and no right answer in time means push-ups (no service at the
 armoury until you report `PUNNERRETTU`).
 
 **One new message per chat:** nobody sends you a second message before you have read the first;
 the next one comes in when you open the chat. Replies to what you send always come straight
-away. A yellow bar under the round timer says who has written (or counts down an inventory
-check).
+away. A yellow bar under the round timer says who has written. While paperwork waits on the phone,
+a paper slip under your rank says so: it chimes and pops in when new paperwork opens, and wiggles
+every few seconds until it's done.
 
 While a chat is open your character holds the phone: one-handed, wider hip fire, no aiming down
 sights. Sending a message shows *Sending…* and goes back to the chat list, which puts the phone

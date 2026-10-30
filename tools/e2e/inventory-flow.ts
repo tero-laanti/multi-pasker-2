@@ -40,9 +40,9 @@ await wait(600);
 
 const dev = (cmd: string) => desktop.evaluate((c) => (window as any).__pasker.match.send({ t: 'dev', cmd: c }), cmd);
 await dev('inventory');
-await desktop.waitForSelector('.inventory-line:not(.hidden)', { timeout: 8000 });
+await desktop.waitForSelector('.inventory-alert:not(.hidden)', { timeout: 8000 });
 await wait(400);
-result.desktopLine = await desktop.evaluate(() => document.querySelector('.inventory-line')?.textContent);
+result.desktopAlert = await desktop.evaluate(() => document.querySelector('.inventory-alert')?.textContent);
 await shot(desktop, 'inv_1_desktop');
 await phone.waitForSelector('.banner.urgent:not(.hidden)', { timeout: 5000 });
 result.phoneBanner = await phone.evaluate(() => document.querySelector('.banner')?.textContent);
@@ -81,11 +81,11 @@ async function send(text: string): Promise<void> {
 
 await send(String(answer + 7));
 await wait(3000);
-result.afterWrong = await desktop.evaluate(() => ({ line: document.querySelector('.inventory-line')?.classList.contains('hidden') ? 'hidden' : 'shown', typo: document.querySelector('.typofeed')?.textContent }));
+result.afterWrong = await desktop.evaluate(() => ({ alert: document.querySelector('.inventory-alert')?.classList.contains('hidden') ? 'hidden' : 'shown', typo: document.querySelector('.typofeed')?.textContent }));
 const grenadesBefore = await desktop.evaluate(() => (window as any).__pasker.game.weapons.grenades);
 await send(String(answer));
 await wait(3500);
-result.afterRight = await desktop.evaluate(() => ({ line: document.querySelector('.inventory-line')?.classList.contains('hidden') ? 'hidden' : 'shown', grenades: (window as any).__pasker.game.weapons.grenades }));
+result.afterRight = await desktop.evaluate(() => ({ alert: document.querySelector('.inventory-alert')?.classList.contains('hidden') ? 'hidden' : 'shown', grenades: (window as any).__pasker.game.weapons.grenades }));
 result.grenadesBefore = grenadesBefore;
 await phone.tap('.conv >> text=Vääpeli');
 await wait(500);
@@ -98,7 +98,7 @@ await phone.tap('.conv >> text=Vääpeli');
 await wait(300);
 await phone.tap('.back');
 await dev('inventory');
-await desktop.waitForFunction(() => /Inventory/.test(document.querySelector('.inventory-line')?.textContent ?? ''), null, { timeout: 8000 });
+await desktop.waitForSelector('.inventory-alert:not(.hidden)', { timeout: 8000 });
 await dev('inventory');
 await wait(3500);
 result.timedOut = await desktop.evaluate(() => document.querySelector('.typofeed')?.textContent);

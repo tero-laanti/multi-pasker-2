@@ -130,7 +130,9 @@ export const UI = {
     paySenior: 'Killed someone with a lower TJ than you',
     payCaught: 'Caught them texting',
     drone: 'Recon drone up: every enemy on your minimap',
-    inventory: '📱 Inventory check from {from}: answer with a number · {s} s',
+    /** The inventory check's banner: the title, and who wants what. */
+    inventoryTitle: 'Inventory check!',
+    inventoryAsk: '📱 {from} wants a number on your phone',
     newMessage: '📱 New message: {from}',
     newMessages: '📱 New messages: {from}',
     upgradeTaken: '{name} — {benefit}',
