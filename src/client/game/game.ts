@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MASK } from '../../shared/collision/brush';
 import { CollisionWorld, TraceResult } from '../../shared/collision/world';
-import { GEAR, SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
+import { GEAR, PAD, SIM_DT, TUNING, VIEW, type KillSpeedPreset, type WeaponId } from '../../shared/config';
 import { WEAPON_IDS } from '../../shared/protocol';
 import { throwVelocity } from '../../shared/grenade';
 import { UI } from '../../shared/ui';
@@ -221,6 +221,24 @@ export class Game {
     this.lookY += dy;
   }
 
+  /**
+   * The controller's right stick (-1..1, past its dead zone and curve) turns the view at up to
+   * PAD's rates times the look speed setting, slower aiming down sights as the mouse is.
+   */
+  padLook(x: number, y: number, dt: number): void {
+    if (this.paused || !this.mode.alive || (x === 0 && y === 0)) return;
+    const s = this.deps.settings;
+    const k = s.padSensitivity * DEG * dt * (1 / this.deps.renderer.zoom) * lerp(1, s.adsSensitivity, this.weapons.ads);
+    const yaw = x * PAD.yawSpeed * k;
+    const pitch = y * PAD.pitchSpeed * k;
+    this.yaw -= yaw;
+    this.pitch = clamp(this.pitch - pitch * (s.invertY ? -1 : 1), -89 * DEG, 89 * DEG);
+    // The weapon sways as for a mouse turning as far (its sway reads mouse counts).
+    const perCount = s.sensitivity * VIEW.degreesPerCount * DEG;
+    this.lookX += yaw / perCount;
+    this.lookY += pitch / perCount;
+  }
+
   private updateEye(out: THREE.Vector3): THREE.Vector3 {
     return out.set(this.move.x, this.move.y + this.move.eye, this.move.z);
   }
@@ -307,8 +325,10 @@ export class Game {
     const firePressed = controls && input.consumeLeftPress() && canFire;
     // Q aims too, for a mouse without a right button to hold (a Magic Mouse, a trackpad).
     const aimPressed = controls && [input.consumeRightPress(), input.consumePress('KeyQ')].some(Boolean);
-    const forward = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
-    const right = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+    // The keys, and a controller's left stick on top (zero unless one is in use).
+    const pad = controls ? input.padMove : { forward: 0, right: 0 };
+    const forward = clamp((k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0) + pad.forward, -1, 1);
+    const right = clamp((k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0) + pad.right, -1, 1);
     // Aiming: held on the right button (or Q), or (the setting) toggled by a press. A toggle ends
     // with a death, a change of weapon, or Shift pressed to sprint.
     const toggleAds = this.deps.settings.adsToggle;
@@ -317,8 +337,8 @@ export class Game {
     else if (aimPressed) this.adsOn = !this.adsOn;
     else if (shiftPressed && forward > 0) this.adsOn = false;
     this.adsWeapon = this.weapons.current;
-    const adsHeld = controls && (toggleAds ? this.adsOn : input.mouseRight || k.has('KeyQ'));
-    const fireHeld = canFire && input.mouseLeft;
+    const adsHeld = controls && (toggleAds ? this.adsOn : input.aimHeld || k.has('KeyQ'));
+    const fireHeld = canFire && input.fireHeld;
     const shift = k.has('ShiftLeft') || k.has('ShiftRight');
     // Firing while sprinting drops the sprint so the gun comes up and the shot goes out.
     if ((firePressed || (fireHeld && this.weapons.stats().auto)) && this.move.sprinting) this.sprintLock = 0.35;

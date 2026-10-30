@@ -11,6 +11,8 @@ export interface Settings {
   /** A right click toggles aiming down sights (off: held, as by default). */
   adsToggle: boolean;
   rawInput: boolean;
+  /** A controller's right stick: its turn rates (PAD) times this. */
+  padSensitivity: number;
   minimap: boolean;
   masterVolume: number;
   effectsVolume: number;
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   crouchToggle: true,
   adsToggle: false,
   rawInput: true,
+  padSensitivity: 1,
   minimap: true,
   masterVolume: 0.8,
   effectsVolume: 1,

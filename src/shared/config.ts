@@ -312,6 +312,26 @@ export const VIEW = {
   shadowHz: 60,
 };
 
+/**
+ * A game controller (the Gamepad API's standard mapping): one player's alternative to the
+ * keyboard and mouse, which stay the game's own controls.
+ */
+export const PAD = {
+  /** Both sticks' radial dead zone. */
+  deadZone: 0.15,
+  /** The right stick's curve past the dead zone: 2 squares small deflections, for fine aim. */
+  lookCurve: 2,
+  /** Turn rates at full right-stick deflection and look speed 1 (degrees a second). */
+  yawSpeed: 240,
+  pitchSpeed: 170,
+  /** A trigger counts as pulled past this. */
+  trigger: 0.3,
+  /** Sprint (L3) lasts while the left stick points forward at least this far. */
+  sprintForward: 0.5,
+  /** After keyboard or mouse play, a stick pushed this far (or any button) wakes the controller. */
+  wake: 0.5,
+};
+
 export const NET = {
   defaultPort: 8088,
   tickHz: 60,

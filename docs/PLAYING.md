@@ -78,6 +78,35 @@ the host (wired PCs are fine).
 | F3 | performance overlay (frame time, CPU time, RTT, jitter, snapshot rate, interpolation delay, server tick) |
 | F4 | live tuning panel |
 
+### A controller
+
+The keyboard and mouse are the game's controls; a game controller is there for a player who
+prefers one. It works in Chrome and Edge with any pad they map as standard (Xbox and PlayStation
+pads included). It does nothing until it is used: press any button on it. A key or the mouse puts it
+back to sleep until a button or a firm push of a stick wakes it, so a pad lying on the desk never
+moves anyone.
+
+| Xbox / PlayStation | Action |
+|---|---|
+| Left stick | move (analog) |
+| Right stick | look (speed: *Controller look speed* in the settings; the aim multiplier and invert apply too) |
+| RT / R2 | fire |
+| LT / L2 | aim down sights |
+| L3 | sprint (click once; it lasts while you push forward, until you fire or aim) |
+| A / ✕ | jump |
+| B / ○ | crouch |
+| X / □ | reload (R), and pick up or read (E) |
+| Y / △, D-pad ← → | change weapon |
+| RB / R1 | grenade (hold, let go to throw) |
+| LB / L1, R3 | knife |
+| D-pad ↓ | inspect weapon |
+| View / Share (Create) | scoreboard |
+| Start / Options | pause, play |
+
+A gamepad can't lock the mouse, so Start (or A / ✕ on the *Click to play* screen) plays with the
+mouse free, and Start or Esc pauses. A click on the game takes the mouse back. Menus are used
+with the mouse.
+
 ## Ammo
 
 Each gun has its magazine and one spare. **R** (or pulling the trigger on an empty gun) puts in

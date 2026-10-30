@@ -353,6 +353,7 @@ export class Menu {
     toggle(UI.settings.crouchToggle, 'crouchToggle');
     toggle(UI.settings.adsToggle, 'adsToggle');
     toggle(UI.settings.rawInput, 'rawInput');
+    slider(UI.settings.padSensitivity, 'padSensitivity', 0.3, 3, 0.05, (v) => v.toFixed(2));
     toggle(UI.settings.minimap, 'minimap');
     slider(UI.settings.masterVolume, 'masterVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);
     slider(UI.settings.effectsVolume, 'effectsVolume', 0, 1, 0.01, (v) => `${Math.round(v * 100)} %`);

@@ -116,7 +116,16 @@ export class App {
     this.input.onLook = (dx, dy) => this.game?.onLook(dx, dy);
     this.input.onLockChange = (locked) => this.onLockChange(locked);
     this.input.onKeyDown = (code) => this.onKey(code);
+    this.input.onPadButton = (button) => this.onPadButton(button);
     this.menu.overlayElement().addEventListener('click', () => void this.lock());
+    // Playing with a controller (the mouse unlocked): a click on the game takes the mouse back,
+    // and leaving the window pauses, as a lost lock does.
+    this.canvas.addEventListener('click', () => {
+      if (this.padPlaying()) void this.lock();
+    });
+    window.addEventListener('blur', () => {
+      if (this.padPlaying()) this.padPause();
+    });
     window.addEventListener('resize', () => this.renderer?.resize());
     window.addEventListener('beforeunload', (e) => {
       if (this.mode === 'match') {
@@ -244,6 +253,8 @@ export class App {
     const t0 = performance.now();
     if (game && !this.manualClock) {
       if (this.mode === 'menu') this.attract(dt);
+      this.input.pollPad();
+      if (this.mode !== 'menu') game.padLook(this.input.padLook.x, this.input.padLook.y, dt);
       game.frame(dt);
     }
     this.cpuMs = performance.now() - t0;
@@ -505,9 +516,47 @@ export class App {
   private onKey(code: string): void {
     // Esc doesn't count as a click, so it can't lock the mouse: back to the menu instead.
     if (code === 'Escape' && this.virtualPhone.shown) this.closeVirtualPhone(true);
+    else if (code === 'Escape' && this.padPlaying()) this.padPause();
     else if (code === 'F3') this.stats.toggle();
     else if (code === 'F4') this.showPanel(this.tuning);
     else if (code === 'F2' || code === 'Backquote') this.showPanel(this.dev);
+  }
+
+  /**
+   * A controller's game, if one is under way: in play (range, training or match) and not paused,
+   * with the mouse unlocked, which keyboard and mouse play never is.
+   */
+  private padPlaying(): boolean {
+    const g = this.game;
+    return (this.mode === 'range' || this.mode === 'match' || this.mode === 'training') && !!g && !g.paused && !this.input.locked;
+  }
+
+  /**
+   * Start on a controller plays or pauses, and A plays from the click-to-play screen: the game
+   * then runs with the mouse unlocked, as a gamepad can't lock it. A locked mouse is left to its
+   * own flow (Start just unlocks it, which pauses).
+   */
+  private onPadButton(button: 'start' | 'a'): void {
+    const g = this.game;
+    if ((this.mode !== 'range' && this.mode !== 'match' && this.mode !== 'training') || !g) return;
+    if (this.tutorialHud.modalOpen || this.virtualPhone.shown) return;
+    if (!g.paused) {
+      if (button !== 'start') return;
+      if (this.input.locked) this.input.unlock();
+      else this.padPause();
+    } else if (button === 'start' || this.menu.overlayVisible) {
+      this.tutorialHud.setPanelVisible(true);
+      this.menu.hide();
+      g.paused = false;
+      this.input.clearPresses();
+    }
+  }
+
+  /** Pauses a controller's game, as unlocking the mouse pauses the keyboard and mouse's. */
+  private padPause(): void {
+    this.game!.paused = true;
+    this.tutorialHud.setPanelVisible(false);
+    this.menu.showPause();
   }
 
   /** Toggles a clickable panel; opening one mid-game frees the mouse (and pauses) so it can be used. */

@@ -62,6 +62,7 @@ export const UI = {
     crouchToggle: 'C toggles crouch',
     adsToggle: 'Right click / Q toggles aiming',
     rawInput: 'Raw input (bypass OS mouse acceleration)',
+    padSensitivity: 'Controller look speed',
     minimap: 'Show the minimap',
     masterVolume: 'Master volume',
     effectsVolume: 'Effects',
