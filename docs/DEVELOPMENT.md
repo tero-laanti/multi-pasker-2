@@ -28,8 +28,9 @@ How MULTI-PASKER 2 is built, tuned, tested and measured. The technology choices 
 ## Tuning
 
 All gameplay numbers live in [src/shared/config.ts](../src/shared/config.ts). Interface text lives
-in [src/shared/ui.ts](../src/shared/ui.ts) and all Finnish content (range commands, voice lines, the
-varusmestari's script) in [src/shared/fi.ts](../src/shared/fi.ts).
+in [src/shared/ui.ts](../src/shared/ui.ts) and the in-world text in
+[src/shared/fi.ts](../src/shared/fi.ts): the chats, in English with the Finnish names, ranks, army
+terms and codes, and the range commands and voice lines, which are Finnish.
 
 The F4 panel edits every movement and weapon value live, shows derived numbers (time to kill,
 ADS time, time to top speed, stopping distance, jump height) and plots the recoil pattern.
@@ -85,7 +86,7 @@ glove sinks more than 2.5 mm into what it holds.
 - **Server:** Node.js + TypeScript (tsx), `ws` WebSockets on the same port as the web page.
   In development Vite runs inside the same process.
 - **Shared code (`src/shared`)** runs in the browser, on the server and in tests: maps as data,
-  collision, movement, weapons, hitboxes, the range logic, tuning and Finnish text.
+  collision, movement, weapons, hitboxes, the range logic, tuning and the game's texts.
 - **Collision:** convex brushes with Quake III-style box traces (exact for boxes, rotated boxes,
   ramps and prisms). **Movement:** fixed 120 Hz steps (slide move, step-up, ground snap),
   identical at any frame rate; rendering interpolates between steps, mouse look applies instantly.

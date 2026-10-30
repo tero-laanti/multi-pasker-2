@@ -23,8 +23,6 @@ export type ContactKind = 'office' | 'huolto' | 'nylands';
 export interface Contact {
   name: string;
   kind: ContactKind;
-  /** The office's name in the allative ("Esikunnalle"), for wrong-chat replies. */
-  to?: string;
 }
 
 /** How a piece of paperwork is done: from one word at the counter to Swedish at Dragsvik. */
@@ -337,13 +335,13 @@ export class ServiceDesk {
   /** A text from the company commander, in its own chat. */
   private commander(p: ServerPlayer, list: readonly string[], values: Record<string, string | number> = {}): void {
     p.phone.conv(C.number, C.name);
-    const all: Record<string, string | number> = { name: p.name, tj: p.service.tj, rankTo: FI.ranksTo[p.service.rank] ?? '', ...values };
+    const all: Record<string, string | number> = { name: p.name, tj: p.service.tj, ...values };
     this.say(p, pick(list).replace(/\{(\w+)\}/g, (_, k: string) => String(all[k] ?? '')), C.number);
   }
 
   private fill(p: ServerPlayer, s: string): string {
     const rank = FI.ranks[p.rank] ?? FI.ranks[0]!;
-    return capitalize(s.replace(/\{rank\}/g, rank).replace(/\{name\}/g, p.name).replace(/\{rankTo\}/g, FI.ranksTo[p.rank] ?? '').replace(/\{tj\}/g, String(p.service.tj)));
+    return capitalize(s.replace(/\{rank\}/g, rank).replace(/\{name\}/g, p.name).replace(/\{tj\}/g, String(p.service.tj)));
   }
 
   /**
@@ -403,9 +401,9 @@ export class ServiceDesk {
       return;
     }
     if (kind === 'office') {
-      const [name, to] = pick(L.offices);
+      const name = pick(L.offices);
       const number = shortNumber(new Set([V.number, C.number, FI.inventory.number, ...s.contacts.keys()]));
-      s.contacts.set(number, { name, kind: 'office', to });
+      s.contacts.set(number, { name, kind: 'office' });
       const rules = Math.random() < 0.5;
       const code = rules ? this.code('office', L.officeWords) : this.code('office', L.officePhrases);
       const text = pick(rules ? L.officeRules : L.officePhrase).replace('{office}', name).replace('{code}', code);

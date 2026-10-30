@@ -90,9 +90,9 @@ async function run(): Promise<void> {
   // Day 20: the rifle's and the magazine's paperwork through the dev shortcut, then the knife's
   // sends the player to an office at a new number.
   await dev('serve', 20);
-  await waitIncoming((t) => /Kuittaa|Lähetä/.test(t));
+  await waitIncoming((t) => /Sign|Send/.test(t));
   await dev('advance');
-  await waitIncoming((t) => /Kirjoita|Lähetä:/.test(t));
+  await waitIncoming((t) => /[Ww]rite:|Send:/.test(t));
   await dev('advance');
   result.stage3 = await waitIncoming((t) => /\b\d{4}\b/.test(t));
   const asevarasto = await marks();

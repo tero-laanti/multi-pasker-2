@@ -143,7 +143,8 @@ describe('the varusmestari', () => {
     expect(a.p.ammo.pistol).toBe(TUNING.pistol.magazine);
     expect(b.p.ammo.pistol).toBe(3);
     send(a.p, 'LATAA');
-    run(3000);
+    // Two replies, typed one after the other.
+    run(6000);
     const r = replies(pa);
     expect(r.some((x) => V.reloadBusy.includes(x!))).toBe(true);
     expect(r.some((x) => V.reloadFull.some((v) => v.replace('{rank}', 'alokas') === x))).toBe(true);
@@ -246,7 +247,7 @@ describe('the varusmestari', () => {
     send(a.p, 'Kranaatti');
     run(3000);
     expect(roasts().length).toBe(2);
-    expect(roasts()[1]).toContain('”LATAAA”');
+    expect(roasts()[1]).toContain('“LATAAA”');
     expect(kept()).toEqual([]);
     random.mockRestore();
   });
