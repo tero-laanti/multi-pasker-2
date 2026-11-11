@@ -232,7 +232,7 @@ export class ViewModel {
           new THREE.ShapeGeometry(lensShape, 16).translate(0, 0, RED_DOT.z - 0.001),
           new THREE.MeshStandardMaterial({ color: 0xc4e2ec, metalness: 0.1, roughness: 0.08, transparent: true, opacity: 0.22, depthWrite: false }),
         );
-        const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0011, 16).translate(0, RED_DOT.y, RED_DOT.z), new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }));
+        const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0005, 16).translate(0, RED_DOT.y, RED_DOT.z), new THREE.MeshBasicMaterial({ color: 0xff2a1a, toneMapped: false }));
         const glow = new THREE.Mesh(
           new THREE.CircleGeometry(0.0026, 16).translate(0, RED_DOT.y, RED_DOT.z - 0.0002),
           new THREE.MeshBasicMaterial({ color: 0xff3a22, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
