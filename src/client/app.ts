@@ -444,6 +444,7 @@ export class App {
     range.showDrill = false;
     const t = new TutorialMode(g, range, {
       pickedUp: () => this.pickedUpPhone(),
+      radioCheck: () => this.match?.send({ t: 'radioCheck' }),
       phoneOut: () => this.match?.phoneOut ?? false,
       phoneOnline: () => this.match?.pairInfo?.phone === 'online',
     });
@@ -466,7 +467,6 @@ export class App {
 
   /** The phone on the duty table was picked up: pair it (unless one is connected already). */
   private pickedUpPhone(): void {
-    this.match?.send({ t: 'radioCheck' });
     if (this.match?.pairInfo?.phone === 'online') return;
     this.tutorialHud.showModal();
     // The pairing screen needs the mouse; no pause menu over it.

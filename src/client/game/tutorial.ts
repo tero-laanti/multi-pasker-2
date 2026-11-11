@@ -35,6 +35,8 @@ export const TUTORIAL = {
 export interface TutorialHooks {
   /** E on the phone: show the pairing screen (or go straight on if a phone is connected). */
   pickedUp(): void;
+  /** Asks Asevarasto for the radio check (the server ignores a repeat). */
+  radioCheck(): void;
   /** A chat is open on the player's phone (the server tells players on the range). */
   phoneOut(): boolean;
   /** The phone is paired and connected. */
@@ -139,10 +141,13 @@ export class TutorialMode implements GameMode {
   private set(step: TutorialStep): void {
     if (this.stage === step && step !== 'walk') return;
     this.stage = step;
+    // However the reply step is reached (the pickup, the pairing screen, or a phone that came
+    // online while the arrow pointed at the table), the radio check has to be on its way.
+    if (step === 'reply') this.hooks.radioCheck();
     this.onStep(step);
   }
 
-  /** Phone paired on the pairing screen: now the radio check. */
+  /** A phone came online: from the phone step or the pairing screen on, now the radio check. */
   paired(): void {
     if (this.stage === 'pair' || this.stage === 'phone') this.set('reply');
   }
@@ -205,6 +210,8 @@ export class TutorialMode implements GameMode {
       case 'phone':
         if (!g.paused && this.nearPhone() && g.deps.input.consume('use')) {
           this.set('pair');
+          // Asked for now, so a phone paired on the pairing screen gets it as it connects.
+          this.hooks.radioCheck();
           this.hooks.pickedUp();
           if (this.hooks.phoneOnline()) this.set('reply');
         }

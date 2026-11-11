@@ -124,6 +124,18 @@ describe('the shooting range tutorial', () => {
     expect(a.p.radioCheck).toBe('waiting');
   });
 
+  it('asking for the radio check again (the pickup, then the reply step) sends it once', () => {
+    const { room, join, pair, run } = setup();
+    const a = join('Aapo', true);
+    const phone = pair(a.p);
+    room.onPhoneMessage(a.p, { t: 'read', conv: V.number });
+    room.onMessage(a.p, { t: 'radioCheck' });
+    room.onMessage(a.p, { t: 'radioCheck' });
+    run(4000);
+    expect(phone.texts().filter((t) => t === FI.training.radioCheck[0])).toHaveLength(1);
+    expect(a.p.radioCheck).toBe('waiting');
+  });
+
   it('accepts YK however it is typed', () => {
     for (const t of ['YK', 'yk', 'Yk.', ' y k ', 'Y.K.', 'yhteyskoe']) expect(isRadioCheckReply(t)).toBe(true);
     for (const t of ['yj', 'ok', 'kyllä', 'y']) expect(isRadioCheckReply(t)).toBe(false);
