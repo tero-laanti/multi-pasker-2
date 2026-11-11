@@ -137,14 +137,14 @@ describe('päiväraha and ranks', () => {
 });
 
 describe('the service', () => {
-  it('a kill serves 3 days and pays the killer, shown under the kill; the victim serves a day', () => {
+  it('a kill serves 3 days and pays the killer their päiväraha and the kill bonus, shown under the kill; the victim serves a day', () => {
     const { all, kill } = setup();
     const [a, b] = all;
     kill(a!.p, b!.p);
     expect(a!.p.service.days).toBe(3);
-    expect(a!.p.service.money).toBe(15);
+    expect(a!.p.service.money).toBe(15 + SERVICE.killBonus);
     expect(a!.p.service.tj).toBe(344);
-    expect(a!.ws.events().find((e) => e.k === 'pay')).toEqual({ k: 'pay', eur: 15, days: 3, senior: false, caught: false });
+    expect(a!.ws.events().find((e) => e.k === 'pay')).toEqual({ k: 'pay', eur: 15 + SERVICE.killBonus, days: 3, senior: false, caught: false });
     expect(b!.p.service.days).toBe(1);
     expect(b!.p.service.money).toBe(5);
   });
@@ -202,6 +202,43 @@ describe('the service', () => {
     kill(a!.p, b!.p);
     expect(a!.ws.events().filter((e) => e.k === 'pay').pop()).toMatchObject({ days: 3, caught: false });
     expect(caughtTexts()).toBe(1);
+  });
+
+  it('getting killed serves two days for someone far behind the median, one for the rest', () => {
+    const { all, kill, serve } = setup();
+    const [a, b, c] = all;
+    serve(a!.p, 50);
+    serve(c!.p, 50);
+    // b at 0, the median 50 (53 once a has the kill): more than behindDays behind.
+    kill(a!.p, b!.p);
+    expect(b!.p.service.days).toBe(SERVICE.behindDeathDays);
+    // c is the median: a plain day.
+    kill(b!.p, c!.p);
+    expect(c!.p.service.days).toBe(50 + SERVICE.deathDays);
+  });
+
+  it('a round starts with Tasausraha for those behind the leader, capped, and none at a new match', () => {
+    const { all, room, serve, run, texts, store } = setup();
+    const [a, b, c] = all;
+    serve(a!.p, 40);
+    serve(c!.p, 36);
+    const cMoney = c!.p.service.money;
+    room.startRound();
+    // b is 40 days behind: 80 €. c is 4 behind: 8 €, under topUpMin, so nothing. The leader gets nothing.
+    expect(b!.p.service.money).toBe(40 * SERVICE.topUpPerDay);
+    expect(store(b!.phone)?.money).toBe(40 * SERVICE.topUpPerDay);
+    expect(c!.p.service.money).toBe(cMoney);
+    expect(a!.p.service.money).toBe(earn(0, 40));
+    run(15000);
+    expect(texts(b!.phone, C.number).pop()?.text).toBe('You are 40 days behind P0. The company pays you 80 € Tasausraha to help you catch up.');
+    expect(texts(c!.phone, C.number).length).toBe(0);
+    // Far behind: the cap.
+    serve(a!.p, 100);
+    room.startRound();
+    expect(b!.p.service.money).toBe(40 * SERVICE.topUpPerDay + SERVICE.topUpMax);
+    // A new match starts everyone at 0, with nothing to catch up.
+    room.startRound(true);
+    expect(b!.p.service.money).toBe(0);
   });
 
   it('the first kill brings the rifle as paperwork; it stays for the rest of the evening', () => {

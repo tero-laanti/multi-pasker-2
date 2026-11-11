@@ -241,33 +241,66 @@ export class ServiceDesk {
 
   /**
    * A kill of someone else: the host's days per kill (3), one more if the victim has a lower TJ
-   * than the killer, one more if they were caught texting (and the asevarasto says so).
+   * than the killer, one more if they were caught texting (and the asevarasto says so). The
+   * päiväraha for those days plus the kill bonus, until TJ 0.
    */
   onKill(a: ServerPlayer, v: ServerPlayer, caught: boolean): void {
     const senior = v.service.tj < a.service.tj;
     const days = this.room.settings.killDays + (senior ? SERVICE.seniorDays : 0) + (caught ? SERVICE.caughtDays : 0);
-    const eur = this.serve(a, days, 'kill');
+    const eur = this.serve(a, days, 'kill', SERVICE.killBonus);
     if (eur <= 0) return;
     a.outbox.push({ k: 'pay', eur, days, senior, caught });
     if (caught && !a.bot) this.room.varusmestari.caught(a, v.name, days);
   }
 
-  /** Killed by someone else: a day in the veksi counts too. */
+  /** Killed by someone else: a day in the veksi counts too, and two for someone far behind the room's median. */
   onDeath(v: ServerPlayer): void {
-    this.serve(v, SERVICE.deathDays, 'death');
+    const behind = this.medianDays() - v.service.days > SERVICE.behindDays;
+    this.serve(v, behind ? SERVICE.behindDeathDays : SERVICE.deathDays, 'death');
+  }
+
+  /** The median of the days served by the players taking part. */
+  private medianDays(): number {
+    const days = this.room
+      .activePlayers()
+      .map((p) => p.service.days)
+      .sort((a, b) => a - b);
+    if (!days.length) return 0;
+    const mid = days.length >> 1;
+    return days.length % 2 ? days[mid]! : (days[mid - 1]! + days[mid]!) / 2;
+  }
+
+  /**
+   * Tasausraha at the start of a round: everyone behind the leader gets SERVICE.topUpPerDay € for
+   * each day behind (up to topUpMax), and the company commander texts why. The store goes out
+   * with the round's start.
+   */
+  topUp(): void {
+    const players = this.room.activePlayers();
+    let leader: ServerPlayer | null = null;
+    for (const p of players) if (!leader || p.service.days > leader.service.days) leader = p;
+    if (!leader) return;
+    for (const p of players) {
+      const days = leader.service.days - p.service.days;
+      const eur = Math.min(SERVICE.topUpMax, days * SERVICE.topUpPerDay);
+      if (eur < SERVICE.topUpMin) continue;
+      p.service.money += eur;
+      p.service.dirty = true;
+      this.commander(p, C.topUp, { days, leader: leader.name, eur });
+    }
   }
 
   /**
    * Days served: the päiväraha for each, P-kausi gear and milestones on the days passed (the
-   * Sotku opening, the pay rises, TJ 0). Returns the € earned; after TJ 0 nothing is paid.
+   * Sotku opening, the pay rises, TJ 0), plus `bonus` €. Returns the € earned; after TJ 0 nothing is paid.
    */
-  serve(p: ServerPlayer, add: number, why: 'kill' | 'death'): number {
+  serve(p: ServerPlayer, add: number, why: 'kill' | 'death', bonus = 0): number {
     const s = p.service;
     const before = s.days;
     const after = Math.min(SERVICE.days, before + Math.max(0, Math.floor(add)));
     if (after === before) return 0;
     const wasOpen = s.shopOpen;
-    const eur = earn(before, after - before);
+    const eur = earn(before, after - before) + bonus;
     s.days = after;
     s.money += eur;
     s.dirty = true;

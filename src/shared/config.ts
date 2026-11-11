@@ -419,6 +419,18 @@ export const SERVICE = {
     [166, 10],
     [256, 15],
   ] as [number, number][],
+  /** € a kill pays on top of the päiväraha for its days (while still in service). */
+  killBonus: 5,
+  /** Catch-up: getting killed serves this many days instead of deathDays for someone more than `behindDays` days behind the room's median. */
+  behindDays: 30,
+  behindDeathDays: 2,
+  /**
+   * Catch-up, Tasausraha: at the start of each round, everyone behind the leader gets this many €
+   * a day behind, up to topUpMax. Less than topUpMin isn't paid (no text for a day or two).
+   */
+  topUpPerDay: 2,
+  topUpMax: 150,
+  topUpMin: 10,
   /** € paid once for each promotion (sotamies, the two pay rises, reservin kersantti), on top of the päiväraha. */
   promotionBonus: 100,
   /** P-kausi (six weeks): after this many days, and its gear signed for, the Sotku App opens and alokas becomes sotamies. */

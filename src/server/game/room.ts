@@ -498,9 +498,11 @@ export class Room {
 
   /** Players taking part: bots and connected humans in the match (not those who left or are on the range). */
   activeCount(): number {
-    let n = 0;
-    for (const p of this.players.values()) if (p.bot || (p.connected && !p.training)) n++;
-    return n;
+    return this.activePlayers().length;
+  }
+
+  activePlayers(): ServerPlayer[] {
+    return [...this.players.values()].filter((p) => p.bot || (p.connected && !p.training));
   }
 
   humanCount(): number {
@@ -1256,6 +1258,8 @@ export class Room {
     this.setGate(this.round.gateOpen);
     this.grenades = [];
     this.mortars = [];
+    // A match starts everyone at 0; later rounds pay Tasausraha to those behind (sent with the store below).
+    if (!newMatch) this.service.topUp();
     for (const p of this.players.values()) {
       if (newMatch) {
         p.kills = 0;

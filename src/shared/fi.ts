@@ -160,7 +160,7 @@ export const FI = {
   /**
    * The company commander: a higher-up who texts the milestones of your service (only to you).
    * In English on purpose, so everyone understands the rules they announce; Päiväraha and the
-   * ranks keep their Finnish names. {name} the player, {tj} days left, {eur} the new Päiväraha,
+   * ranks keep their Finnish names. {name} the player, {tj} days left, {eur} the new Päiväraha (or the € paid),
    * {rank} the new rank, {bonus} the promotion bonus in €, {number} where to write.
    */
   commander: {
@@ -171,6 +171,8 @@ export const FI = {
     /** A pay rise, which is also a promotion (just the pay for someone still in P-kausi). */
     rise: ['TJ {tj}! You are promoted to {rank} and get a {bonus} € promotion bonus. Your Päiväraha is now {eur} € a day.'],
     raise: ['TJ {tj}! Your Päiväraha is now {eur} € a day.'],
+    /** Tasausraha at a round's start, for someone behind the leader ({days} behind, {leader} their name, {eur} paid). */
+    topUp: ['You are {days} days behind {leader}. The company pays you {eur} € Tasausraha to help you catch up.'],
     /** TJ 0: the discharge paperwork, at Nylands brigad. */
     tj0: ['TJ 0! Your discharge papers are waiting. The last counter is in Dragsvik: Nylands brigad, number {number}. Svenska, tack.'],
     /** Discharged: the reservist star and a free pick from the Sotku. */

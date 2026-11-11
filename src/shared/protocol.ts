@@ -342,7 +342,7 @@ export type GameEvent =
   /** Our service, for the HUD: rank, days left, and paperwork open on the phone (and queued). */
   | { k: 'ladder'; rank: number; tj: number; open: boolean; queued: number }
   /**
-   * Our kill paid: days served and the päiväraha for them (`senior`: the victim had a lower TJ,
+   * Our kill paid: days served, and the päiväraha for them plus the kill bonus (`senior`: the victim had a lower TJ,
    * `caught`: the victim was texting).
    */
   | { k: 'pay'; eur: number; days: number; senior: boolean; caught: boolean }
