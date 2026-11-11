@@ -172,7 +172,7 @@ export class PhoneApp {
     root.addEventListener('pointerdown', () => this.net.touch(), { passive: true });
     // Switching apps or locking the screen puts the phone down.
     document.addEventListener('visibilitychange', () => this.updateOut());
-    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    noZoom();
     this.net.onMessage = (m) => this.onMessage(m);
     this.net.onStatus = () => this.renderBanner();
     this.net.hello = () => {
@@ -1359,6 +1359,46 @@ export class PhoneApp {
       void a.play();
     };
   }
+}
+
+/**
+ * No zooming, like a native app: iOS Safari ignores user-scalable=no, so pinches are stopped
+ * here, and a quick second tap on the same spot (which it would take for a double-tap zoom) is
+ * made a plain tap of its own.
+ */
+function noZoom(): void {
+  for (const g of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(g, (e) => e.preventDefault(), { passive: false });
+  document.addEventListener(
+    'touchmove',
+    (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    },
+    { passive: false },
+  );
+  let last = -1000;
+  let from: { x: number; y: number } | null = null;
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      const t = e.touches[0];
+      from = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY } : null;
+    },
+    { passive: true },
+  );
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      const quick = e.timeStamp - last < 350;
+      last = e.timeStamp;
+      const t = e.changedTouches[0];
+      if (!quick || !e.cancelable || !from || !t || e.touches.length > 0) return;
+      if (Math.hypot(t.clientX - from.x, t.clientY - from.y) > 10) return;
+      // Cancelling the touch cancels its click too, so the tap clicks here instead.
+      e.preventDefault();
+      if (e.target instanceof HTMLElement) e.target.click();
+    },
+    { passive: false },
+  );
 }
 
 /** The varusmestari's number, for tests and the simulator. */
